@@ -75,32 +75,6 @@ export default function PriceFundingTracker() {
             ✅ Green: <span className="text-green-400 font-bold">{greenCount}</span> &nbsp;&nbsp;
             ❌ Red: <span className="text-red-400 font-bold">{redCount}</span>
           </div>
-
-          <div className="flex items-center gap-4">
-            <div>
-              <label className="text-sm text-gray-400 mr-2">Sort By:</label>
-              <select
-                className="bg-gray-700 text-white px-3 py-1 rounded"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-              >
-                <option value="fundingRate">Funding Fee</option>
-                <option value="priceChangePercent">24h Price Change</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-sm text-gray-400 mr-2">Order:</label>
-              <select
-                className="bg-gray-700 text-white px-3 py-1 rounded"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as any)}
-              >
-                <option value="desc">🔽 Descending</option>
-                <option value="asc">🔼 Ascending</option>
-              </select>
-            </div>
-          </div>
         </div>
 
         <div className="overflow-auto">
@@ -108,7 +82,18 @@ export default function PriceFundingTracker() {
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
               <tr>
                 <th className="p-2">Symbol</th>
-                <th className="p-2">
+
+                <th
+                  className="p-2 cursor-pointer select-none"
+                  onClick={() => {
+                    if (sortBy === "priceChangePercent") {
+                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+                    } else {
+                      setSortBy("priceChangePercent");
+                      setSortOrder("desc");
+                    }
+                  }}
+                >
                   <span
                     className={sortBy === "priceChangePercent" ? "font-bold underline" : ""}
                   >
@@ -117,7 +102,18 @@ export default function PriceFundingTracker() {
                       (sortOrder === "asc" ? "🔼" : "🔽")}
                   </span>
                 </th>
-                <th className="p-2">
+
+                <th
+                  className="p-2 cursor-pointer select-none"
+                  onClick={() => {
+                    if (sortBy === "fundingRate") {
+                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+                    } else {
+                      setSortBy("fundingRate");
+                      setSortOrder("desc");
+                    }
+                  }}
+                >
                   <span className={sortBy === "fundingRate" ? "font-bold underline" : ""}>
                     Funding Fee{" "}
                     {sortBy === "fundingRate" &&
