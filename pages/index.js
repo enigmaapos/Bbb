@@ -6,19 +6,19 @@ export default function PriceFundingTracker() {
   const [data, setData] = useState([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
-  const [sortOrder, setSortOrder] = useState("desc"); // 'desc' = positive first, 'asc' = negative first
+
+  const [sortBy, setSortBy] = useState("fundingRate"); // "fundingRate" or "priceChangePercent"
+  const [sortOrder, setSortOrder] = useState("desc");  // "asc" or "desc"
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        // 1. Get USDT perpetual symbols
         const infoRes = await fetch(`${BINANCE_API}/fapi/v1/exchangeInfo`);
         const infoData = await infoRes.json();
         const usdtPairs = infoData.symbols
           .filter((s) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s) => s.symbol);
 
-        // 2. Fetch all 24h ticker data and funding rate data
         const [tickerRes, fundingRes] = await Promise.all([
           fetch(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           fetch(`${BINANCE_API}/fapi/v1/premiumIndex`),
@@ -27,7 +27,6 @@ export default function PriceFundingTracker() {
         const tickerData = await tickerRes.json();
         const fundingData = await fundingRes.json();
 
-        // 3. Filter to only include our USDT pairs and join data
         const combinedData = usdtPairs.map((symbol) => {
           const ticker = tickerData.find((t) => t.symbol === symbol);
           const funding = fundingData.find((f) => f.symbol === symbol);
@@ -38,18 +37,15 @@ export default function PriceFundingTracker() {
           };
         });
 
-        // 4. Count green/red
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
-
         setGreenCount(green);
         setRedCount(red);
 
-        // 5. Sort based on fundingRate
         const sorted = [...combinedData].sort((a, b) =>
           sortOrder === "desc"
-            ? b.fundingRate - a.fundingRate
-            : a.fundingRate - b.fundingRate
+            ? b[sortBy] - a[sortBy]
+            : a[sortBy] - b[sortBy]
         );
 
         setData(sorted);
@@ -59,13 +55,13 @@ export default function PriceFundingTracker() {
     };
 
     fetchAll();
-    const interval = setInterval(fetchAll, 10000); // refresh every 10s
+    const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
-  }, [sortOrder]);
+  }, [sortBy, sortOrder]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">📈 Binance USDT Perpetual Tracker</h1>
 
         <div className="mb-4 flex justify-between items-center flex-wrap gap-4">
@@ -73,16 +69,31 @@ export default function PriceFundingTracker() {
             ✅ Green: <span className="text-green-400 font-bold">{greenCount}</span> &nbsp;&nbsp;
             ❌ Red: <span className="text-red-400 font-bold">{redCount}</span>
           </div>
-          <div>
-            <label className="mr-2 text-sm text-gray-400">Sort by Funding Fee:</label>
-            <select
-              className="bg-gray-700 text-white px-3 py-1 rounded"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-            >
-              <option value="desc">🔼 Positive First</option>
-              <option value="asc">🔽 Negative First</option>
-            </select>
+
+          <div className="flex items-center gap-4">
+            <div>
+              <label className="text-sm text-gray-400 mr-2">Sort By:</label>
+              <select
+                className="bg-gray-700 text-white px-3 py-1 rounded"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="fundingRate">Funding Fee</option>
+                <option value="priceChangePercent">24h Price Change</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm text-gray-400 mr-2">Order:</label>
+              <select
+                className="bg-gray-700 text-white px-3 py-1 rounded"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+              >
+                <option value="desc">🔽 Descending</option>
+                <option value="asc">🔼 Ascending</option>
+              </select>
+            </div>
           </div>
         </div>
 
