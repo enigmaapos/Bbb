@@ -1,4 +1,13 @@
 import { useEffect, useState } from "react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  Bar
+} from "recharts";
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -53,7 +62,6 @@ export default function PriceFundingTracker() {
         setGreenCount(green);
         setRedCount(red);
 
-        // New funding classification counts
         const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
         const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
         const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
@@ -103,12 +111,46 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        <div className="overflow-auto mt-4">
+        {/* 📊 Chart Section */}
+        <div className="mt-8 bg-gray-800 p-4 rounded-lg shadow-md">
+          <h2 className="text-xl font-bold mb-4">📊 Market Sentiment Breakdown</h2>
+          <div className="w-full h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={[
+                  {
+                    category: "Green",
+                    Positive: greenPositiveFunding,
+                    Negative: greenNegativeFunding,
+                  },
+                  {
+                    category: "Red",
+                    Positive: redPositiveFunding,
+                    Negative: redNegativeFunding,
+                  },
+                ]}
+                margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+              >
+                <XAxis dataKey="category" stroke="#aaa" />
+                <YAxis stroke="#aaa" />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="Positive" stackId="a" fill="#34d399" name="Funding ➕" />
+                <Bar dataKey="Negative" stackId="a" fill="#facc15" name="Funding ➖" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-gray-400 text-xs mt-2">
+            ➕ Funding = Longs pay Shorts | ➖ Funding = Shorts pay Longs
+          </p>
+        </div>
+
+        {/* Table Section */}
+        <div className="overflow-auto mt-6">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
               <tr>
                 <th className="p-2">Symbol</th>
-
                 <th
                   className="p-2 cursor-pointer select-none"
                   onClick={() => {
@@ -128,7 +170,6 @@ export default function PriceFundingTracker() {
                       (sortOrder === "asc" ? "🔼" : "🔽")}
                   </span>
                 </th>
-
                 <th
                   className="p-2 cursor-pointer select-none"
                   onClick={() => {
@@ -180,7 +221,7 @@ export default function PriceFundingTracker() {
           </table>
         </div>
 
-        <p className="text-gray-500 text-xs mt-4">
+        <p className="text-gray-500 text-xs mt-6">
           Auto-refreshes every 10 seconds | Powered by Binance API
         </p>
       </div>
