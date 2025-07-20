@@ -19,14 +19,12 @@ export default function PriceFundingTracker() {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        // 1. Fetch all USDT perpetual pairs
         const infoRes = await fetch(`${BINANCE_API}/fapi/v1/exchangeInfo`);
         const infoData = await infoRes.json();
         const usdtPairs = infoData.symbols
           .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: any) => s.symbol);
 
-        // 2. Fetch market data
         const [tickerRes, fundingRes] = await Promise.all([
           fetch(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           fetch(`${BINANCE_API}/fapi/v1/premiumIndex`),
@@ -35,24 +33,21 @@ export default function PriceFundingTracker() {
         const tickerData = await tickerRes.json();
         const fundingData = await fundingRes.json();
 
-        // 3. Combine and clean data
         const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
-  const ticker = tickerData.find((t: any) => t.symbol === symbol);
-  const funding = fundingData.find((f: any) => f.symbol === symbol);
-  return {
-    symbol,
-    priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
-    fundingRate: parseFloat(funding?.lastFundingRate || "0"),
-  };
-});
+          const ticker = tickerData.find((t: any) => t.symbol === symbol);
+          const funding = fundingData.find((f: any) => f.symbol === symbol);
+          return {
+            symbol,
+            priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
+            fundingRate: parseFloat(funding?.lastFundingRate || "0"),
+          };
+        });
 
-        // 4. Count green/red
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
         setRedCount(red);
 
-        // 5. Sort by selected field and order
         const sorted = [...combinedData].sort((a, b) =>
           sortOrder === "desc"
             ? b[sortBy] - a[sortBy]
@@ -113,8 +108,22 @@ export default function PriceFundingTracker() {
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
               <tr>
                 <th className="p-2">Symbol</th>
-                <th className="p-2">24h Change</th>
-                <th className="p-2">Funding Fee</th>
+                <th className="p-2">
+                  <span
+                    className={sortBy === "priceChangePercent" ? "font-bold underline" : ""}
+                  >
+                    24h Change{" "}
+                    {sortBy === "priceChangePercent" &&
+                      (sortOrder === "asc" ? "🔼" : "🔽")}
+                  </span>
+                </th>
+                <th className="p-2">
+                  <span className={sortBy === "fundingRate" ? "font-bold underline" : ""}>
+                    Funding Fee{" "}
+                    {sortBy === "fundingRate" &&
+                      (sortOrder === "asc" ? "🔼" : "🔽")}
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
