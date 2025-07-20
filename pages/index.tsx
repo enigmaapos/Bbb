@@ -36,19 +36,15 @@ export default function PriceFundingTracker() {
         const fundingData = await fundingRes.json();
 
         // 3. Combine and clean data
-        const combinedData: SymbolData[] = usdtPairs.map((symbol) => {
-          const ticker = tickerData.find((t: any) => t.symbol === symbol);
-          const funding = fundingData.find((f: any) => f.symbol === symbol);
-
-          const priceChangePercent = parseFloat(ticker?.priceChangePercent ?? "0");
-          const fundingRate = parseFloat(funding?.lastFundingRate ?? "0");
-
-          return {
-            symbol,
-            priceChangePercent: isNaN(priceChangePercent) ? 0 : priceChangePercent,
-            fundingRate: isNaN(fundingRate) ? 0 : fundingRate,
-          };
-        });
+        const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
+  const ticker = tickerData.find((t: any) => t.symbol === symbol);
+  const funding = fundingData.find((f: any) => f.symbol === symbol);
+  return {
+    symbol,
+    priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
+    fundingRate: parseFloat(funding?.lastFundingRate || "0"),
+  };
+});
 
         // 4. Count green/red
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
