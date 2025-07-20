@@ -13,6 +13,11 @@ export default function PriceFundingTracker() {
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
 
+  const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
+  const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
+  const [redPositiveFunding, setRedPositiveFunding] = useState(0);
+  const [redNegativeFunding, setRedNegativeFunding] = useState(0);
+
   const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent">("fundingRate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -48,6 +53,17 @@ export default function PriceFundingTracker() {
         setGreenCount(green);
         setRedCount(red);
 
+        // New funding classification counts
+        const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+        const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+        const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+        const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+
+        setGreenPositiveFunding(gPos);
+        setGreenNegativeFunding(gNeg);
+        setRedPositiveFunding(rPos);
+        setRedNegativeFunding(rNeg);
+
         const sorted = [...combinedData].sort((a, b) =>
           sortOrder === "desc"
             ? b[sortBy] - a[sortBy]
@@ -70,14 +86,24 @@ export default function PriceFundingTracker() {
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">📈 Binance USDT Perpetual Tracker</h1>
 
-        <div className="mb-4 flex justify-between items-center flex-wrap gap-4">
-          <div className="text-lg">
-            ✅ Green: <span className="text-green-400 font-bold">{greenCount}</span> &nbsp;&nbsp;
-            ❌ Red: <span className="text-red-400 font-bold">{redCount}</span>
+        <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="text-sm space-y-1">
+            <div>
+              ✅ Green: <span className="text-green-400 font-bold">{greenCount}</span> 
+              &nbsp;&nbsp;❌ Red: <span className="text-red-400 font-bold">{redCount}</span>
+            </div>
+            <div>
+              Green + Funding ➕: <span className="text-green-300">{greenPositiveFunding}</span> | 
+              ➖: <span className="text-yellow-300">{greenNegativeFunding}</span>
+            </div>
+            <div>
+              Red + Funding ➕: <span className="text-green-300">{redPositiveFunding}</span> | 
+              ➖: <span className="text-yellow-300">{redNegativeFunding}</span>
+            </div>
           </div>
         </div>
 
-        <div className="overflow-auto">
+        <div className="overflow-auto mt-4">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
               <tr>
