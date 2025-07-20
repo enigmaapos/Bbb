@@ -2,23 +2,31 @@ import { useEffect, useState } from "react";
 
 const BINANCE_API = "https://fapi.binance.com";
 
+type SymbolData = {
+  symbol: string;
+  priceChangePercent: number;
+  fundingRate: number;
+};
+
 export default function PriceFundingTracker() {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<SymbolData[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
 
-  const [sortBy, setSortBy] = useState("fundingRate"); // "fundingRate" or "priceChangePercent"
-  const [sortOrder, setSortOrder] = useState("desc");  // "asc" or "desc"
+  const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent">("fundingRate");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
+        // 1. Fetch all USDT perpetual pairs
         const infoRes = await fetch(`${BINANCE_API}/fapi/v1/exchangeInfo`);
         const infoData = await infoRes.json();
         const usdtPairs = infoData.symbols
-          .filter((s) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
-          .map((s) => s.symbol);
+          .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
+          .map((s: any) => s.symbol);
 
+        // 2. Fetch market data
         const [tickerRes, fundingRes] = await Promise.all([
           fetch(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           fetch(`${BINANCE_API}/fapi/v1/premiumIndex`),
@@ -27,21 +35,28 @@ export default function PriceFundingTracker() {
         const tickerData = await tickerRes.json();
         const fundingData = await fundingRes.json();
 
-        const combinedData = usdtPairs.map((symbol) => {
-          const ticker = tickerData.find((t) => t.symbol === symbol);
-          const funding = fundingData.find((f) => f.symbol === symbol);
+        // 3. Combine and clean data
+        const combinedData: SymbolData[] = usdtPairs.map((symbol) => {
+          const ticker = tickerData.find((t: any) => t.symbol === symbol);
+          const funding = fundingData.find((f: any) => f.symbol === symbol);
+
+          const priceChangePercent = parseFloat(ticker?.priceChangePercent ?? "0");
+          const fundingRate = parseFloat(funding?.lastFundingRate ?? "0");
+
           return {
             symbol,
-            priceChangePercent: parseFloat(ticker?.priceChangePercent || 0),
-            fundingRate: parseFloat(funding?.lastFundingRate || 0),
+            priceChangePercent: isNaN(priceChangePercent) ? 0 : priceChangePercent,
+            fundingRate: isNaN(fundingRate) ? 0 : fundingRate,
           };
         });
 
+        // 4. Count green/red
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
         setRedCount(red);
 
+        // 5. Sort by selected field and order
         const sorted = [...combinedData].sort((a, b) =>
           sortOrder === "desc"
             ? b[sortBy] - a[sortBy]
@@ -76,7 +91,7 @@ export default function PriceFundingTracker() {
               <select
                 className="bg-gray-700 text-white px-3 py-1 rounded"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => setSortBy(e.target.value as any)}
               >
                 <option value="fundingRate">Funding Fee</option>
                 <option value="priceChangePercent">24h Price Change</option>
@@ -88,7 +103,7 @@ export default function PriceFundingTracker() {
               <select
                 className="bg-gray-700 text-white px-3 py-1 rounded"
                 value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
+                onChange={(e) => setSortOrder(e.target.value as any)}
               >
                 <option value="desc">🔽 Descending</option>
                 <option value="asc">🔼 Ascending</option>
