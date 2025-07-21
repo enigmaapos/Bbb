@@ -148,60 +148,60 @@ export default function PriceFundingTracker() {
         </div>
 
         {/* Pro Tips */}
-<div className="mb-8 bg-gray-800 p-4 rounded-lg text-sm text-gray-200">
-  <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Market Disagreement</h2>
+<p className="text-white text-sm font-bold mb-2">
+  🌐 Overall Sentiment:{" "}
+  <span className={
+    getSentimentClue().includes("🟢")
+      ? "text-green-400"
+      : getSentimentClue().includes("🔴")
+      ? "text-red-400"
+      : getSentimentClue().includes("🟡")
+      ? "text-yellow-300"
+      : "text-gray-400"
+  }>
+    {getSentimentClue()}
+  </span>
+</p>
 
-  <div className="mb-3 space-y-1">
-    <p className="text-yellow-300 font-semibold">
-      📊 Mixed Signals: Both bullish squeezes and bearish traps detected — be selective and wait for confirmation.
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+  {/* 🟢 Bullish Divergence Card */}
+  <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
+    <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
+    <p className="text-sm text-green-100 mb-2">
+      Shorts are paying while price is going up. This creates **squeeze potential**, especially near resistance.
     </p>
-    <p className="text-white font-bold">
-      🌐 Overall Sentiment:{" "}
-      <span className={
-        getSentimentClue().includes("🟢")
-          ? "text-green-400"
-          : getSentimentClue().includes("🔴")
-          ? "text-red-400"
-          : getSentimentClue().includes("🟡")
-          ? "text-yellow-300"
-          : "text-gray-400"
-      }>
-        {getSentimentClue()}
-      </span>
-    </p>
-  </div>
 
-  <div className="space-y-2">
-    <div className="flex items-center gap-2">
-      <span className="text-yellow-400 font-bold">
-        🔼 Price Up + <span className="text-red-400">Funding</span> ➖:
-      </span>
-      <span>Shorts are paying → Bullish divergence</span>
-      <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
+    <div className="flex items-center justify-between text-sm text-green-200 mb-2">
+      🔼 Price Up + Funding ➖
+      <span className="bg-green-700 px-2 py-1 rounded-full font-bold">{priceUpFundingNegativeCount}</span>
     </div>
 
-    <div className="flex items-center gap-2">
-      <span className="text-yellow-400 font-bold">
-        🔽 Price Down + <span className="text-green-400">Funding</span> ➕:
-      </span>
-      <span>Longs are paying while losing → High breakdown risk</span>
-      <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
-    </div>
-
-    {/* Action Blocks */}
     {priceUpFundingNegativeCount > 10 && (
-      <div className="bg-green-800/30 p-3 rounded-md text-sm text-green-200 font-semibold mt-2 border border-green-600">
-        ✅ <span className="text-green-400 font-bold">Opportunity:</span> Look for <strong>bullish breakouts</strong> or <strong>dip entries</strong> in coins where shorts are paying.
+      <div className="mt-3 bg-green-800/30 border border-green-600 p-3 rounded-md text-green-200 text-sm font-semibold">
+        ✅ Opportunity: Look for <strong>bullish breakouts</strong> or <strong>dip entries</strong> in coins where shorts are paying.
       </div>
     )}
+  </div>
+
+  {/* 🔴 Bearish Trap Card */}
+  <div className="bg-red-900/40 border border-red-600 p-4 rounded-lg shadow-sm">
+    <h2 className="text-lg font-bold text-red-300 mb-2">🔴 Bearish Trap</h2>
+    <p className="text-sm text-red-100 mb-2">
+      Longs are paying while price is dropping. This means bulls are **trapped**, and deeper selloffs may follow.
+    </p>
+
+    <div className="flex items-center justify-between text-sm text-red-200 mb-2">
+      🔽 Price Down + Funding ➕
+      <span className="bg-red-700 px-2 py-1 rounded-full font-bold">{priceDownFundingPositiveCount}</span>
+    </div>
 
     {priceDownFundingPositiveCount > 10 && (
-      <div className="bg-red-800/30 p-3 rounded-md text-sm text-red-200 font-semibold mt-2 border border-red-600">
-        ⚠️ <span className="text-red-400 font-bold">Caution:</span> Avoid <strong>longs</strong> where price is still dropping and funding is positive — bulls may be trapped.
+      <div className="mt-3 bg-red-800/30 border border-red-600 p-3 rounded-md text-red-200 text-sm font-semibold">
+        ⚠️ Caution: Avoid <strong>longs</strong> on coins still dropping with positive funding — potential liquidation zone.
       </div>
     )}
   </div>
-</div>
+</div>      
 
         {/* Search Input */}
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
