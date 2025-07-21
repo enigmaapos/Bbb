@@ -7,6 +7,7 @@ import {
   Tooltip,
   Legend,
   Bar,
+  Cell,
 } from "recharts";
 
 const BINANCE_API = "https://fapi.binance.com";
