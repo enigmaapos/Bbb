@@ -104,7 +104,7 @@ export default function PriceFundingTracker() {
               <span className="text-green-400">Green + Funding ➕:</span>
               <span className="text-green-300 font-bold"> {greenPositiveFunding} </span>&nbsp;|&nbsp;
               <span className="text-red-400">➖:</span>
-              <span className="text-red-300 font-bold"> {greenNegativeFunding} </span>
+              <span className="text-green-300 font-bold"> {greenNegativeFunding} </span>
             </div>
             <div>
               <span className="text-red-400">Red + Funding ➕:</span>
