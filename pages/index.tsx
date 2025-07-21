@@ -8,8 +8,7 @@ import {
   Legend,
   Bar,
   Cell,
-}
- from "recharts";
+} from "recharts";
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -71,6 +70,16 @@ export default function PriceFundingTracker() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [sortBySignal, setSortBySignal] = useState<"asc" | "desc" | null>(null);
+
+  // New state for funding imbalance data
+  const [fundingImbalanceData, setFundingImbalanceData] = useState({
+    priceUpShortsPaying: 0,
+    priceUpLongsPaying: 0,
+    priceDownLongsPaying: 0,
+    priceDownShortsPaying: 0,
+    topShortSqueeze: [] as SymbolData[],
+    topLongTrap: [] as SymbolData[],
+  });
 
   // --- MOCK FUNCTION FOR SUPPORT/RESISTANCE ---
   // In a real application, this would involve fetching historical klines
@@ -224,6 +233,31 @@ export default function PriceFundingTracker() {
 
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
+
+        // Calculate funding imbalance data
+        const priceUpShortsPaying = combinedData.filter((d) => d.priceChange > 0 && d.fundingRate < 0).length;
+        const priceUpLongsPaying = combinedData.filter((d) => d.priceChange > 0 && d.fundingRate > 0).length;
+        const priceDownLongsPaying = combinedData.filter((d) => d.priceChange < 0 && d.fundingRate > 0).length;
+        const priceDownShortsPaying = combinedData.filter((d) => d.priceChange < 0 && d.fundingRate < 0).length;
+
+        const topShortSqueeze = combinedData
+          .filter((d) => d.priceChange > 0 && d.fundingRate < 0)
+          .sort((a, b) => a.fundingRate - b.fundingRate) // More negative funding rate means stronger squeeze potential
+          .slice(0, 5);
+
+        const topLongTrap = combinedData
+          .filter((d) => d.priceChange < 0 && d.fundingRate > 0)
+          .sort((a, b) => b.fundingRate - a.fundingRate) // More positive funding rate means stronger trap
+          .slice(0, 5);
+
+        setFundingImbalanceData({
+          priceUpShortsPaying,
+          priceUpLongsPaying,
+          priceDownLongsPaying,
+          priceDownShortsPaying,
+          topShortSqueeze,
+          topLongTrap,
+        });
 
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
@@ -411,6 +445,49 @@ export default function PriceFundingTracker() {
                 ⚠️ Caution: Avoid **longs** on coins still dropping with positive funding — potential liquidation zone.
               </div>
             )}
+          </div>
+        </div>
+
+        {/* New Funding Imbalance Overview Section */}
+        <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
+          <h2 className="text-lg font-bold text-white mb-3">💰 Funding Imbalance Overview</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gray-700 p-3 rounded shadow-inner">
+              <h3 className="text-green-400 font-bold mb-1">🟢 Price Up</h3>
+              <p className="text-sm">➕ Longs Paying: {fundingImbalanceData.priceUpLongsPaying}</p>
+              <p className="text-sm">➖ Shorts Paying: {fundingImbalanceData.priceUpShortsPaying}</p>
+            </div>
+            <div className="bg-gray-700 p-3 rounded shadow-inner">
+              <h3 className="text-red-400 font-bold mb-1">🔴 Price Down</h3>
+              <p className="text-sm">➕ Longs Paying: {fundingImbalanceData.priceDownLongsPaying}</p>
+              <p className="text-sm">➖ Shorts Paying: {fundingImbalanceData.priceDownShortsPaying}</p>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-yellow-400 font-bold mb-2">🔥 Top Short Squeeze Candidates</h3>
+            <ul className="list-disc list-inside text-sm text-yellow-100">
+              {fundingImbalanceData.topShortSqueeze.length > 0 ? (
+                fundingImbalanceData.topShortSqueeze.map((d) => (
+                  <li key={d.symbol}>{d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}%</li>
+                ))
+              ) : (
+                <li>No strong short squeeze candidates at the moment.</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-pink-400 font-bold mb-2">⚠️ Top Long Trap Candidates</h3>
+            <ul className="list-disc list-inside text-sm text-pink-100">
+              {fundingImbalanceData.topLongTrap.length > 0 ? (
+                fundingImbalanceData.topLongTrap.map((d) => (
+                  <li key={d.symbol}>{d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}%</li>
+                ))
+              ) : (
+                <li>No strong long trap candidates at the moment.</li>
+              )}
+            </ul>
           </div>
         </div>
 
