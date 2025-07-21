@@ -243,28 +243,59 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* Chart */}
-        <div className="bg-gray-800 p-4 rounded-lg shadow-md mb-6">
-          <h2 className="text-xl font-bold mb-4">📊 Market Breakdown</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart
-              data={[
-                { category: "Green", Positive: greenPositiveFunding, Negative: greenNegativeFunding },
-                { category: "Red", Positive: redPositiveFunding, Negative: redNegativeFunding },
-              ]}
-            >
-              <XAxis dataKey="category" stroke="#aaa" />
-              <YAxis stroke="#aaa" />
-              <Tooltip />
-              <Legend />
-                   <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕ (Buyer)" />
-<Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖ (Seller)" />
-            </BarChart>
-          </ResponsiveContainer>
-          <p className="text-gray-400 text-xs mt-2">
+        <ResponsiveContainer width="100%" height={250}>
+  <BarChart
+    data={[
+      {
+        category: "Green",
+        Positive: greenPositiveFunding,
+        Negative: greenNegativeFunding,
+        positiveColor: "#EF4444", // Funding ➕ → bearish for green
+        negativeColor: "#10B981", // Funding ➖ → bullish for green
+      },
+      {
+        category: "Red",
+        Positive: redPositiveFunding,
+        Negative: redNegativeFunding,
+        positiveColor: "#EF4444", // Funding ➕ → still bearish for red
+        negativeColor: "#10B981", // Funding ➖ → less common, but still bullish
+      },
+    ]}
+  >
+    <XAxis dataKey="category" stroke="#aaa" />
+    <YAxis stroke="#aaa" />
+    <Tooltip />
+    <Legend />
+    
+    {/* Longs paying (Bearish) */}
+    <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Bearish)">
+      {[greenPositiveFunding, redPositiveFunding].map((_, index) => (
+        <Cell
+          key={`positive-${index}`}
+          fill={
+            index === 0 ? "#EF4444" : "#EF4444" // both are bearish, shown red
+          }
+        />
+      ))}
+    </Bar>
+
+    {/* Shorts paying (Bullish) */}
+    <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Bullish)">
+      {[greenNegativeFunding, redNegativeFunding].map((_, index) => (
+        <Cell
+          key={`negative-${index}`}
+          fill={
+            index === 0 ? "#10B981" : "#10B981" // both bullish, shown green
+          }
+        />
+      ))}
+    </Bar>
+  </BarChart>
+</ResponsiveContainer>
+
+<p className="text-gray-400 text-xs mt-2">
   🟥 Funding ➕ = Longs paying (bearish pressure) | 🟩 Funding ➖ = Shorts paying (bullish pressure)
 </p>
-        </div>
 
         {/* Table */}
         <div className="overflow-auto">
