@@ -176,7 +176,7 @@ export default function PriceFundingTracker() {
         🔼 Price Up + <span className="text-red-400">Funding</span> ➖:
       </span>
       <span>Shorts are paying → Bullish divergence</span>
-      <span className="ml-auto font-bold text-green-300">{priceUpFundingNegativeCount}</span>
+      <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
     </div>
 
     <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ export default function PriceFundingTracker() {
         🔽 Price Down + <span className="text-green-400">Funding</span> ➕:
       </span>
       <span>Longs are paying while losing → High breakdown risk</span>
-      <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
+      <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
     </div>
 
     {/* Action Blocks */}
