@@ -154,20 +154,16 @@ export default function PriceFundingTracker() {
 
   <div className="space-y-2">
     <div className="flex items-center gap-2">
-  <span className="text-green-400 font-bold">
-    🔼 Price Up + ➖ <span className="text-red-400">Funding</span>:
-  </span>
-  <span>Shorts are paying → Bullish divergence</span>
-  <span className="ml-auto font-bold text-green-300">{priceUpFundingNegativeCount}</span>
-</div>
+      <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
+      <span>Shorts are paying → Bullish divergence</span>
+      <span className="ml-auto font-bold text-green-300">{priceUpFundingNegativeCount}</span>
+    </div>
 
     <div className="flex items-center gap-2">
-  <span className="text-red-400 font-bold">
-    🔽 Price Down + ➕ <span className="text-green-400">Funding</span>:
-  </span>
-  <span>Longs are paying while losing → High breakdown risk</span>
-  <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
-</div>
+      <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
+      <span>Longs are paying while losing → High breakdown risk</span>
+      <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
+    </div>
 
     {/* Action Block */}
     {priceUpFundingNegativeCount > 10 && (
@@ -226,7 +222,7 @@ export default function PriceFundingTracker() {
         </div>
 
         {/* Chart */}
-         <div className="bg-gray-800 p-4 rounded-lg shadow-md mb-6">
+        <div className="bg-gray-800 p-4 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-bold mb-4">📊 Market Breakdown</h2>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart
@@ -239,12 +235,12 @@ export default function PriceFundingTracker() {
               <YAxis stroke="#aaa" />
               <Tooltip />
               <Legend />
-              <Bar dataKey="Positive" stackId="a" fill="#DC2626" name="Bearish Pressure (Funding ➕)" />
-              <Bar dataKey="Negative" stackId="a" fill="#10B981" name="Bullish Pressure (Funding ➖)" />
+              <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕" />
+              <Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖" />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-gray-400 text-xs mt-2">
-            🟥 Funding ➕ = Longs paying (bearish pressure) | 🟩 Funding ➖ = Shorts paying (bullish pressure)
+            ➕ Funding = Longs pay Shorts | ➖ Funding = Shorts pay Longs
           </p>
         </div>
 
