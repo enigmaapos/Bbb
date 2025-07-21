@@ -154,13 +154,13 @@ export default function PriceFundingTracker() {
 
   <div className="space-y-2">
     <div className="flex items-center gap-2">
-      <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
+      <span className="text-yellow-400 font-bold">🔼 Price Up + ➖ Funding:</span>
       <span>Shorts are paying → Bullish divergence</span>
       <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
     </div>
 
     <div className="flex items-center gap-2">
-      <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
+      <span className="text-yellow-400 font-bold">🔽 Price Down + ➕ Funding:</span>
       <span>Longs are paying while losing → High breakdown risk</span>
       <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
     </div>
@@ -236,12 +236,12 @@ export default function PriceFundingTracker() {
               <Tooltip />
               <Legend />
               <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕" />
-              <Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖" />
+              <Bar dataKey="Negative" stackId="a" fill="#DC2626" name="Funding ➖" />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-gray-400 text-xs mt-2">
-            ➕ Funding = Longs pay Shorts | ➖ Funding = Shorts pay Longs
-          </p>
+   🟩 Funding ➕ = Longs paying (bearish pressure) |  🟥 Funding ➖ = Shorts paying (bullish pressure)
+</p>
         </div>
 
         {/* Table */}
