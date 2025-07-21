@@ -47,23 +47,25 @@ export default function PriceFundingTracker() {
   // Generate trade signals based on priceChangePercent and fundingRate
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
     return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice }) => {
-      // Bullish Entry Signal
+      // Bullish Entry Signal: Price up (or neutral) and Funding Rate negative (shorts paying)
       if (priceChangePercent >= 0 && fundingRate < 0) {
         const entry = lastPrice;
+        // Example logic: SL 0.5x of price change, TP 1.5x of price change
         const sl = entry - (Math.abs(priceChangePercent) / 100) * entry * 0.5;
         const tp = entry + (Math.abs(priceChangePercent) / 100) * entry * 1.5;
         return { symbol, entry, stopLoss: sl, takeProfit: tp, signal: "long" };
       }
 
-      // Bearish Entry Signal
+      // Bearish Entry Signal: Price down and Funding Rate positive (longs paying)
       if (priceChangePercent < 0 && fundingRate > 0) {
         const entry = lastPrice;
+        // Example logic: SL 0.5x of price change, TP 1.5x of price change
         const sl = entry + (Math.abs(priceChangePercent) / 100) * entry * 0.5;
         const tp = entry - (Math.abs(priceChangePercent) / 100) * entry * 1.5;
         return { symbol, entry, stopLoss: sl, takeProfit: tp, signal: "short" };
       }
 
-      // No clear signal
+      // No clear signal based on these specific conditions
       return { symbol, entry: null, stopLoss: null, takeProfit: null, signal: null };
     });
   };
@@ -135,12 +137,13 @@ export default function PriceFundingTracker() {
         setData(sorted);
       } catch (err) {
         console.error("Error fetching Binance data:", err);
+        // Optionally, handle error state in UI
       }
     };
 
     fetchAll();
-    const interval = setInterval(fetchAll, 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchAll, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval); // Cleanup on unmount
   }, [sortBy, sortOrder]); // Depend on sortBy and sortOrder to re-sort when they change
 
   const getSentimentClue = () => {
@@ -197,7 +200,7 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* Pro Tips */}
+        {/* Pro Tips / Overall Sentiment */}
         <p className="text-white text-sm font-bold mb-2">
           🌐 Overall Sentiment:{" "}
           <span
@@ -304,15 +307,15 @@ export default function PriceFundingTracker() {
                 category: "Green",
                 Positive: greenPositiveFunding,
                 Negative: greenNegativeFunding,
-                positiveColor: "#EF4444", // Funding ➕ → bearish for green
-                negativeColor: "#10B981", // Funding ➖ → bullish for green
+                // positiveColor: "#EF4444", // Funding ➕ → bearish for green
+                // negativeColor: "#10B981", // Funding ➖ → bullish for green
               },
               {
                 category: "Red",
                 Positive: redPositiveFunding,
                 Negative: redNegativeFunding,
-                positiveColor: "#EF4444", // Funding ➕ → still bearish for red
-                negativeColor: "#10B981", // Funding ➖ → less common, but still bullish
+                // positiveColor: "#EF4444", // Funding ➕ → still bearish for red
+                // negativeColor: "#10B981", // Funding ➖ → less common, but still bullish
               },
             ]}
           >
@@ -322,24 +325,28 @@ export default function PriceFundingTracker() {
             <Legend />
 
             {/* Longs paying (Bearish) */}
-            <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Bearish)">
+            <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Longs Paying)">
               {[greenPositiveFunding, redPositiveFunding].map((_, index) => (
                 <Cell
                   key={`positive-${index}`}
                   fill={
-                    index === 0 ? "#EF4444" : "#EF4444" // both are bearish, shown red
+                    // For both green (price up) and red (price down), positive funding is bearish
+                    // as it indicates longs are trapped or paying to keep positions open.
+                    "#EF4444" // Always red for positive funding
                   }
                 />
               ))}
             </Bar>
 
             {/* Shorts paying (Bullish) */}
-            <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Bullish)">
+            <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Shorts Paying)">
               {[greenNegativeFunding, redNegativeFunding].map((_, index) => (
                 <Cell
                   key={`negative-${index}`}
                   fill={
-                    index === 0 ? "#10B981" : "#10B981" // both bullish, shown green
+                    // For both green (price up) and red (price down), negative funding is bullish
+                    // as it indicates shorts are trapped or paying to keep positions open.
+                    "#10B981" // Always green for negative funding
                   }
                 />
               ))}
@@ -423,15 +430,15 @@ export default function PriceFundingTracker() {
                       </td>
 
                       <td className="p-2">
-                        {signal?.entry !== null ? signal.entry.toFixed(4) : "-"}
+                        {signal && signal.entry !== null ? signal.entry.toFixed(4) : "-"}
                       </td>
 
                       <td className="p-2">
-                        {signal?.stopLoss !== null ? signal.stopLoss.toFixed(4) : "-"}
+                        {signal && signal.stopLoss !== null ? signal.stopLoss.toFixed(4) : "-"}
                       </td>
 
                       <td className="p-2">
-                        {signal?.takeProfit !== null ? signal.takeProfit.toFixed(4) : "-"}
+                        {signal && signal.takeProfit !== null ? signal.takeProfit.toFixed(4) : "-"}
                       </td>
 
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
