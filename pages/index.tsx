@@ -16,7 +16,7 @@ type SymbolData = {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
-  lastPrice: number; // Ensure lastPrice is always present here
+  lastPrice: number;
 };
 
 type SymbolTradeSignal = {
@@ -25,6 +25,23 @@ type SymbolTradeSignal = {
   stopLoss: number | null;
   takeProfit: number | null;
   signal: "long" | "short" | null;
+};
+
+// Custom Tooltip component to match dark theme
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-gray-800 border border-gray-700 p-2 rounded shadow-lg text-white text-xs">
+        <p className="font-bold mb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={`item-${index}`} style={{ color: entry.color }}>
+            {`${entry.name}: ${entry.value}`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
 };
 
 export default function PriceFundingTracker() {
@@ -223,7 +240,7 @@ export default function PriceFundingTracker() {
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
             <p className="text-sm text-green-100 mb-2">
-              Shorts are paying while price is going up. This creates <strong>squeeze potential</strong>, especially near resistance.
+              Shorts are paying while price is going up. This creates **squeeze potential**, especially near resistance.
             </p>
 
             <div className="flex items-center justify-between text-sm text-green-200 mb-2">
@@ -233,7 +250,7 @@ export default function PriceFundingTracker() {
 
             {priceUpFundingNegativeCount > 10 && (
               <div className="mt-3 bg-green-800/30 border border-green-600 p-3 rounded-md text-green-200 text-sm font-semibold">
-                ✅ Opportunity: Look for <strong>bullish breakouts</strong> or <strong>dip entries</strong> in coins where shorts are paying.
+                ✅ Opportunity: Look for **bullish breakouts** or **dip entries** in coins where shorts are paying.
               </div>
             )}
           </div>
@@ -242,7 +259,7 @@ export default function PriceFundingTracker() {
           <div className="bg-red-900/40 border border-red-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-red-300 mb-2">🔴 Bearish Trap</h2>
             <p className="text-sm text-red-100 mb-2">
-              Longs are paying while price is dropping. This means bulls are <strong>trapped</strong>, and deeper selloffs may follow.
+              Longs are paying while price is dropping. This means bulls are **trapped**, and deeper selloffs may follow.
             </p>
 
             <div className="flex items-center justify-between text-sm text-red-200 mb-2">
@@ -252,7 +269,7 @@ export default function PriceFundingTracker() {
 
             {priceDownFundingPositiveCount > 10 && (
               <div className="mt-3 bg-red-800/30 border border-red-600 p-3 rounded-md text-red-200 text-sm font-semibold">
-                ⚠️ Caution: Avoid <strong>longs</strong> on coins still dropping with positive funding — potential liquidation zone.
+                ⚠️ Caution: Avoid **longs** on coins still dropping with positive funding — potential liquidation zone.
               </div>
             )}
           </div>
@@ -307,22 +324,20 @@ export default function PriceFundingTracker() {
                 category: "Green",
                 Positive: greenPositiveFunding,
                 Negative: greenNegativeFunding,
-                // positiveColor: "#EF4444", // Funding ➕ → bearish for green
-                // negativeColor: "#10B981", // Funding ➖ → bullish for green
               },
               {
                 category: "Red",
                 Positive: redPositiveFunding,
                 Negative: redNegativeFunding,
-                // positiveColor: "#EF4444", // Funding ➕ → still bearish for red
-                // negativeColor: "#10B981", // Funding ➖ → less common, but still bullish
               },
             ]}
           >
             <XAxis dataKey="category" stroke="#aaa" />
             <YAxis stroke="#aaa" />
-            <Tooltip />
-            <Legend />
+            {/* Use the custom tooltip component here */}
+            <Tooltip content={<CustomTooltip />} />
+            {/* Legend can be styled using wrapperClassName for basic Tailwind classes */}
+            <Legend wrapperStyle={{ color: '#E5E7EB', fontSize: '12px', marginTop: '10px' }} />
 
             {/* Longs paying (Bearish) */}
             <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Longs Paying)">
@@ -330,8 +345,6 @@ export default function PriceFundingTracker() {
                 <Cell
                   key={`positive-${index}`}
                   fill={
-                    // For both green (price up) and red (price down), positive funding is bearish
-                    // as it indicates longs are trapped or paying to keep positions open.
                     "#EF4444" // Always red for positive funding
                   }
                 />
@@ -344,8 +357,6 @@ export default function PriceFundingTracker() {
                 <Cell
                   key={`negative-${index}`}
                   fill={
-                    // For both green (price up) and red (price down), negative funding is bullish
-                    // as it indicates shorts are trapped or paying to keep positions open.
                     "#10B981" // Always green for negative funding
                   }
                 />
