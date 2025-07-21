@@ -1,4 +1,3 @@
-// components/PriceFundingTracker.tsx
 import { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
@@ -98,16 +97,15 @@ export default function PriceFundingTracker() {
         <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="text-sm space-y-1">
             <div>
-              ✅ Green: <span className="text-green-400 font-bold">{greenCount}</span> 
-              &nbsp;&nbsp;❌ Red: <span className="text-red-400 font-bold">{redCount}</span>
+              ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
             </div>
             <div>
-              Green + Funding ➕: <span className="text-green-300">{greenPositiveFunding}</span> | 
-              ➖: <span className="text-yellow-300">{greenNegativeFunding}</span>
+              <span className="text-green-400">Green + Funding ➕:</span> <span className="text-green-300 font-bold">{greenPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-yellow-300">➖:</span> <span className="font-bold">{greenNegativeFunding}</span>
             </div>
             <div>
-              Red + Funding ➕: <span className="text-green-300">{redPositiveFunding}</span> | 
-              ➖: <span className="text-yellow-300">{redNegativeFunding}</span>
+              <span className="text-red-400">Red + Funding ➕:</span> <span className="text-green-300 font-bold">{redPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-yellow-300">➖:</span> <span className="font-bold">{redNegativeFunding}</span>
             </div>
           </div>
         </div>
@@ -136,8 +134,8 @@ export default function PriceFundingTracker() {
                 <YAxis stroke="#aaa" />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="Positive" stackId="a" fill="#34d399" name="Funding ➕" />
-                <Bar dataKey="Negative" stackId="a" fill="#facc15" name="Funding ➖" />
+                <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕ (Bullish)" />
+                <Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖ (Bearish)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -152,22 +150,22 @@ export default function PriceFundingTracker() {
           
           <div className="bg-gray-800 p-4 rounded-lg">
             <p className="font-bold text-green-400">✅ Green + Funding ➕</p>
-            <p>Price is going up and longs are paying shorts → bullish momentum. Longs are confident and in control.</p>
+            <p>Price is going up and longs are paying shorts → <span className="text-green-300 font-bold">bullish momentum</span>. Longs are confident and in control.</p>
           </div>
 
           <div className="bg-gray-800 p-4 rounded-lg">
             <p className="font-bold text-yellow-300">✅ Green + Funding ➖</p>
-            <p>Price is up but shorts are paying longs → indicates potential reversal or short squeeze risk. Market expectation is bearish, but price says otherwise.</p>
+            <p>Price is up but shorts are paying longs → <span className="text-yellow-200 font-bold">potential reversal</span> or short squeeze. Market is going up, but sentiment is bearish.</p>
           </div>
 
           <div className="bg-gray-800 p-4 rounded-lg">
             <p className="font-bold text-red-400">❌ Red + Funding ➕</p>
-            <p>Price is down but longs are still paying → longs are losing on both sides. Market is correcting but traders are overly bullish.</p>
+            <p>Price is down and longs are still paying → <span className="text-red-300 font-bold">bearish trap</span>. Longs are losing both ways (price + funding).</p>
           </div>
 
           <div className="bg-gray-800 p-4 rounded-lg">
             <p className="font-bold text-yellow-400">❌ Red + Funding ➖</p>
-            <p>Price is dropping and shorts are paying → no current data here (rare). If it happens, it may show short exhaustion or contrarian opportunity.</p>
+            <p>Price is down and shorts are paying → <span className="text-yellow-200 font-bold">rare condition</span>. Indicates possible short exhaustion or contrarian bounce.</p>
           </div>
         </div>
 
