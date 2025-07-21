@@ -16,10 +16,20 @@ type SymbolData = {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
+  lastPrice: number; // Ensure lastPrice is always present here
+};
+
+type SymbolTradeSignal = {
+  symbol: string;
+  entry: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  signal: "long" | "short" | null;
 };
 
 export default function PriceFundingTracker() {
   const [data, setData] = useState<SymbolData[]>([]);
+  const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
   const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
@@ -33,6 +43,30 @@ export default function PriceFundingTracker() {
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // Generate trade signals based on priceChangePercent and fundingRate
+  const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
+    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice }) => {
+      // Bullish Entry Signal
+      if (priceChangePercent >= 0 && fundingRate < 0) {
+        const entry = lastPrice;
+        const sl = entry - (Math.abs(priceChangePercent) / 100) * entry * 0.5;
+        const tp = entry + (Math.abs(priceChangePercent) / 100) * entry * 1.5;
+        return { symbol, entry, stopLoss: sl, takeProfit: tp, signal: "long" };
+      }
+
+      // Bearish Entry Signal
+      if (priceChangePercent < 0 && fundingRate > 0) {
+        const entry = lastPrice;
+        const sl = entry + (Math.abs(priceChangePercent) / 100) * entry * 0.5;
+        const tp = entry - (Math.abs(priceChangePercent) / 100) * entry * 1.5;
+        return { symbol, entry, stopLoss: sl, takeProfit: tp, signal: "short" };
+      }
+
+      // No clear signal
+      return { symbol, entry: null, stopLoss: null, takeProfit: null, signal: null };
+    });
+  };
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -58,9 +92,11 @@ export default function PriceFundingTracker() {
             symbol,
             priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
+            lastPrice: parseFloat(ticker?.lastPrice || "0"), // Ensure lastPrice is populated here
           };
         });
 
+        // Update counts for your stats
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
@@ -86,6 +122,12 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
+        // Generate trade signals BEFORE sorting the main data,
+        // so signals are based on the raw fetched data.
+        const signals = generateTradeSignals(combinedData);
+        setTradeSignals(signals);
+
+        // Sort data based on current sort setting
         const sorted = [...combinedData].sort((a, b) =>
           sortOrder === "desc" ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy]
         );
@@ -99,10 +141,12 @@ export default function PriceFundingTracker() {
     fetchAll();
     const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
-  }, [sortBy, sortOrder]);
+  }, [sortBy, sortOrder]); // Depend on sortBy and sortOrder to re-sort when they change
 
   const getSentimentClue = () => {
     const total = greenCount + redCount;
+    if (total === 0) return "⚪ Neutral: No clear edge, stay cautious"; // Handle division by zero
+
     const greenRatio = greenCount / total;
     const redRatio = redCount / total;
 
@@ -131,77 +175,85 @@ export default function PriceFundingTracker() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">📈 Binance USDT Perpetual Tracker</h1>
 
         <div className="mb-4 text-sm space-y-1">
-          <div>✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
-               ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}</div>
-          <div><span className="text-green-400">Green + Funding ➕:</span>{" "}
+          <div>
+            ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
+            ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
+          </div>
+          <div>
+            <span className="text-green-400">Green + Funding ➕:</span>{" "}
             <span className="text-green-300 font-bold">{greenPositiveFunding}</span> |{" "}
             <span className="text-red-400">➖:</span>{" "}
-            <span className="text-red-300 font-bold">{greenNegativeFunding}</span></div>
-          <div><span className="text-red-400">Red + Funding ➕:</span>{" "}
+            <span className="text-red-300 font-bold">{greenNegativeFunding}</span>
+          </div>
+          <div>
+            <span className="text-red-400">Red + Funding ➕:</span>{" "}
             <span className="text-green-300 font-bold">{redPositiveFunding}</span> |{" "}
             <span className="text-yellow-300">➖:</span>{" "}
-            <span className="text-red-200 font-bold">{redNegativeFunding}</span></div>
+            <span className="text-red-200 font-bold">{redNegativeFunding}</span>
+          </div>
         </div>
 
         {/* Pro Tips */}
-<p className="text-white text-sm font-bold mb-2">
-  🌐 Overall Sentiment:{" "}
-  <span className={
-    getSentimentClue().includes("🟢")
-      ? "text-green-400"
-      : getSentimentClue().includes("🔴")
-      ? "text-red-400"
-      : getSentimentClue().includes("🟡")
-      ? "text-yellow-300"
-      : "text-gray-400"
-  }>
-    {getSentimentClue()}
-  </span>
-</p>
+        <p className="text-white text-sm font-bold mb-2">
+          🌐 Overall Sentiment:{" "}
+          <span
+            className={
+              getSentimentClue().includes("🟢")
+                ? "text-green-400"
+                : getSentimentClue().includes("🔴")
+                ? "text-red-400"
+                : getSentimentClue().includes("🟡")
+                ? "text-yellow-300"
+                : "text-gray-400"
+            }
+          >
+            {getSentimentClue()}
+          </span>
+        </p>
 
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-  {/* 🟢 Bullish Divergence Card */}
-  <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
-    <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
-    <p className="text-sm text-green-100 mb-2">
-      Shorts are paying while price is going up. This creates **squeeze potential**, especially near resistance.
-    </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {/* 🟢 Bullish Divergence Card */}
+          <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
+            <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
+            <p className="text-sm text-green-100 mb-2">
+              Shorts are paying while price is going up. This creates <strong>squeeze potential</strong>, especially near resistance.
+            </p>
 
-    <div className="flex items-center justify-between text-sm text-green-200 mb-2">
-      🔼 Price Up + Funding ➖
-      <span className="bg-green-700 px-2 py-1 rounded-full font-bold">{priceUpFundingNegativeCount}</span>
-    </div>
+            <div className="flex items-center justify-between text-sm text-green-200 mb-2">
+              🔼 Price Up + Funding ➖
+              <span className="bg-green-700 px-2 py-1 rounded-full font-bold">{priceUpFundingNegativeCount}</span>
+            </div>
 
-    {priceUpFundingNegativeCount > 10 && (
-      <div className="mt-3 bg-green-800/30 border border-green-600 p-3 rounded-md text-green-200 text-sm font-semibold">
-        ✅ Opportunity: Look for <strong>bullish breakouts</strong> or <strong>dip entries</strong> in coins where shorts are paying.
-      </div>
-    )}
-  </div>
+            {priceUpFundingNegativeCount > 10 && (
+              <div className="mt-3 bg-green-800/30 border border-green-600 p-3 rounded-md text-green-200 text-sm font-semibold">
+                ✅ Opportunity: Look for <strong>bullish breakouts</strong> or <strong>dip entries</strong> in coins where shorts are paying.
+              </div>
+            )}
+          </div>
 
-  {/* 🔴 Bearish Trap Card */}
-  <div className="bg-red-900/40 border border-red-600 p-4 rounded-lg shadow-sm">
-    <h2 className="text-lg font-bold text-red-300 mb-2">🔴 Bearish Trap</h2>
-    <p className="text-sm text-red-100 mb-2">
-      Longs are paying while price is dropping. This means bulls are **trapped**, and deeper selloffs may follow.
-    </p>
+          {/* 🔴 Bearish Trap Card */}
+          <div className="bg-red-900/40 border border-red-600 p-4 rounded-lg shadow-sm">
+            <h2 className="text-lg font-bold text-red-300 mb-2">🔴 Bearish Trap</h2>
+            <p className="text-sm text-red-100 mb-2">
+              Longs are paying while price is dropping. This means bulls are <strong>trapped</strong>, and deeper selloffs may follow.
+            </p>
 
-    <div className="flex items-center justify-between text-sm text-red-200 mb-2">
-      🔽 Price Down + Funding ➕
-      <span className="bg-red-700 px-2 py-1 rounded-full font-bold">{priceDownFundingPositiveCount}</span>
-    </div>
+            <div className="flex items-center justify-between text-sm text-red-200 mb-2">
+              🔽 Price Down + Funding ➕
+              <span className="bg-red-700 px-2 py-1 rounded-full font-bold">{priceDownFundingPositiveCount}</span>
+            </div>
 
-    {priceDownFundingPositiveCount > 10 && (
-      <div className="mt-3 bg-red-800/30 border border-red-600 p-3 rounded-md text-red-200 text-sm font-semibold">
-        ⚠️ Caution: Avoid <strong>longs</strong> on coins still dropping with positive funding — potential liquidation zone.
-      </div>
-    )}
-  </div>
-</div>      
+            {priceDownFundingPositiveCount > 10 && (
+              <div className="mt-3 bg-red-800/30 border border-red-600 p-3 rounded-md text-red-200 text-sm font-semibold">
+                ⚠️ Caution: Avoid <strong>longs</strong> on coins still dropping with positive funding — potential liquidation zone.
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Search Input */}
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
@@ -244,64 +296,65 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
+        {/* BarChart */}
         <ResponsiveContainer width="100%" height={250}>
-  <BarChart
-    data={[
-      {
-        category: "Green",
-        Positive: greenPositiveFunding,
-        Negative: greenNegativeFunding,
-        positiveColor: "#EF4444", // Funding ➕ → bearish for green
-        negativeColor: "#10B981", // Funding ➖ → bullish for green
-      },
-      {
-        category: "Red",
-        Positive: redPositiveFunding,
-        Negative: redNegativeFunding,
-        positiveColor: "#EF4444", // Funding ➕ → still bearish for red
-        negativeColor: "#10B981", // Funding ➖ → less common, but still bullish
-      },
-    ]}
-  >
-    <XAxis dataKey="category" stroke="#aaa" />
-    <YAxis stroke="#aaa" />
-    <Tooltip />
-    <Legend />
-    
-    {/* Longs paying (Bearish) */}
-    <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Bearish)">
-      {[greenPositiveFunding, redPositiveFunding].map((_, index) => (
-        <Cell
-          key={`positive-${index}`}
-          fill={
-            index === 0 ? "#EF4444" : "#EF4444" // both are bearish, shown red
-          }
-        />
-      ))}
-    </Bar>
+          <BarChart
+            data={[
+              {
+                category: "Green",
+                Positive: greenPositiveFunding,
+                Negative: greenNegativeFunding,
+                positiveColor: "#EF4444", // Funding ➕ → bearish for green
+                negativeColor: "#10B981", // Funding ➖ → bullish for green
+              },
+              {
+                category: "Red",
+                Positive: redPositiveFunding,
+                Negative: redNegativeFunding,
+                positiveColor: "#EF4444", // Funding ➕ → still bearish for red
+                negativeColor: "#10B981", // Funding ➖ → less common, but still bullish
+              },
+            ]}
+          >
+            <XAxis dataKey="category" stroke="#aaa" />
+            <YAxis stroke="#aaa" />
+            <Tooltip />
+            <Legend />
 
-    {/* Shorts paying (Bullish) */}
-    <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Bullish)">
-      {[greenNegativeFunding, redNegativeFunding].map((_, index) => (
-        <Cell
-          key={`negative-${index}`}
-          fill={
-            index === 0 ? "#10B981" : "#10B981" // both bullish, shown green
-          }
-        />
-      ))}
-    </Bar>
-  </BarChart>
-</ResponsiveContainer>
+            {/* Longs paying (Bearish) */}
+            <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Bearish)">
+              {[greenPositiveFunding, redPositiveFunding].map((_, index) => (
+                <Cell
+                  key={`positive-${index}`}
+                  fill={
+                    index === 0 ? "#EF4444" : "#EF4444" // both are bearish, shown red
+                  }
+                />
+              ))}
+            </Bar>
 
-<p className="text-gray-400 text-xs mt-2">
-  🟥 Funding ➕ = Longs paying (bearish pressure) | 🟩 Funding ➖ = Shorts paying (bullish pressure)
-</p>
+            {/* Shorts paying (Bullish) */}
+            <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Bullish)">
+              {[greenNegativeFunding, redNegativeFunding].map((_, index) => (
+                <Cell
+                  key={`negative-${index}`}
+                  fill={
+                    index === 0 ? "#10B981" : "#10B981" // both bullish, shown green
+                  }
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+
+        <p className="text-gray-400 text-xs mt-2">
+          🟥 Funding ➕ = Longs paying (bearish pressure) | 🟩 Funding ➖ = Shorts paying (bullish pressure)
+        </p>
 
         {/* Table */}
-        <div className="overflow-auto">
+        <div className="overflow-auto max-h-[480px]">
           <table className="w-full text-sm text-left border border-gray-700">
-            <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
+            <thead className="bg-gray-800 text-gray-300 uppercase text-xs sticky top-0">
               <tr>
                 <th className="p-2">Symbol</th>
                 <th
@@ -330,6 +383,11 @@ export default function PriceFundingTracker() {
                 >
                   Funding {sortBy === "fundingRate" && (sortOrder === "asc" ? "🔼" : "🔽")}
                 </th>
+                <th className="p-2">Signal</th>
+                <th className="p-2">Entry</th>
+                <th className="p-2">Stop Loss</th>
+                <th className="p-2">Take Profit</th>
+                <th className="p-2">★</th>
               </tr>
             </thead>
             <tbody>
@@ -339,35 +397,55 @@ export default function PriceFundingTracker() {
                     (!searchTerm || item.symbol.includes(searchTerm)) &&
                     (!showFavoritesOnly || favorites.includes(item.symbol))
                 )
-                .map((item) => (
-                  <tr key={item.symbol} className="border-t border-gray-700">
-                    <td className="p-2 flex items-center gap-2">
-                      {item.symbol}
-                      <button
-                        onClick={() =>
-                          setFavorites((prev) =>
-                            prev.includes(item.symbol)
-                              ? prev.filter((sym) => sym !== item.symbol)
-                              : [...prev, item.symbol]
-                          )
-                        }
-                        className={favorites.includes(item.symbol) ? "text-yellow-400" : "text-gray-500"}
-                      >
-                        {favorites.includes(item.symbol) ? "★" : "☆"}
-                      </button>
-                    </td>
-                    <td className="p-2">
-                      <span className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
+                .map((item) => {
+                  // Find the corresponding trade signal for the current item
+                  const signal = tradeSignals.find((s) => s.symbol === item.symbol);
+                  return (
+                    <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
+                      <td className="p-2 flex items-center gap-2">
+                        {item.symbol}
+                      </td>
+                      <td className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
                         {item.priceChangePercent.toFixed(2)}%
-                      </span>
-                    </td>
-                    <td className="p-2">
-                      <span className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
+                      </td>
+                      <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+
+                      <td className={`p-2 font-semibold ${
+                        signal?.signal === "long"
+                          ? "text-green-400"
+                          : signal?.signal === "short"
+                          ? "text-red-400"
+                          : "text-gray-400"
+                      }`}>
+                        {signal?.signal ? signal.signal.toUpperCase() : "-"}
+                      </td>
+
+                      <td className="p-2">
+                        {signal?.entry !== null ? signal.entry.toFixed(4) : "-"}
+                      </td>
+
+                      <td className="p-2">
+                        {signal?.stopLoss !== null ? signal.stopLoss.toFixed(4) : "-"}
+                      </td>
+
+                      <td className="p-2">
+                        {signal?.takeProfit !== null ? signal.takeProfit.toFixed(4) : "-"}
+                      </td>
+
+                      <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
+                        setFavorites((prev) =>
+                          prev.includes(item.symbol)
+                            ? prev.filter((sym) => sym !== item.symbol)
+                            : [...prev, item.symbol]
+                        )
+                      }>
+                        {favorites.includes(item.symbol) ? "★" : "☆"}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
