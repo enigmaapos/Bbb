@@ -150,31 +150,53 @@ export default function PriceFundingTracker() {
 <div className="mb-8 bg-gray-800 p-4 rounded-lg text-sm text-gray-200">
   <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Market Disagreement</h2>
 
-  <p className="text-yellow-300 font-semibold mb-2">📊 Mixed Signals: Both bullish squeezes and bearish traps detected — be selective and wait for confirmation.</p>
+  <div className="mb-3 space-y-1">
+    <p className="text-yellow-300 font-semibold">
+      📊 Mixed Signals: Both bullish squeezes and bearish traps detected — be selective and wait for confirmation.
+    </p>
+    <p className="text-white font-bold">
+      🌐 Overall Sentiment:{" "}
+      <span className={
+        getSentimentClue().includes("🟢")
+          ? "text-green-400"
+          : getSentimentClue().includes("🔴")
+          ? "text-red-400"
+          : getSentimentClue().includes("🟡")
+          ? "text-yellow-300"
+          : "text-gray-400"
+      }>
+        {getSentimentClue()}
+      </span>
+    </p>
+  </div>
 
   <div className="space-y-2">
     <div className="flex items-center gap-2">
-      <span className="text-yellow-400 font-bold">🔼 Price Up + ➖ Funding:</span>
+      <span className="text-yellow-400 font-bold">
+        🔼 Price Up + <span className="text-red-400">Funding</span> ➖:
+      </span>
       <span>Shorts are paying → Bullish divergence</span>
-      <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
+      <span className="ml-auto font-bold text-green-300">{priceUpFundingNegativeCount}</span>
     </div>
 
     <div className="flex items-center gap-2">
-      <span className="text-yellow-400 font-bold">🔽 Price Down + ➕ Funding:</span>
+      <span className="text-yellow-400 font-bold">
+        🔽 Price Down + <span className="text-green-400">Funding</span> ➕:
+      </span>
       <span>Longs are paying while losing → High breakdown risk</span>
-      <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
+      <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
     </div>
 
-    {/* Action Block */}
+    {/* Action Blocks */}
     {priceUpFundingNegativeCount > 10 && (
       <div className="bg-green-800/30 p-3 rounded-md text-sm text-green-200 font-semibold mt-2 border border-green-600">
-        ✅ <span className="text-green-400 font-bold">Opportunity:</span> Look for **bullish breakouts** or **dip entries** in coins where shorts are paying (price up + funding negative).
+        ✅ <span className="text-green-400 font-bold">Opportunity:</span> Look for <strong>bullish breakouts</strong> or <strong>dip entries</strong> in coins where shorts are paying.
       </div>
     )}
 
     {priceDownFundingPositiveCount > 10 && (
       <div className="bg-red-800/30 p-3 rounded-md text-sm text-red-200 font-semibold mt-2 border border-red-600">
-        ⚠️ <span className="text-red-400 font-bold">Caution:</span> Avoid **longing** coins where price is still dropping and funding is positive — bulls are trapped, and risk of breakdown is high.
+        ⚠️ <span className="text-red-400 font-bold">Caution:</span> Avoid <strong>longs</strong> where price is still dropping and funding is positive — bulls may be trapped.
       </div>
     )}
   </div>
