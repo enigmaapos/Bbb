@@ -22,18 +22,19 @@ export default function PriceFundingTracker() {
   const [data, setData] = useState<SymbolData[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
-
   const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
   const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
-
-  // New state for Pro Tip dynamic counts
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
-
   const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent">("fundingRate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  // 🔍 Search & Favorites
+  const [searchTerm, setSearchTerm] = useState("");
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -77,7 +78,6 @@ export default function PriceFundingTracker() {
         setRedPositiveFunding(rPos);
         setRedNegativeFunding(rNeg);
 
-        // New Pro Tip counts
         const priceUpFundingNegative = combinedData.filter(
           (d) => d.priceChangePercent > 0 && d.fundingRate < 0
         ).length;
@@ -130,7 +130,7 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* Pro Tips Section */}
+        {/* Pro Tips */}
         <div className="mb-8 bg-gray-800 p-4 rounded-lg shadow-md text-sm text-gray-200">
           <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Look for Disagreement Between Price & Funding</h2>
           <div className="space-y-2">
@@ -147,8 +147,38 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* Chart */}
-        <div className="mt-6 bg-gray-800 p-4 rounded-lg shadow-md">
+        {/* 🔍 Search & Filter Controls */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
+          <input
+            type="text"
+            placeholder="🔍 Search symbol (e.g. BTCUSDT)"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
+            className="bg-gray-800 border border-gray-700 px-4 py-2 rounded-md text-sm w-full sm:w-64"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+              className={`px-3 py-2 rounded-md text-sm ${
+                showFavoritesOnly ? "bg-yellow-500 text-black" : "bg-gray-700 text-white"
+              }`}
+            >
+              {showFavoritesOnly ? "⭐ Showing Favorites" : "☆ All Symbols"}
+            </button>
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setShowFavoritesOnly(false);
+              }}
+              className="bg-red-600 px-3 py-2 rounded-md text-sm text-white"
+            >
+              ❌ Clear Filters
+            </button>
+          </div>
+        </div>
+
+        {/* 📊 Chart */}
+        <div className="bg-gray-800 p-4 rounded-lg shadow-md">
           <h2 className="text-xl font-bold mb-4">📊 Market Sentiment Breakdown</h2>
           <div className="w-full h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -165,7 +195,6 @@ export default function PriceFundingTracker() {
                     Negative: redNegativeFunding,
                   },
                 ]}
-                margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
               >
                 <XAxis dataKey="category" stroke="#aaa" />
                 <YAxis stroke="#aaa" />
@@ -181,8 +210,8 @@ export default function PriceFundingTracker() {
           </p>
         </div>
 
-        {/* Chart Reading Guide */}
-        <div className="mt-6 bg-gray-800 p-4 rounded-lg shadow-sm text-sm text-gray-200">
+        {/* 🧠 Chart Reading */}
+        <div className="mt-6 bg-gray-800 p-4 rounded-lg text-sm text-gray-200">
           <h2 className="text-xl font-bold text-white mb-2">🧠 How to Read the Chart Visually</h2>
           <table className="table-auto w-full border border-gray-700 text-center text-xs">
             <thead className="bg-gray-700 text-gray-300">
@@ -207,7 +236,7 @@ export default function PriceFundingTracker() {
           </table>
         </div>
 
-        {/* Table */}
+        {/* 📄 Data Table */}
         <div className="overflow-auto mt-8">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
@@ -246,21 +275,42 @@ export default function PriceFundingTracker() {
               </tr>
             </thead>
             <tbody>
-              {data.map((item) => (
-                <tr key={item.symbol} className="border-t border-gray-700">
-                  <td className="p-2 font-medium">{item.symbol}</td>
-                  <td className="p-2">
-                    <span className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
-                      {item.priceChangePercent.toFixed(2)}%
-                    </span>
-                  </td>
-                  <td className="p-2">
-                    <span className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
-                      {(item.fundingRate * 100).toFixed(4)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {data
+                .filter((item) =>
+                  (!searchTerm || item.symbol.includes(searchTerm)) &&
+                  (!showFavoritesOnly || favorites.includes(item.symbol))
+                )
+                .map((item) => (
+                  <tr key={item.symbol} className="border-t border-gray-700">
+                    <td className="p-2 font-medium flex items-center gap-2">
+                      {item.symbol}
+                      <button
+                        onClick={() =>
+                          setFavorites((prev) =>
+                            prev.includes(item.symbol)
+                              ? prev.filter((sym) => sym !== item.symbol)
+                              : [...prev, item.symbol]
+                          )
+                        }
+                        className={`ml-1 ${
+                          favorites.includes(item.symbol) ? "text-yellow-400" : "text-gray-500"
+                        }`}
+                      >
+                        {favorites.includes(item.symbol) ? "★" : "☆"}
+                      </button>
+                    </td>
+                    <td className="p-2">
+                      <span className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
+                        {item.priceChangePercent.toFixed(2)}%
+                      </span>
+                    </td>
+                    <td className="p-2">
+                      <span className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
+                        {(item.fundingRate * 100).toFixed(4)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
