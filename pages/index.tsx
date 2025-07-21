@@ -1,3 +1,4 @@
+// components/PriceFundingTracker.tsx
 import { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
@@ -112,7 +113,7 @@ export default function PriceFundingTracker() {
         </div>
 
         {/* 📊 Chart Section */}
-        <div className="mt-8 bg-gray-800 p-4 rounded-lg shadow-md">
+        <div className="mt-6 bg-gray-800 p-4 rounded-lg shadow-md">
           <h2 className="text-xl font-bold mb-4">📊 Market Sentiment Breakdown</h2>
           <div className="w-full h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -145,8 +146,33 @@ export default function PriceFundingTracker() {
           </p>
         </div>
 
+        {/* 🧠 Interpretation Section */}
+        <div className="mt-8 space-y-4 text-sm text-gray-200">
+          <h2 className="text-xl font-bold text-white">🧠 Market Interpretation</h2>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="font-bold text-green-400">✅ Green + Funding ➕</p>
+            <p>Price is going up and longs are paying shorts → bullish momentum. Longs are confident and in control.</p>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="font-bold text-yellow-300">✅ Green + Funding ➖</p>
+            <p>Price is up but shorts are paying longs → indicates potential reversal or short squeeze risk. Market expectation is bearish, but price says otherwise.</p>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="font-bold text-red-400">❌ Red + Funding ➕</p>
+            <p>Price is down but longs are still paying → longs are losing on both sides. Market is correcting but traders are overly bullish.</p>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="font-bold text-yellow-400">❌ Red + Funding ➖</p>
+            <p>Price is dropping and shorts are paying → no current data here (rare). If it happens, it may show short exhaustion or contrarian opportunity.</p>
+          </div>
+        </div>
+
         {/* Table Section */}
-        <div className="overflow-auto mt-6">
+        <div className="overflow-auto mt-8">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
               <tr>
