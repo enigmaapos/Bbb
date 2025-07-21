@@ -60,6 +60,8 @@ export default function PriceFundingTracker() {
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  // Add new state for sorting by signal
+  const [sortBySignal, setSortBySignal] = useState<"asc" | "desc" | null>(null);
 
   // Generate trade signals based on priceChangePercent and fundingRate
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
@@ -111,7 +113,7 @@ export default function PriceFundingTracker() {
             symbol,
             priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
-            lastPrice: parseFloat(ticker?.lastPrice || "0"), // Ensure lastPrice is populated here
+            lastPrice: parseFloat(ticker?.lastPrice || "0"),
           };
         });
 
@@ -141,15 +143,32 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        // Generate trade signals BEFORE sorting the main data,
-        // so signals are based on the raw fetched data.
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
 
-        // Sort data based on current sort setting
-        const sorted = [...combinedData].sort((a, b) =>
-          sortOrder === "desc" ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy]
-        );
+        // Sorting logic based on current sort settings
+        const sorted = [...combinedData].sort((a, b) => {
+          // Priority to signal sorting if active
+          if (sortBySignal !== null) {
+            const signalA = signals.find((s) => s.symbol === a.symbol)?.signal;
+            const signalB = signals.find((s) => s.symbol === b.symbol)?.signal;
+
+            // Define rank for signals: long (0), short (1), null (2)
+            const rank = (s: "long" | "short" | null) => {
+              if (s === "long") return 0;
+              if (s === "short") return 1;
+              return 2;
+            };
+
+            const rankA = rank(signalA || null);
+            const rankB = rank(signalB || null);
+
+            return sortBySignal === "asc" ? rankA - rankB : rankB - rankA;
+          }
+
+          // Fallback to fundingRate or priceChangePercent if signal sorting is not active
+          return sortOrder === "desc" ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy];
+        });
 
         setData(sorted);
       } catch (err) {
@@ -161,11 +180,11 @@ export default function PriceFundingTracker() {
     fetchAll();
     const interval = setInterval(fetchAll, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval); // Cleanup on unmount
-  }, [sortBy, sortOrder]); // Depend on sortBy and sortOrder to re-sort when they change
+  }, [sortBy, sortOrder, sortBySignal]); // Add sortBySignal to dependency array
 
   const getSentimentClue = () => {
     const total = greenCount + redCount;
-    if (total === 0) return "⚪ Neutral: No clear edge, stay cautious"; // Handle division by zero
+    if (total === 0) return "⚪ Neutral: No clear edge, stay cautious";
 
     const greenRatio = greenCount / total;
     const redRatio = redCount / total;
@@ -334,32 +353,18 @@ export default function PriceFundingTracker() {
           >
             <XAxis dataKey="category" stroke="#aaa" />
             <YAxis stroke="#aaa" />
-            {/* Use the custom tooltip component here */}
             <Tooltip content={<CustomTooltip />} />
-            {/* Legend can be styled using wrapperClassName for basic Tailwind classes */}
             <Legend wrapperStyle={{ color: '#E5E7EB', fontSize: '12px', marginTop: '10px' }} />
 
-            {/* Longs paying (Bearish) */}
             <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Longs Paying)">
               {[greenPositiveFunding, redPositiveFunding].map((_, index) => (
-                <Cell
-                  key={`positive-${index}`}
-                  fill={
-                    "#EF4444" // Always red for positive funding
-                  }
-                />
+                <Cell key={`positive-${index}`} fill={"#EF4444"} />
               ))}
             </Bar>
 
-            {/* Shorts paying (Bullish) */}
             <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Shorts Paying)">
               {[greenNegativeFunding, redNegativeFunding].map((_, index) => (
-                <Cell
-                  key={`negative-${index}`}
-                  fill={
-                    "#10B981" // Always green for negative funding
-                  }
-                />
+                <Cell key={`negative-${index}`} fill={"#10B981"} />
               ))}
             </Bar>
           </BarChart>
@@ -378,6 +383,8 @@ export default function PriceFundingTracker() {
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => {
+                    // Reset signal sort when other sorts are clicked
+                    setSortBySignal(null);
                     if (sortBy === "priceChangePercent") {
                       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
                     } else {
@@ -391,6 +398,8 @@ export default function PriceFundingTracker() {
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => {
+                    // Reset signal sort when other sorts are clicked
+                    setSortBySignal(null);
                     if (sortBy === "fundingRate") {
                       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
                     } else {
@@ -401,7 +410,19 @@ export default function PriceFundingTracker() {
                 >
                   Funding {sortBy === "fundingRate" && (sortOrder === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">Signal</th>
+                <th
+                  className="p-2 cursor-pointer"
+                  onClick={() => {
+                    // Disable other sorts when signal sort is active
+                    setSortBy("fundingRate"); // Set a default to clear other sort icons
+                    setSortOrder("desc"); // Set a default to clear other sort icons
+                    setSortBySignal((prev) =>
+                      prev === "asc" ? "desc" : prev === "desc" ? null : "asc"
+                    );
+                  }}
+                >
+                  Signal {sortBySignal === "asc" ? "🔼" : sortBySignal === "desc" ? "🔽" : ""}
+                </th>
                 <th className="p-2">Entry</th>
                 <th className="p-2">Stop Loss</th>
                 <th className="p-2">Take Profit</th>
@@ -409,14 +430,13 @@ export default function PriceFundingTracker() {
               </tr>
             </thead>
             <tbody>
-              {data
+              {data // Use 'data' which is already sorted in the useEffect
                 .filter(
                   (item) =>
                     (!searchTerm || item.symbol.includes(searchTerm)) &&
                     (!showFavoritesOnly || favorites.includes(item.symbol))
                 )
                 .map((item) => {
-                  // Find the corresponding trade signal for the current item
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
