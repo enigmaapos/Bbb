@@ -147,27 +147,34 @@ export default function PriceFundingTracker() {
         </div>
 
         {/* Pro Tips */}
-        {/* Pro Tips */}
 <div className="mb-8 bg-gray-800 p-4 rounded-lg text-sm text-gray-200">
   <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Market Disagreement</h2>
-  <p className="text-yellow-300 font-semibold mb-2">{getSentimentClue()}</p>
+
+  <p className="text-yellow-300 font-semibold mb-2">📊 Mixed Signals: Both bullish squeezes and bearish traps detected — be selective and wait for confirmation.</p>
 
   <div className="space-y-2">
     <div className="flex items-center gap-2">
       <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
-      <span>Bears trapped → Short squeeze</span>
-      <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
+      <span>Shorts are paying → Bullish divergence</span>
+      <span className="ml-auto font-bold text-green-300">{priceUpFundingNegativeCount}</span>
     </div>
 
     <div className="flex items-center gap-2">
       <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
-      <span>Longs punished → Breakdown risk</span>
-      <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
+      <span>Longs are paying while losing → High breakdown risk</span>
+      <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
     </div>
 
+    {/* Action Block */}
+    {priceUpFundingNegativeCount > 10 && (
+      <div className="bg-green-800/30 p-3 rounded-md text-sm text-green-200 font-semibold mt-2 border border-green-600">
+        ✅ <span className="text-green-400 font-bold">Opportunity:</span> Look for **bullish breakouts** or **dip entries** in coins where shorts are paying (price up + funding negative).
+      </div>
+    )}
+
     {priceDownFundingPositiveCount > 10 && (
-      <div className="bg-red-700/30 p-3 rounded-md text-sm text-red-300 font-semibold mt-2 border border-red-600">
-        ⚠️ <span className="text-red-400 font-bold">Action:</span> Avoid longs in this condition — they are being punished and funding is still positive. Risk of breakdown is high.
+      <div className="bg-red-800/30 p-3 rounded-md text-sm text-red-200 font-semibold mt-2 border border-red-600">
+        ⚠️ <span className="text-red-400 font-bold">Caution:</span> Avoid **longing** coins where price is still dropping and funding is positive — bulls are trapped, and risk of breakdown is high.
       </div>
     )}
   </div>
