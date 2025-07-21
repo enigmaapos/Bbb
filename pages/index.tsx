@@ -240,7 +240,7 @@ export default function PriceFundingTracker() {
             </BarChart>
           </ResponsiveContainer>
           <p className="text-gray-400 text-xs mt-2">
-   🟩 Funding ➕ = Longs paying (bearish pressure) |  🟥 Funding ➖ = Shorts paying (bullish pressure)
+  🟥 Funding ➕ = Longs paying (bearish pressure) | 🟩 Funding ➖ = Shorts paying (bullish pressure)
 </p>
         </div>
 
