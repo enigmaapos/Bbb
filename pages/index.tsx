@@ -22,19 +22,19 @@ export default function PriceFundingTracker() {
   const [data, setData] = useState<SymbolData[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
-
   const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
   const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
-
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
-
   const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent">("fundingRate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
+  // 🔍 Search & Favorites
   const [searchTerm, setSearchTerm] = useState("");
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -78,12 +78,15 @@ export default function PriceFundingTracker() {
         setRedPositiveFunding(rPos);
         setRedNegativeFunding(rNeg);
 
-        setPriceUpFundingNegativeCount(
-          combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length
-        );
-        setPriceDownFundingPositiveCount(
-          combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length
-        );
+        const priceUpFundingNegative = combinedData.filter(
+          (d) => d.priceChangePercent > 0 && d.fundingRate < 0
+        ).length;
+        const priceDownFundingPositive = combinedData.filter(
+          (d) => d.priceChangePercent < 0 && d.fundingRate > 0
+        ).length;
+
+        setPriceUpFundingNegativeCount(priceUpFundingNegative);
+        setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
         const sorted = [...combinedData].sort((a, b) =>
           sortOrder === "desc" ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy]
@@ -100,18 +103,51 @@ export default function PriceFundingTracker() {
     return () => clearInterval(interval);
   }, [sortBy, sortOrder]);
 
-  const filteredData = data.filter((item) =>
-    item.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">📈 Binance USDT Perpetual Tracker</h1>
 
-        {/* Search + Summary */}
-        <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          {/* Search Input with Clear Button */}
+        {/* Summary */}
+        <div className="mb-4 text-sm space-y-1">
+          <div>
+            ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
+            ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
+          </div>
+          <div>
+            <span className="text-green-400">Green + Funding ➕:</span>{" "}
+            <span className="text-green-300 font-bold">{greenPositiveFunding}</span> |{" "}
+            <span className="text-red-400">➖:</span>{" "}
+            <span className="text-red-300 font-bold">{greenNegativeFunding}</span>
+          </div>
+          <div>
+            <span className="text-red-400">Red + Funding ➕:</span>{" "}
+            <span className="text-red-300 font-bold">{redPositiveFunding}</span> |{" "}
+            <span className="text-yellow-300">➖:</span>{" "}
+            <span className="text-red-200 font-bold">{redNegativeFunding}</span>
+          </div>
+        </div>
+
+        {/* Pro Tips */}
+        <div className="mb-8 bg-gray-800 p-4 rounded-lg text-sm text-gray-200">
+          <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Look for Disagreement Between Price & Funding</h2>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
+              <span>Bears trapped → Short squeeze</span>
+              <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
+              <span>Longs punished → Breakdown risk</span>
+              <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Search + Filter Controls */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
+          {/* 🔍 Search Input with ❌ Button */}
           <div className="relative w-full sm:w-64">
             <input
               type="text"
@@ -130,69 +166,53 @@ export default function PriceFundingTracker() {
             )}
           </div>
 
-          {/* Summary Numbers */}
-          <div className="text-sm space-y-1">
-            <div>
-              ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
-              ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
-            </div>
-            <div>
-              <span className="text-green-400">Green + Funding ➕:</span>
-              <span className="text-green-300 font-bold"> {greenPositiveFunding} </span>&nbsp;|&nbsp;
-              <span className="text-red-400">➖:</span>
-              <span className="text-red-300 font-bold"> {greenNegativeFunding} </span>
-            </div>
-            <div>
-              <span className="text-red-400">Red + Funding ➕:</span>
-              <span className="text-red-300 font-bold"> {redPositiveFunding} </span>&nbsp;|&nbsp;
-              <span className="text-yellow-300">➖:</span>
-              <span className="text-red-200 font-bold"> {redNegativeFunding} </span>
-            </div>
+          {/* ⭐ Favorites Toggle + Reset */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+              className={`px-3 py-2 rounded-md text-sm ${
+                showFavoritesOnly ? "bg-yellow-500 text-black" : "bg-gray-700 text-white"
+              }`}
+            >
+              {showFavoritesOnly ? "⭐ Showing Favorites" : "☆ All Symbols"}
+            </button>
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setShowFavoritesOnly(false);
+              }}
+              className="bg-red-600 px-3 py-2 rounded-md text-sm text-white"
+            >
+              ❌ Clear Filters
+            </button>
           </div>
         </div>
 
-        {/* Pro Tips Section */}
-        <div className="mb-8 bg-gray-800 p-4 rounded-lg shadow-md text-sm text-gray-200">
-          <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Look for Disagreement Between Price & Funding</h2>
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
-              <span>Bears are getting trapped → possible short squeeze</span>
-              <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
-              <span>Longs are getting punished → bearish breakdown</span>
-              <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Chart */}
-        <div className="mt-6 bg-gray-800 p-4 rounded-lg shadow-md">
+        {/* Chart + Guide */}
+        <div className="bg-gray-800 p-4 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-bold mb-4">📊 Market Sentiment Breakdown</h2>
-          <div className="w-full h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={[
-                  { category: "Green", Positive: greenPositiveFunding, Negative: greenNegativeFunding },
-                  { category: "Red", Positive: redPositiveFunding, Negative: redNegativeFunding },
-                ]}
-                margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-              >
-                <XAxis dataKey="category" stroke="#aaa" />
-                <YAxis stroke="#aaa" />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕ (Bullish)" />
-                <Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖ (Bearish)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart
+              data={[
+                { category: "Green", Positive: greenPositiveFunding, Negative: greenNegativeFunding },
+                { category: "Red", Positive: redPositiveFunding, Negative: redNegativeFunding },
+              ]}
+            >
+              <XAxis dataKey="category" stroke="#aaa" />
+              <YAxis stroke="#aaa" />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕ (Bullish)" />
+              <Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖ (Bearish)" />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-gray-400 text-xs mt-2">
+            ➕ Funding = Longs pay Shorts | ➖ Funding = Shorts pay Longs
+          </p>
         </div>
 
-        {/* Table */}
-        <div className="overflow-auto mt-8">
+        {/* 📄 Table */}
+        <div className="overflow-auto">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
               <tr>
@@ -200,39 +220,71 @@ export default function PriceFundingTracker() {
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => {
-                    setSortBy("priceChangePercent");
-                    setSortOrder((prev) => (sortBy === "priceChangePercent" && prev === "asc" ? "desc" : "asc"));
+                    if (sortBy === "priceChangePercent") {
+                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+                    } else {
+                      setSortBy("priceChangePercent");
+                      setSortOrder("desc");
+                    }
                   }}
                 >
-                  24h Change {sortBy === "priceChangePercent" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                  <span className={sortBy === "priceChangePercent" ? "font-bold underline" : ""}>
+                    24h Change {sortBy === "priceChangePercent" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                  </span>
                 </th>
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => {
-                    setSortBy("fundingRate");
-                    setSortOrder((prev) => (sortBy === "fundingRate" && prev === "asc" ? "desc" : "asc"));
+                    if (sortBy === "fundingRate") {
+                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+                    } else {
+                      setSortBy("fundingRate");
+                      setSortOrder("desc");
+                    }
                   }}
                 >
-                  Funding Rate {sortBy === "fundingRate" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                  <span className={sortBy === "fundingRate" ? "font-bold underline" : ""}>
+                    Funding {sortBy === "fundingRate" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                  </span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((item) => (
-                <tr key={item.symbol} className="border-t border-gray-700">
-                  <td className="p-2 font-medium">{item.symbol}</td>
-                  <td className="p-2">
-                    <span className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
-                      {item.priceChangePercent.toFixed(2)}%
-                    </span>
-                  </td>
-                  <td className="p-2">
-                    <span className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
-                      {(item.fundingRate * 100).toFixed(4)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {data
+                .filter(
+                  (item) =>
+                    (!searchTerm || item.symbol.includes(searchTerm)) &&
+                    (!showFavoritesOnly || favorites.includes(item.symbol))
+                )
+                .map((item) => (
+                  <tr key={item.symbol} className="border-t border-gray-700">
+                    <td className="p-2 flex items-center gap-2">
+                      {item.symbol}
+                      <button
+                        onClick={() =>
+                          setFavorites((prev) =>
+                            prev.includes(item.symbol)
+                              ? prev.filter((sym) => sym !== item.symbol)
+                              : [...prev, item.symbol]
+                          )
+                        }
+                        className={favorites.includes(item.symbol) ? "text-yellow-400" : "text-gray-500"}
+                      >
+                        {favorites.includes(item.symbol) ? "★" : "☆"}
+                      </button>
+                    </td>
+                    <td className="p-2">
+                      <span className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
+                        {item.priceChangePercent.toFixed(2)}%
+                      </span>
+                    </td>
+                    <td className="p-2">
+                      <span className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
+                        {(item.fundingRate * 100).toFixed(4)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
