@@ -257,8 +257,8 @@ export default function PriceFundingTracker() {
               <YAxis stroke="#aaa" />
               <Tooltip />
               <Legend />
-                   <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕ (Bearish)" />
-<Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖ (Bullish)" />
+                   <Bar dataKey="Positive" stackId="a" fill="#10B981" name="Funding ➕ (Buyer)" />
+<Bar dataKey="Negative" stackId="a" fill="#EF4444" name="Funding ➖ (Seller)" />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-gray-400 text-xs mt-2">
