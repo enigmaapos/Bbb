@@ -217,24 +217,60 @@ export default function PriceFundingTracker() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">📈 Binance USDT Perpetual Tracker</h1>
 
-        <div className="mb-4 text-sm space-y-1">
-          <div>
-            ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
-            ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
-          </div>
-          <div>
-            <span className="text-green-400">Green + Funding ➕:</span>{" "}
-            <span className="text-green-300 font-bold">{greenPositiveFunding}</span> |{" "}
-            <span className="text-red-400">➖:</span>{" "}
-            <span className="text-red-300 font-bold">{greenNegativeFunding}</span>
-          </div>
-          <div>
-            <span className="text-red-400">Red + Funding ➕:</span>{" "}
-            <span className="text-green-300 font-bold">{redPositiveFunding}</span> |{" "}
-            <span className="text-yellow-300">➖:</span>{" "}
-            <span className="text-red-200 font-bold">{redNegativeFunding}</span>
-          </div>
-        </div>
+        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
+  <h2 className="text-lg font-bold text-white mb-3">
+    📊 Market Summary
+    <span
+      title="Tracks how price movement and funding rate interact across all perpetual USDT pairs"
+      className="text-sm text-gray-400 ml-2 cursor-help"
+    >
+      ℹ️
+    </span>
+  </h2>
+
+  <div className="text-sm space-y-4">
+    {/* 🧮 General Market Bias */}
+    <div>
+      <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
+      ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
+      ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
+    </div>
+
+    {/* 🔄 24h Price Change Breakdown */}
+    <div>
+      <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>
+      <ul className="text-blue-100 ml-4 list-disc space-y-1">
+        <li><span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>: {
+          data.filter((item) => item.priceChangePercent >= 5).length
+        }</li>
+        <li><span className="font-semibold text-yellow-300">Mild Movement (±0–5%)</span>: {
+          data.filter((item) => item.priceChangePercent > -5 && item.priceChangePercent < 5).length
+        }</li>
+        <li><span className="font-semibold text-red-400">Price Drop (≤ -5%)</span>: {
+          data.filter((item) => item.priceChangePercent <= -5).length
+        }</li>
+      </ul>
+    </div>
+
+    {/* 📈 Bullish Potential from Short Squeeze */}
+    <div>
+      <p className="text-green-300 font-semibold mb-1">📈 Bullish Potential (Shorts Paying):</p>
+      <span className="text-green-400">Green + Funding ➕:</span>{" "}
+      <span className="text-green-300 font-bold">{greenPositiveFunding}</span> &nbsp;|&nbsp;
+      <span className="text-red-400">➖:</span>{" "}
+      <span className="text-red-300 font-bold">{greenNegativeFunding}</span>
+    </div>
+
+    {/* 📉 Bearish Pressure from Long Trap */}
+    <div>
+      <p className="text-red-300 font-semibold mb-1">📉 Bearish Risk (Longs Paying):</p>
+      <span className="text-red-400">Red + Funding ➕:</span>{" "}
+      <span className="text-green-300 font-bold">{redPositiveFunding}</span> &nbsp;|&nbsp;
+      <span className="text-yellow-300">➖:</span>{" "}
+      <span className="text-red-200 font-bold">{redNegativeFunding}</span>
+    </div>
+  </div>
+</div>
 
         {/* Pro Tips / Overall Sentiment */}
         <p className="text-white text-sm font-bold mb-2">
