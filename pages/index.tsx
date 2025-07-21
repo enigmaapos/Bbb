@@ -596,7 +596,7 @@ export default function PriceFundingTracker() {
                         {item.srStatus?.replace(/_/g, ' ') || "N/A"}
                         {item.majorSupport && item.majorResistance && (
                             <span className="ml-1 text-blue-400">
-                                (S: {item.majorSupport.toFixed(2)}, R: {item.majorResistance.toFixed(2)})
+                                (S: {item.majorSupport.toFixed(2)}, R: {item.majorResistance.toFixed(4)})
                             </span>
                         )}
                       </td>
