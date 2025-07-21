@@ -28,6 +28,10 @@ export default function PriceFundingTracker() {
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
 
+  // New state for Pro Tip dynamic counts
+  const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
+  const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
+
   const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent">("fundingRate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -73,6 +77,17 @@ export default function PriceFundingTracker() {
         setRedPositiveFunding(rPos);
         setRedNegativeFunding(rNeg);
 
+        // New Pro Tip counts
+        const priceUpFundingNegative = combinedData.filter(
+          (d) => d.priceChangePercent > 0 && d.fundingRate < 0
+        ).length;
+        const priceDownFundingPositive = combinedData.filter(
+          (d) => d.priceChangePercent < 0 && d.fundingRate > 0
+        ).length;
+
+        setPriceUpFundingNegativeCount(priceUpFundingNegative);
+        setPriceDownFundingPositiveCount(priceDownFundingPositive);
+
         const sorted = [...combinedData].sort((a, b) =>
           sortOrder === "desc" ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy]
         );
@@ -111,6 +126,23 @@ export default function PriceFundingTracker() {
               <span className="text-red-300 font-bold"> {redPositiveFunding} </span>&nbsp;|&nbsp;
               <span className="text-yellow-300">➖:</span>
               <span className="text-red-200 font-bold"> {redNegativeFunding} </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pro Tips Section */}
+        <div className="mb-8 bg-gray-800 p-4 rounded-lg shadow-md text-sm text-gray-200">
+          <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Look for Disagreement Between Price & Funding</h2>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
+              <span>Bears are getting trapped → possible short squeeze</span>
+              <span className="ml-auto font-bold text-green-300">{priceUpFundingNegativeCount}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
+              <span>Longs are getting punished → bearish breakdown</span>
+              <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
             </div>
           </div>
         </div>
