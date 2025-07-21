@@ -137,12 +137,12 @@ export default function PriceFundingTracker() {
             <div className="flex items-center space-x-2">
               <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
               <span>Bears are getting trapped → possible short squeeze</span>
-              <span className="ml-auto font-bold text-green-300">{priceUpFundingNegativeCount}</span>
+              <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
               <span>Longs are getting punished → bearish breakdown</span>
-              <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
+              <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
             </div>
           </div>
         </div>
