@@ -235,18 +235,18 @@ export default function PriceFundingTracker() {
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
         // Calculate funding imbalance data
-        const priceUpShortsPaying = combinedData.filter((d) => d.priceChange > 0 && d.fundingRate < 0).length;
-        const priceUpLongsPaying = combinedData.filter((d) => d.priceChange > 0 && d.fundingRate > 0).length;
-        const priceDownLongsPaying = combinedData.filter((d) => d.priceChange < 0 && d.fundingRate > 0).length;
-        const priceDownShortsPaying = combinedData.filter((d) => d.priceChange < 0 && d.fundingRate < 0).length;
+        const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
+        const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
+        const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
+        const priceDownShortsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
         const topShortSqueeze = combinedData
-          .filter((d) => d.priceChange > 0 && d.fundingRate < 0)
+          .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
           .sort((a, b) => a.fundingRate - b.fundingRate) // More negative funding rate means stronger squeeze potential
           .slice(0, 5);
 
         const topLongTrap = combinedData
-          .filter((d) => d.priceChange < 0 && d.fundingRate > 0)
+          .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
           .sort((a, b) => b.fundingRate - a.fundingRate) // More positive funding rate means stronger trap
           .slice(0, 5);
 
