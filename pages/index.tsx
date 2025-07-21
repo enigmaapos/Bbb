@@ -147,22 +147,31 @@ export default function PriceFundingTracker() {
         </div>
 
         {/* Pro Tips */}
-        <div className="mb-8 bg-gray-800 p-4 rounded-lg text-sm text-gray-200">
-          <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Market Disagreement</h2>
-          <p className="text-yellow-300 font-semibold mb-2">{getSentimentClue()}</p>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
-              <span>Bears trapped → Short squeeze</span>
-              <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
-              <span>Longs punished → Breakdown risk</span>
-              <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
-            </div>
-          </div>
-        </div>
+        {/* Pro Tips */}
+<div className="mb-8 bg-gray-800 p-4 rounded-lg text-sm text-gray-200">
+  <h2 className="text-xl font-bold mb-3">🧠 Pro Tip: Market Disagreement</h2>
+  <p className="text-yellow-300 font-semibold mb-2">{getSentimentClue()}</p>
+
+  <div className="space-y-2">
+    <div className="flex items-center gap-2">
+      <span className="text-green-400 font-bold">🔼 Price Up + ➖ Funding:</span>
+      <span>Bears trapped → Short squeeze</span>
+      <span className="ml-auto font-bold text-red-300">{priceUpFundingNegativeCount}</span>
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="text-red-400 font-bold">🔽 Price Down + ➕ Funding:</span>
+      <span>Longs punished → Breakdown risk</span>
+      <span className="ml-auto font-bold text-green-300">{priceDownFundingPositiveCount}</span>
+    </div>
+
+    {priceDownFundingPositiveCount > 10 && (
+      <div className="bg-red-700/30 p-3 rounded-md text-sm text-red-300 font-semibold mt-2 border border-red-600">
+        ⚠️ <span className="text-red-400 font-bold">Action:</span> Avoid longs in this condition — they are being punished and funding is still positive. Risk of breakdown is high.
+      </div>
+    )}
+  </div>
+</div>
 
         {/* Search Input */}
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
