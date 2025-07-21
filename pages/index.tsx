@@ -162,11 +162,12 @@ export default function PriceFundingTracker() {
 </div>
 
     <div className="flex items-center gap-2">
-        <span className="text-red-400 font-bold">
+  <span className="text-red-400 font-bold">
     🔽 Price Down + ➕ <span className="text-green-400">Funding</span>:
-      <span>Longs are paying while losing → High breakdown risk</span>
-      <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
-    </div>
+  </span>
+  <span>Longs are paying while losing → High breakdown risk</span>
+  <span className="ml-auto font-bold text-red-300">{priceDownFundingPositiveCount}</span>
+</div>
 
     {/* Action Block */}
     {priceUpFundingNegativeCount > 10 && (
