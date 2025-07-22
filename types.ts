@@ -13,8 +13,5 @@ export type SymbolTradeSignal = {
   signal: "long" | "short" | null;
   strength: "Weak" | "Medium" | "Strong";
   confidence: "Low Confidence" | "Medium Confidence" | "High Confidence";
-  // Re-introducing these fields for display purposes in the table
-  entry: number | null;
-  stopLoss: number | null;
-  takeProfit: number | null;
+  // Removed entry, stopLoss, and takeProfit as per your request
 };
