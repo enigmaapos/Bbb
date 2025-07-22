@@ -61,7 +61,7 @@ const getRealSupportResistanceStatus = async (
 
     // --- Validate if rawData is an array ---
     if (!Array.isArray(rawData) || rawData.length === 0) {
-      // It's possible for the API to return an empty array or an object like { code: -1120, msg: "No klines for this symbol." }
+      // It's possible for the API to return an an empty array or an object like { code: -1120, msg: "No klines for this symbol." }
       // This ensures rawData.map() won't be called on non-array data.
       console.warn(`No valid klines data (or unexpected format) for ${symbol}. Raw data received:`, rawData);
       return {
@@ -378,19 +378,22 @@ export default function PriceFundingTracker() {
         setGreenCount(green);
         setRedCount(red);
 
-        const gPos = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
-        const gNeg = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
-        const rPos = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
-        const rNeg = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+        // Corrected variable name here: combinedDataWithSRAndRSI
+        const gPos = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+        const gNeg = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+        const rPos = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+        const rNeg = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
         setGreenPositiveFunding(gPos);
         setGreenNegativeFunding(gNeg);
         setRedPositiveFunding(rPos);
         setRedNegativeFunding(rNeg);
 
+        // Corrected variable name here: combinedDataWithSRAndRSI
         const priceUpFundingNegative = combinedDataWithSRAndRSI.filter(
           (d) => d.priceChangePercent > 0 && d.fundingRate < 0
         ).length;
+        // Corrected variable name here: combinedDataWithSRAndRSI
         const priceDownFundingPositive = combinedDataWithSRAndRSI.filter(
           (d) => d.priceChangePercent < 0 && d.fundingRate > 0
         ).length;
@@ -399,10 +402,12 @@ export default function PriceFundingTracker() {
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
         // Calculate RSI signal counts
+        // Corrected variable name here: combinedDataWithSRAndRSI
         const pumpCount = combinedDataWithSRAndRSI.filter(d =>
           d.rsiSignal === 'MAX ZONE PUMP (OVERBOUGHT)' ||
           d.rsiSignal === 'RSI PUMPING'
         ).length;
+        // Corrected variable name here: combinedDataWithSRAndRSI
         const dumpCount = combinedDataWithSRAndRSI.filter(d =>
           d.rsiSignal === 'MAX ZONE DUMP (OVERSOLD)' ||
           d.rsiSignal === 'RSI DUMPING'
@@ -517,9 +522,9 @@ export default function PriceFundingTracker() {
       } else {
         // New key, reset direction (default desc)
         direction = "desc";
-        // For 'signal' and 'rsiSignal', a default 'desc' might be more intuitive (strongest signals first)
+        // For 'signal' and 'rsiSignal', a default 'asc' might be more intuitive (strongest/most relevant signals first)
         if (key === "signal" || key === "rsiSignal") {
-          direction = "asc"; // For signal, asc shows validated long/short first
+          direction = "asc";
         }
       }
       return { key, direction };
