@@ -243,28 +243,35 @@ export default function PriceFundingTracker() {
     const greenRatio = greenCount / total;
     const redRatio = redCount / total;
 
-    if (greenRatio > 0.7 && priceUpFundingNegativeCount > 10) {
+    // 🔽 Strongest Signals First
+    if (priceDownFundingPositiveCount >= 30) {
+      return "🔴 Bearish Trap: Longs paying while price drops → deeper selloff risk";
+    }
+
+    if (priceUpFundingNegativeCount >= 20) {
+      return "🟢 Bullish Squeeze: Shorts paying while price rises → breakout fuel";
+    }
+
+    // 🟢 Momentum Biases
+    if (greenRatio > 0.7 && greenNegativeFunding >= 10) {
       return "🟢 Bullish Momentum: Look for dips or short squeezes";
     }
 
-    if (redRatio > 0.6 && priceDownFundingPositiveCount > 15) {
-      return "🔴 Bearish Risk: Caution, longs are trapped and funding still positive";
+    if (redRatio > 0.65 && redPositiveFunding >= 20) {
+      return "🔴 Bearish Breakdown: Longs trapped → stay cautious on longs";
     }
 
-    if (greenNegativeFunding > 10) {
-      return "🟢 Hidden Strength: Price is up but shorts are paying → squeeze potential";
-    }
-
-    if (redPositiveFunding > 20) {
-      return "🔴 Bearish Breakdown: Price down but longs still funding → more pain likely";
-    }
-
+    // 🟡 Mixed or Tug-of-War
     if (priceUpFundingNegativeCount > 5 && priceDownFundingPositiveCount > 5) {
-      return "🟡 Mixed Signals: Both sides trapped → choppy market expected";
+      return "🟡 Mixed Signals: Both sides trapped → expect volatility";
     }
 
+    // ⚪ Default Fallback
     return "⚪ Neutral: No clear edge, stay cautious";
   };
+
+  // Extract sentiment clue once before rendering
+  const sentimentClue = getSentimentClue();
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -326,16 +333,16 @@ export default function PriceFundingTracker() {
           🌐 Overall Sentiment:{" "}
           <span
             className={
-              getSentimentClue().includes("🟢")
+              sentimentClue.includes("🟢")
                 ? "text-green-400"
-                : getSentimentClue().includes("🔴")
+                : sentimentClue.includes("🔴")
                 ? "text-red-400"
-                : getSentimentClue().includes("🟡")
+                : sentimentClue.includes("🟡")
                 ? "text-yellow-300"
                 : "text-gray-400"
             }
           >
-            {getSentimentClue()}
+            {sentimentClue}
           </span>
         </p>
 
@@ -481,7 +488,7 @@ export default function PriceFundingTracker() {
                 >
                   24h Change {sortConfig.key === "priceChangePercent" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">24h Volume</th> {/* New column for volume */}
+                <th className="p-2">24h Volume</th>
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("fundingRate")}
@@ -504,7 +511,6 @@ export default function PriceFundingTracker() {
               {data
                 .filter(
                   (item) => {
-                    // Removed the condition 'hasSignal' to show all symbols
                     return (
                       (!searchTerm || item.symbol.includes(searchTerm)) &&
                       (!showFavoritesOnly || favorites.includes(item.symbol))
@@ -522,7 +528,7 @@ export default function PriceFundingTracker() {
                         {item.priceChangePercent.toFixed(2)}%
                       </td>
                       <td className="p-2">
-                        {formatVolume(item.volume)} {/* Display formatted volume */}
+                        {formatVolume(item.volume)}
                       </td>
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
