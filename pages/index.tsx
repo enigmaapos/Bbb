@@ -7,8 +7,9 @@ import {
   Tooltip,
   Legend,
   Bar,
-  Cell,
+  Cell, // Cell is no longer needed here as it's in the chart component
 } from "recharts";
+import FundingSentimentChart from "./FundingSentimentChart"; // Import the new component
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -34,7 +35,9 @@ type SymbolTradeSignal = {
   srReason?: string;
 };
 
-// Custom Tooltip component to match dark theme
+// Custom Tooltip component for the main table (if needed, this was for the chart, moved now)
+// For table, a simple browser tooltip or a custom one built for table rows is more appropriate.
+// Keeping this here just in case it's used elsewhere, but for the chart, it's in FundingSentimentChart.
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -50,6 +53,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   }
   return null;
 };
+
 
 // --- REAL SUPPORT/RESISTANCE FUNCTION ---
 // This function fetches historical kline data to identify S/R levels.
@@ -145,7 +149,7 @@ export default function PriceFundingTracker() {
 
   // Generate trade signals based on priceChangePercent, fundingRate, and S/R
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
-    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, srStatus, majorResistance, majorSupport }) => {
+    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, srStatus }) => {
       let signal: "long" | "short" | null = null;
       let entry: number | null = null;
       let stopLoss: number | null = null;
@@ -560,44 +564,13 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* BarChart */}
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart
-            data={[
-              {
-                category: "Green",
-                Positive: greenPositiveFunding,
-                Negative: greenNegativeFunding,
-              },
-              {
-                category: "Red",
-                Positive: redPositiveFunding,
-                Negative: redNegativeFunding,
-              },
-            ]}
-          >
-            <XAxis dataKey="category" stroke="#aaa" />
-            <YAxis stroke="#aaa" />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ color: '#E5E7EB', fontSize: '12px', marginTop: '10px' }} />
-
-            <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Longs Paying)">
-              {[greenPositiveFunding, redPositiveFunding].map((_, index) => (
-                <Cell key={`positive-${index}`} fill={"#EF4444"} />
-              ))}
-            </Bar>
-
-            <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Shorts Paying)">
-              {[greenNegativeFunding, redNegativeFunding].map((_, index) => (
-                <Cell key={`negative-${index}`} fill={"#10B981"} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-
-        <p className="text-gray-400 text-xs mt-2">
-          🟥 Funding ➕ = Longs paying (bearish pressure) | 🟩 Funding ➖ = Shorts paying (bullish pressure)
-        </p>
+        {/* Render the new FundingSentimentChart component */}
+        <FundingSentimentChart
+          greenPositiveFunding={greenPositiveFunding}
+          greenNegativeFunding={greenNegativeFunding}
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding}
+        />
 
         {/* Table */}
         <div className="overflow-auto max-h-[480px]">
