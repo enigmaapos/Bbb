@@ -1,4 +1,4 @@
-// src/types.ts (or just types.ts)
+// src/types.ts
 
 export type SymbolData = {
   symbol: string;
@@ -11,6 +11,10 @@ export type SymbolData = {
 export type SymbolTradeSignal = {
   symbol: string;
   signal: "long" | "short" | null;
-  strength: "Weak" | "Medium" | "Strong"; // Added strength
-  confidence: "Low Confidence" | "Medium Confidence" | "High Confidence"; // Added confidence
+  strength: "Weak" | "Medium" | "Strong";
+  confidence: "Low Confidence" | "Medium Confidence" | "High Confidence";
+  // Re-introducing these fields for display purposes in the table
+  entry: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
 };
