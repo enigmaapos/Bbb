@@ -19,9 +19,20 @@ type SymbolTradeSignal = {
   signal: "long" | "short" | null;
 };
 
+// Helper function to format large numbers with M, B, T suffixes
+const formatVolume = (num: number): string => {
+  if (num === 0) return "0";
+  const formatter = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    compactDisplay: "short",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1, // Adjust as needed for precision
+  });
+  return formatter.format(num);
+};
+
 export default function PriceFundingTracker() {
-  const [data, setData] = useState<SymbolData[]>([]
-  );
+  const [data, setData] = useState<SymbolData[]>([]);
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
@@ -388,7 +399,7 @@ export default function PriceFundingTracker() {
               {fundingImbalanceData.topShortSqueeze.length > 0 ? (
                 fundingImbalanceData.topShortSqueeze.map((d) => (
                   <li key={d.symbol}>
-                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {d.volume.toFixed(0)}
+                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {formatVolume(d.volume)}
                   </li>
                 ))
               ) : (
@@ -403,7 +414,7 @@ export default function PriceFundingTracker() {
               {fundingImbalanceData.topLongTrap.length > 0 ? (
                 fundingImbalanceData.topLongTrap.map((d) => (
                   <li key={d.symbol}>
-                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {d.volume.toFixed(0)}
+                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {formatVolume(d.volume)}
                   </li>
                 ))
               ) : (
