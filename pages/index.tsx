@@ -1,5 +1,3 @@
-Got it! To display all Binance symbols, we'll need to remove the .filter condition that currently hides symbols without a trade signal. This will ensure every USDT perpetual pair fetched from Binance is visible in your table.
-Here's the updated code:
 import { useEffect, useState } from "react";
 import FundingSentimentChart from "../components/FundingSentimentChart"; // Assuming correct path
 
@@ -573,4 +571,3 @@ export default function PriceFundingTracker() {
     </div>
   );
 }
-
