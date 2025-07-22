@@ -45,14 +45,30 @@ const getRealSupportResistanceStatus = async (
     const response = await fetch(
       `${BINANCE_API}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=150`
     );
+
+    // --- IMPORTANT: Check for HTTP status code FIRST ---
+    if (!response.ok) {
+      console.warn(`Binance Klines API returned status ${response.status} for ${symbol}. Response text:`, await response.text());
+      return { // Return default for this symbol to prevent map error
+        majorResistance: 0,
+        majorSupport: 0,
+        srStatus: "unknown",
+        closePrices: [],
+      };
+    }
+
     const rawData = await response.json();
 
-    if (!rawData || rawData.length === 0) {
+    // --- Validate if rawData is an array ---
+    if (!Array.isArray(rawData) || rawData.length === 0) {
+      // It's possible for the API to return an empty array or an object like { code: -1120, msg: "No klines for this symbol." }
+      // This ensures rawData.map() won't be called on non-array data.
+      console.warn(`No valid klines data (or unexpected format) for ${symbol}. Raw data received:`, rawData);
       return {
         majorResistance: 0,
         majorSupport: 0,
         srStatus: "unknown",
-        closePrices: [], // No data, no close prices
+        closePrices: [],
       };
     }
 
