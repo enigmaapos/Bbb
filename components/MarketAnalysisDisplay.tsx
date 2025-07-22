@@ -1,7 +1,7 @@
 // src/components/MarketAnalysisDisplay.tsx
 
 import React from 'react';
-import { SymbolData } from '../types'; // <-- UPDATED IMPORT (adjust path if types.ts is not in root)
+import { SymbolData } from '../types';
 
 // Define the types for the props that MarketAnalysisDisplay will receive
 interface MarketAnalysisProps {
@@ -26,6 +26,11 @@ interface MarketAnalysisProps {
       interpretation: string;
       score: number;
     };
+    volumeSentiment: { // NEW: Add volumeSentiment to the props interface
+      rating: string;
+      interpretation: string;
+      score: number;
+    };
     overallSentimentAccuracy: string;
     overallMarketOutlook: {
       score: number;
@@ -41,7 +46,6 @@ interface MarketAnalysisProps {
     topShortSqueeze: SymbolData[];
     topLongTrap: SymbolData[];
   };
-  // We'll also need greenCount and redCount for the display, as they are part of the interpretation
   greenCount: number;
   redCount: number;
   greenPositiveFunding: number;
@@ -81,6 +85,14 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
     return 'text-gray-400'; // Default
   };
 
+  // Helper for volume sentiment color
+  const getVolumeSentimentColor = (rating: string): string => {
+    if (rating.includes('🟢')) return 'text-green-400';
+    if (rating.includes('🔴')) return 'text-red-400';
+    if (rating.includes('🟡')) return 'text-yellow-300';
+    return 'text-gray-400';
+  };
+
   return (
     <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
       <h2 className="text-lg font-bold text-white mb-3">📈 Detailed Market Analysis & Ratings</h2>
@@ -111,6 +123,15 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
           {marketAnalysis.fundingImbalance.rating} <span className="font-bold">({marketAnalysis.fundingImbalance.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400">{marketAnalysis.fundingImbalance.interpretation}</p>
+      </div>
+
+      {/* NEW: Overall Volume Sentiment */}
+      <div className="mb-4">
+        <h3 className="text-orange-300 font-semibold mb-1">📦 Overall Volume Sentiment</h3>
+        <p className={`text-sm ${getVolumeSentimentColor(marketAnalysis.volumeSentiment.rating)}`}>
+          {marketAnalysis.volumeSentiment.rating} <span className="font-bold">({marketAnalysis.volumeSentiment.score.toFixed(1)}/10)</span>
+        </p>
+        <p className="text-xs italic text-gray-400">{marketAnalysis.volumeSentiment.interpretation}</p>
       </div>
 
       {/* Top Short Squeeze Candidates */}
