@@ -90,27 +90,16 @@ export default function PriceFundingTracker() {
     },
   });
 
-  // --- MODIFIED generateTradeSignals FUNCTION (with entry/sl/tp calculations) ---
+  // --- MODIFIED generateTradeSignals FUNCTION (removed entry/sl/tp calculations) ---
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
     return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
       let signal: "long" | "short" | null = null;
       let strength: SymbolTradeSignal['strength'] = "Weak";
       let confidence: SymbolTradeSignal['confidence'] = "Low Confidence";
-      let entry: number | null = null;
-      let stopLoss: number | null = null;
-      let takeProfit: number | null = null;
-
-      // Define standard TP/SL percentages (you can make these dynamic or user-configurable)
-      const defaultTPSLPercent = 2; // For example, 2% move
-      const defaultSLRatio = 0.01; // 1% stop loss
 
       // Long Signal Logic
       if (priceChangePercent >= priceChangeThreshold && fundingRate < -fundingRateThreshold) {
         signal = "long";
-        entry = lastPrice;
-        takeProfit = lastPrice * (1 + defaultTPSLPercent / 100);
-        stopLoss = lastPrice * (1 - defaultSLRatio); // 1% below entry for long
-
         if (priceChangePercent >= highPriceChangeThreshold && fundingRate <= -highFundingRateThreshold && volume >= volumeThreshold) {
           strength = "Strong";
           confidence = "High Confidence";
@@ -122,10 +111,6 @@ export default function PriceFundingTracker() {
       // Short Signal Logic
       else if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
         signal = "short";
-        entry = lastPrice;
-        takeProfit = lastPrice * (1 - defaultTPSLPercent / 100);
-        stopLoss = lastPrice * (1 + defaultSLRatio); // 1% above entry for short
-
         if (priceChangePercent <= -highPriceChangeThreshold && fundingRate >= highFundingRateThreshold && volume >= volumeThreshold) {
           strength = "Strong";
           confidence = "High Confidence";
@@ -135,16 +120,15 @@ export default function PriceFundingTracker() {
         }
       }
 
-      // If no signal, explicitly set strength/confidence/entry/tp/sl to default/null for clarity
+      // If no signal, explicitly set strength/confidence to default/null for clarity
       if (signal === null) {
           strength = "Weak";
           confidence = "Low Confidence";
-          entry = null;
-          stopLoss = null;
-          takeProfit = null;
       }
 
-      return { symbol, signal, strength, confidence, entry, stopLoss, takeProfit };
+      // Entry, stopLoss, and takeProfit are not needed here as per your request.
+      // They will be null in the SymbolTradeSignal type or removed from it.
+      return { symbol, signal, strength, confidence, entry: null, stopLoss: null, takeProfit: null };
     });
   };
   // --- END MODIFIED generateTradeSignals FUNCTION ---
@@ -383,25 +367,24 @@ export default function PriceFundingTracker() {
             overallSentimentAccuracy = "💡 Neutral. The sentiment is currently neutral, awaiting clearer market direction.";
         }
 
-        // Final Market Outlook Score
+        // --- Adjusted Final Market Outlook Score Logic ---
         const averageScore = (generalBiasScore + fundingImbalanceScore + shortSqueezeScore + longTrapScore) / 4;
         let finalOutlookTone = "";
         let strategySuggestion = "";
 
-        if (averageScore >= 8) {
+        if (averageScore >= 8.0) {
+            finalOutlookTone = "🟢 Strongly Bullish — The market shows clear bullish momentum and strong setups.";
+            strategySuggestion = "Aggressively seek **long opportunities**, especially on strong short squeeze candidates.";
+        } else if (averageScore >= 7.0) { // Lowered the upper bound for "Mixed leaning Bullish"
+            finalOutlookTone = "🟡 Mixed leaning Bullish — Some bullish momentum exists, but caution is advised due to underlying risks.";
+            strategySuggestion = "Look for **long opportunities** on high-conviction setups, but be prepared for volatility and consider tighter stop losses.";
+        } else if (averageScore >= 5.0) { // Increased the lower bound for "Mixed/Neutral"
+            finalOutlookTone = "↔️ Mixed/Neutral — The market lacks a clear direction, with both bullish and bearish elements.";
+            strategySuggestion = "Focus on **scalping** or **range trading** specific high-volume symbols. Avoid strong directional bets until clarity emerges.";
+        } else { // This range will now capture more bearish scenarios
             finalOutlookTone = "🔻 Bearish — The market is under heavy selling pressure. Longs are trapped, and few bullish setups exist.";
             strategySuggestion = "Consider **shorting opportunities** on long trap candidates, or **staying on the sidelines**. Exercise extreme caution with long positions.";
-        } else if (averageScore >= 7) {
-            finalOutlookTone = "🔺 Bullish — The market shows overall bullish momentum with potential for short squeezes.";
-            strategySuggestion = "Look for **long opportunities** on short squeeze candidates or **buy the dip** on strong coins.";
-        } else if (averageScore >= 6) {
-            finalOutlookTone = "↔️ Mixed/Neutral — The market lacks a clear direction, with both bullish and bearish elements.";
-            strategySuggestion = "Focus on **scalping** or **range trading** specific high-volume symbols. Avoid strong directional bets.";
-        } else {
-            finalOutlookTone = "⚪ Indecisive — The market is highly uncertain. Very low scores suggest a lack of clear signals.";
-            strategySuggestion = "Best to **wait for clearer signals**. Avoid trading until a clearer trend emerges.";
         }
-
 
         setMarketAnalysis({
             generalBias: {
@@ -483,7 +466,7 @@ export default function PriceFundingTracker() {
     if (total === 0) return "⚪ Neutral: No clear edge, stay cautious";
 
     const greenRatio = greenCount / total;
-    const redRatio = redCount / total; // Corrected: Was redRatio = redRatio;
+    const redRatio = redCount / total;
 
     // These conditions should align with your market analysis logic for consistency
     if (greenRatio > 0.7 && priceUpFundingNegativeCount > 10) {
@@ -687,7 +670,7 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-        {/* --- UPDATED TABLE STRUCTURE (Re-added Entry/SL/TP columns and new TP %) --- */}
+        {/* --- UPDATED TABLE STRUCTURE (Removed Entry/SL/TP columns) --- */}
         <div className="overflow-auto max-h-[480px]">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs sticky top-0 z-10">
@@ -712,10 +695,6 @@ export default function PriceFundingTracker() {
                 >
                   Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">Entry</th>
-                <th className="p-2">Stop Loss</th>
-                <th className="p-2">Take Profit</th>
-                <th className="p-2">TP %</th> {/* NEW COLUMN */}
                 <th className="p-2">★</th>
               </tr>
             </thead>
@@ -730,11 +709,6 @@ export default function PriceFundingTracker() {
                 })
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
-
-                  // Calculate TP Percentage
-                  const tpPercentage = signal?.takeProfit && signal.entry
-                    ? ((signal.takeProfit - signal.entry) / signal.entry) * 100
-                    : null;
 
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
@@ -764,23 +738,6 @@ export default function PriceFundingTracker() {
                         ) : (
                           <span className="text-gray-500">-</span>
                         )}
-                      </td>
-
-                      <td className="p-2">
-                        {signal && signal.entry !== null ? signal.entry.toFixed(4) : "-"}
-                      </td>
-
-                      <td className="p-2">
-                        {signal && signal.stopLoss !== null ? signal.stopLoss.toFixed(4) : "-"}
-                      </td>
-
-                      <td className="p-2">
-                        {signal && signal.takeProfit !== null ? signal.takeProfit.toFixed(4) : "-"}
-                      </td>
-
-                      {/* NEW TP % CELL */}
-                      <td className="p-2">
-                        {tpPercentage !== null ? `${tpPercentage.toFixed(2)}%` : "-"}
                       </td>
 
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
