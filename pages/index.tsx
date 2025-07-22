@@ -8,7 +8,6 @@ type SymbolData = {
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
-  // S/R and RSI related fields are removed as they are no longer calculated
 };
 
 type SymbolTradeSignal = {
@@ -17,7 +16,6 @@ type SymbolTradeSignal = {
   stopLoss: number | null;
   takeProfit: number | null;
   signal: "long" | "short" | null;
-  // S/R validation is removed as SR data is no longer calculated
 };
 
 export default function PriceFundingTracker() {
@@ -33,14 +31,13 @@ export default function PriceFundingTracker() {
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
 
   const [sortConfig, setSortConfig] = useState<{
-    key: "fundingRate" | "priceChangePercent" | "signal" | null; // 'rsiSignal' removed
+    key: "fundingRate" | "priceChangePercent" | "signal" | null;
     direction: "asc" | "desc" | null;
   }>({ key: "fundingRate", direction: "desc" });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-
 
   const [fundingImbalanceData, setFundingImbalanceData] = useState({
     priceUpShortsPaying: 0,
@@ -61,8 +58,6 @@ export default function PriceFundingTracker() {
       if (priceChangePercent >= 0 && fundingRate < 0) {
         signal = "long";
         entry = lastPrice;
-        // Adjusted stopLoss/takeProfit calculations to be a percentage of entry,
-        // making them more dynamic based on the price change percentage.
         stopLoss = entry - (Math.abs(priceChangePercent) / 100) * entry * 0.5;
         takeProfit = entry + (Math.abs(priceChangePercent) / 100) * entry * 1.5;
       }
@@ -74,7 +69,6 @@ export default function PriceFundingTracker() {
         takeProfit = entry - (Math.abs(priceChangePercent) / 100) * entry * 1.5;
       }
 
-      // S/R validation logic is entirely removed
       return { symbol, entry, stopLoss, takeProfit, signal };
     });
   };
@@ -139,10 +133,6 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        // RSI signal counts are removed from here
-        // setMaxZonePumpCount(0);
-        // setMaxZoneDumpCount(0);
-
         // Calculate funding imbalance data
         const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
         const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
@@ -182,7 +172,6 @@ export default function PriceFundingTracker() {
             const signalB = signals.find((s) => s.symbol === b.symbol);
 
             const rank = (s: SymbolTradeSignal | undefined) => {
-              // isValidatedBySR is no longer a factor here
               if (s?.signal === "long") return 0;
               if (s?.signal === "short") return 1;
               return 2; // No signal
@@ -222,7 +211,7 @@ export default function PriceFundingTracker() {
         }
       } else {
         direction = "desc";
-        if (key === "signal") { // RSI signal sort is removed
+        if (key === "signal") {
           direction = "asc";
         }
       }
@@ -313,8 +302,6 @@ export default function PriceFundingTracker() {
               <span className="text-yellow-300">➖:</span>{" "}
               <span className="text-red-200 font-bold">{redNegativeFunding}</span>
             </div>
-
-            {/* RSI Signal Counts section removed */}
           </div>
         </div>
 
@@ -485,8 +472,6 @@ export default function PriceFundingTracker() {
                 >
                   Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">S/R Status</th> {/* This column will now always be empty */}
-                <th className="p-2">RSI Signal</th> {/* This column will now always be empty */}
                 <th className="p-2">Entry</th>
                 <th className="p-2">Stop Loss</th>
                 <th className="p-2">Take Profit</th>
@@ -525,15 +510,6 @@ export default function PriceFundingTracker() {
                           : "text-gray-400"
                       }`}>
                         {signal?.signal ? signal.signal.toUpperCase() : "-"}
-                        {/* S/R validation indicator is removed */}
-                      </td>
-
-                      <td className="p-2 text-gray-400 text-xs">
-                        {"N/A"} {/* Always "N/A" as S/R is not fetched */}
-                      </td>
-
-                      <td className={`p-2 text-xs font-semibold text-gray-400`}>
-                        {"N/A"} {/* Always "N/A" as RSI is not fetched */}
                       </td>
 
                       <td className="p-2">
@@ -565,9 +541,7 @@ export default function PriceFundingTracker() {
         </div>
 
         <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 10 seconds | Powered by Binance API</p>
-        {/* Removed the specific note about S/R and RSI being disabled as it's now part of the core design */}
       </div>
     </div>
   );
 }
-
