@@ -5,8 +5,11 @@ import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import { SymbolData, SymbolTradeSignal } from "../types";
+// Import the new sentiment analyzer utility
+import { analyzeSentiment, MarketStats } from "../utils/sentimentAnalyzer"; // <-- NEW IMPORT
 
 const BINANCE_API = "https://fapi.binance.com";
+const BINANCE_API_V2 = "https://fapi.binance.com/fapi/v2"; // For Open Interest
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
@@ -95,7 +98,22 @@ export default function PriceFundingTracker() {
       interpretation: "",
       score: 0,
     },
-    volumeSentiment: { // NEW: Add volume sentiment to market analysis state
+    volumeSentiment: {
+      rating: "",
+      interpretation: "",
+      score: 0,
+    },
+    speculativeInterest: { // NEW: Add Speculative Interest (OI)
+      rating: "",
+      interpretation: "",
+      score: 0,
+    },
+    liquidationHeatmap: { // NEW: Add Liquidation Heatmap (Placeholder for now)
+      rating: "",
+      interpretation: "",
+      score: 0,
+    },
+    momentumImbalance: { // NEW: Add Momentum Imbalance (RSI)
       rating: "",
       interpretation: "",
       score: 0,
@@ -180,22 +198,46 @@ export default function PriceFundingTracker() {
           .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: any) => s.symbol);
 
-        const [tickerRes, fundingRes] = await Promise.all([
+        // --- Fetch Ticker, Funding, and NEW: Open Interest data ---
+        const [tickerRes, fundingRes, oiRes] = await Promise.all([
           fetch(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           fetch(`${BINANCE_API}/fapi/v1/premiumIndex`),
+          fetch(`${BINANCE_API_V2}/futures/data/openInterestHist?period=5m&limit=1&symbol=${usdtPairs.join(',')}`), // Fetching current OI (last 5 min data)
         ]);
 
         if (!tickerRes.ok) console.error("Error fetching ticker data:", await tickerRes.text());
         if (!fundingRes.ok) console.error("Error fetching funding data:", await fundingRes.text());
+        if (!oiRes.ok) console.error("Error fetching Open Interest data:", await oiRes.text());
+
 
         const tickerData = await tickerRes.json();
         const fundingData = await fundingRes.json();
+        const oiData = await oiRes.json(); // Array of OI objects
+
+
+        // Create a map for quick OI lookup
+        const oiMap = new Map();
+        if (Array.isArray(oiData)) { // Ensure oiData is an array
+            oiData.forEach((item: any) => {
+                // Binance's openInterestHist returns an array of objects,
+                // each with 'symbol', 'sumOpenInterest', 'sumOpenInterestValue', etc.
+                // We're interested in 'sumOpenInterestValue' for USD value.
+                oiMap.set(item.symbol, parseFloat(item.sumOpenInterestValue || "0"));
+            });
+        }
+
 
         const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
+          const openInterest = oiMap.get(symbol) || 0; // Get OI from map
+
+          // Placeholder for RSI - In a real app, you'd fetch klines and calculate RSI
+          // For now, let's assign a dummy RSI for demonstration
+          // A proper RSI implementation would be much more involved
+          const dummyRsi = (Math.random() * 60) + 20; // RSI between 20 and 80 for demo
 
           return {
             symbol,
@@ -203,8 +245,12 @@ export default function PriceFundingTracker() {
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
             volume: volume,
+            openInterest: openInterest, // Include Open Interest
+            rsi: dummyRsi, // Include RSI (dummy for now)
+            // marketCap: <fetch_or_calculate_market_cap_here>, // You'd need a separate source for this
+            // liquidationVolume: <fetch_liquidation_data_here>, // Binance provides this via a separate API or WebSocket
           };
-        }).filter((d: SymbolData) => d.volume > 0); // Corrected to explicitly type `d`
+        }).filter((d: SymbolData) => d.volume > 0);
 
 
         // Update counts for stats
@@ -291,147 +337,58 @@ export default function PriceFundingTracker() {
 
         setData(sorted);
 
-        // --- PERFORM MARKET ANALYSIS ---
-        const totalCoins = combinedData.length;
+        // --- PREPARE DATA FOR SENTIMENT ANALYZER ---
+        const marketStatsForAnalysis: MarketStats = {
+          green: green,
+          red: red,
+          fundingStats: {
+            greenFundingPositive: gPos,
+            greenFundingNegative: gNeg,
+            redFundingPositive: rPos,
+            redFundingNegative: rNeg,
+          },
+          volumeData: combinedData.map(d => ({
+            symbol: d.symbol,
+            volume: d.volume,
+            priceChange: d.priceChangePercent,
+            fundingRate: d.fundingRate,
+            rsi: d.rsi, // Pass RSI
+            openInterest: d.openInterest, // Pass Open Interest
+            // You'll add marketCap and liquidationVolume here once fetched
+            // marketCap: d.marketCap,
+            // liquidationVolume: d.liquidationVolume,
+          })),
+        };
 
-        // General Market Bias
-        let generalBiasInterpretation = "";
-        let generalBiasRating = "";
-        let generalBiasScore = 0;
+        const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
 
-        const greenRatio = green / totalCoins;
-        const redRatio = red / totalCoins;
 
-        if (redRatio > 0.7) {
-            generalBiasInterpretation = `The market is dominated by red candles, and most coins are either flat or down. Over ${Math.round(redRatio * 100)}% of the market is bearish or stagnant.`;
-            generalBiasRating = "🔴 Strong Bearish Bias";
-            generalBiasScore = 8.5;
-        } else if (greenRatio > 0.6) {
-            generalBiasInterpretation = `The market shows strong bullish momentum, with a majority of coins in the green.`;
-            generalBiasRating = "🟢 Strong Bullish Bias";
-            generalBiasScore = 8.0;
-        } else if (Math.abs(greenRatio - redRatio) < 0.2) {
-            generalBiasInterpretation = `The market is mixed, with a relatively even split between green and red coins, indicating indecision.`;
-            generalBiasRating = "🟡 Mixed Bias";
-            generalBiasScore = 5.0;
-        } else {
-            generalBiasInterpretation = `The market shows a slight bias, but no strong overall trend is dominant.`;
-            generalBiasRating = "⚪ Neutral Bias";
-            generalBiasScore = 6.0;
-        }
+        // --- Update Market Analysis State with results from sentiment analyzer ---
+        const generalBiasScore = sentimentResults.generalBias.score;
+        const fundingImbalanceScore = sentimentResults.fundingImbalance.score;
+        const shortSqueezeScore = sentimentResults.shortSqueeze.score;
+        const longTrapScore = sentimentResults.longTrap.score;
+        const volumeSentimentScore = sentimentResults.volumeSentiment.score;
+        const speculativeInterestScore = sentimentResults.speculativeInterest.score; // NEW
+        const momentumImbalanceScore = sentimentResults.momentumImbalance.score; // NEW
+        // const liquidationHeatmapScore = sentimentResults.liquidationHeatmap.score; // NEW (if implemented)
+        // const breakoutVolumeScore = sentimentResults.breakoutVolume.score; // NEW (if implemented)
 
-        // Funding Sentiment Imbalance
-        let fundingImbalanceInterpretation = "";
-        let fundingImbalanceRating = "";
-        let fundingImbalanceScore = 0;
 
-        if (rPos > gNeg * 2 && rPos > 100) {
-            fundingImbalanceInterpretation = "In the red group, longs are massively funding shorts while price is falling → trapped bulls. Green group shows small bullish squeeze potential, but it’s too small to shift momentum.";
-            fundingImbalanceRating = "🔴 Bearish Trap Dominance";
-            fundingImbalanceScore = 9.0;
-        } else if (gNeg > rPos * 2 && gNeg > 50) {
-            fundingImbalanceInterpretation = "In the green group, shorts are heavily funding longs while price is rising → strong short squeeze potential. Red group shows limited long trap risk.";
-            fundingImbalanceRating = "🟢 Bullish Squeeze Dominance";
-            fundingImbalanceScore = 8.5;
-        } else {
-            fundingImbalanceInterpretation = "Funding sentiment is relatively balanced or shows no extreme imbalance, suggesting a less clear directional bias from funding.";
-            fundingImbalanceRating = "⚪ Balanced Funding";
-            fundingImbalanceScore = 5.0;
-        }
+        // Adjusted Final Market Outlook Score Logic - INCLUDE NEW SCORES
+        const totalScores = [
+            generalBiasScore,
+            fundingImbalanceScore,
+            shortSqueezeScore,
+            longTrapScore,
+            volumeSentimentScore,
+            speculativeInterestScore,
+            momentumImbalanceScore
+            // Add other new scores here as they are implemented
+        ].filter(score => typeof score === 'number' && !isNaN(score)); // Filter out any non-numeric scores
 
-        // Top Short Squeeze Candidates
-        let shortSqueezeRating = "";
-        let shortSqueezeInterpretation = "";
-        let shortSqueezeScore = 0;
+        const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
 
-        if (topShortSqueeze.length > 0) {
-            const strongShortSqueezeCandidates = topShortSqueeze.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent > highPriceChangeThreshold);
-
-            if (strongShortSqueezeCandidates.length >= 3) {
-                shortSqueezeInterpretation = "These coins show strong potential for short squeezes (shorts paying while price rises). The presence of high volume and significant price increases indicates a more impactful squeeze.";
-                shortSqueezeRating = "🟢 Strong Bullish Pockets";
-                shortSqueezeScore = 8.0;
-            } else {
-                shortSqueezeInterpretation = "These coins show potential short squeezes (shorts paying while price rises), but they might be isolated or lack significant volume/price movement to drive broader momentum.";
-                shortSqueezeRating = "🟢 Bullish Pockets (Isolated)";
-                shortSqueezeScore = 6.5;
-            }
-        } else {
-            shortSqueezeInterpretation = "No strong short squeeze candidates identified at this moment. The market lacks significant price increases accompanied by negative funding rates.";
-            shortSqueezeRating = "⚪ No Squeeze Candidates";
-            shortSqueezeScore = 4.0;
-        }
-
-        // Top Long Trap Candidates
-        let longTrapRating = "";
-        let longTrapInterpretation = "";
-        let longTrapScore = 0;
-
-        if (topLongTrap.length > 0) {
-            const severeLongTrapCandidates = topLongTrap.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent < -highPriceChangeThreshold);
-
-            if (severeLongTrapCandidates.length >= 3) {
-                longTrapInterpretation = "These coins show clear bear momentum with positive funding, meaning longs are heavily trapped. The combination of significant price drops and high volume makes them classic liquidation magnets and indicates deeper sell-off risk.";
-                longTrapRating = "🔴 High Risk (Severe Long Trap)";
-                longTrapScore = 9.5;
-            } else {
-                longTrapInterpretation = "These coins show clear bear momentum with positive funding, meaning longs are trapped. While present, they might be isolated or have lower volume/less extreme price drops, indicating moderate risk.";
-                longTrapRating = "🔴 High Risk (Moderate Long Trap)";
-                longTrapScore = 7.5;
-            }
-        } else {
-            longTrapInterpretation = "No strong long trap candidates identified at this moment. The market is not showing significant price drops accompanied by positive funding rates, which is a positive sign for longs.";
-            longTrapRating = "⚪ No Trap Candidates";
-            longTrapScore = 4.0;
-        }
-
-        // --- NEW: Calculate Overall Volume Sentiment ---
-        const totalBullishVolume = combinedData
-          .filter(item => item.priceChangePercent > 0)
-          .reduce((sum, item) => sum + item.volume, 0);
-
-        const totalBearishVolume = combinedData
-          .filter(item => item.priceChangePercent < 0)
-          .reduce((sum, item) => sum + item.volume, 0);
-
-        let volumeSentimentRating = "⚪ Neutral Volume Bias";
-        let volumeSentimentInterpretation = "Volume flow is balanced, indicating no strong directional consensus from traders based on recent price movements.";
-        let volumeSentimentScore = 5.0; // Default neutral score
-
-        if (totalBullishVolume > totalBearishVolume * 1.3) { // 30% more bullish volume
-          volumeSentimentRating = "🟢 Buyer-Dominated Volume";
-          volumeSentimentInterpretation = "Significantly more trading volume is associated with price increases, suggesting strong buyer conviction.";
-          volumeSentimentScore = 7.5;
-        } else if (totalBearishVolume > totalBullishVolume * 1.3) { // 30% more bearish volume
-          volumeSentimentRating = "🔴 Seller-Dominated Volume";
-          volumeSentimentInterpretation = "A higher proportion of trading volume occurs during price declines, indicating strong selling pressure.";
-          volumeSentimentScore = 8.0; // Slightly higher weight for bearish volume as it implies distribution
-        } else if (totalBullishVolume > totalBearishVolume * 1.1) { // 10% to 30% more bullish volume (mild bias)
-          volumeSentimentRating = "🟡 Slight Bullish Volume Bias";
-          volumeSentimentInterpretation = "Volume slightly favors price increases, but not decisively so.";
-          volumeSentimentScore = 6.0;
-        } else if (totalBearishVolume > totalBullishVolume * 1.1) { // 10% to 30% more bearish volume (mild bias)
-          volumeSentimentRating = "🟡 Slight Bearish Volume Bias";
-          volumeSentimentInterpretation = "Volume slightly favors price decreases, but without strong conviction.";
-          volumeSentimentScore = 6.5;
-        }
-        // --- END NEW VOLUME SENTIMENT CALCULATION ---
-
-        // Overall Sentiment Accuracy
-        let overallSentimentAccuracy = "";
-        if (generalBiasScore >= 7.0 && fundingImbalanceScore >= 7.0 && shortSqueezeScore >= 7.0 && volumeSentimentScore >= 7.0) {
-            overallSentimentAccuracy = "✅ Bullish Confirmation: All major indicators align for a bullish outlook.";
-        } else if (generalBiasScore <= 5.0 && fundingImbalanceScore >= 8.0 && longTrapScore >= 8.0 && volumeSentimentScore >= 7.5) {
-            overallSentimentAccuracy = "✅ Bearish Confirmation: Strong indicators point to a bearish market.";
-        } else if (generalBiasScore === 5.0 && fundingImbalanceScore === 5.0 && volumeSentimentScore === 5.0) {
-            overallSentimentAccuracy = "🟡 Mixed Signals: Market is indecisive with conflicting data points.";
-        } else {
-            overallSentimentAccuracy = "💡 Neutral. The sentiment is currently neutral, awaiting clearer market direction or mixed signals are present.";
-        }
-
-        // --- Adjusted Final Market Outlook Score Logic ---
-        // Include volumeSentimentScore in the average
-        const averageScore = (generalBiasScore + fundingImbalanceScore + shortSqueezeScore + longTrapScore + volumeSentimentScore) / 5;
         let finalOutlookTone = "";
         let strategySuggestion = "";
 
@@ -450,32 +407,15 @@ export default function PriceFundingTracker() {
         }
 
         setMarketAnalysis({
-            generalBias: {
-                rating: generalBiasRating,
-                interpretation: generalBiasInterpretation,
-                score: generalBiasScore,
-            },
-            fundingImbalance: {
-                rating: fundingImbalanceRating,
-                interpretation: fundingImbalanceInterpretation,
-                score: fundingImbalanceScore,
-            },
-            shortSqueezeCandidates: {
-                rating: shortSqueezeRating,
-                interpretation: shortSqueezeInterpretation,
-                score: shortSqueezeScore,
-            },
-            longTrapCandidates: {
-                rating: longTrapRating,
-                interpretation: longTrapInterpretation,
-                score: longTrapScore,
-            },
-            volumeSentiment: { // NEW: Set volume sentiment
-                rating: volumeSentimentRating,
-                interpretation: volumeSentimentInterpretation,
-                score: volumeSentimentScore,
-            },
-            overallSentimentAccuracy: overallSentimentAccuracy,
+            generalBias: sentimentResults.generalBias,
+            fundingImbalance: sentimentResults.fundingImbalance,
+            shortSqueezeCandidates: sentimentResults.shortSqueeze,
+            longTrapCandidates: sentimentResults.longTrap,
+            volumeSentiment: sentimentResults.volumeSentiment,
+            speculativeInterest: sentimentResults.speculativeInterest, // NEW
+            liquidationHeatmap: sentimentResults.liquidationHeatmap, // NEW (placeholder)
+            momentumImbalance: sentimentResults.momentumImbalance, // NEW
+            overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy, // Updated to come from analyzer
             overallMarketOutlook: {
                 score: parseFloat(averageScore.toFixed(1)),
                 tone: finalOutlookTone,
@@ -508,7 +448,7 @@ export default function PriceFundingTracker() {
     mediumPriceChangeThreshold,
     mediumFundingRateThreshold,
     volumeThreshold,
-    getSentimentClue,
+    getSentimentClue, // This dependency should ideally be removed if getSentimentClue only relies on marketAnalysis.overallMarketOutlook.score
   ]);
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
@@ -729,6 +669,8 @@ export default function PriceFundingTracker() {
                 >
                   Funding {sortConfig.key === "fundingRate" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
+                <th className="p-2">OI Value (USD)</th> {/* NEW COLUMN */}
+                <th className="p-2">RSI (Dummy)</th> {/* NEW COLUMN */}
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("signal")}
@@ -764,6 +706,13 @@ export default function PriceFundingTracker() {
 
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
+                      </td>
+
+                      <td className="p-2">
+                        {formatVolume(item.openInterest || 0)} {/* Display OI */}
+                      </td>
+                      <td className="p-2">
+                        {item.rsi ? item.rsi.toFixed(2) : 'N/A'} {/* Display RSI */}
                       </td>
 
                       <td className="p-2 space-y-1 text-xs text-gray-200">
@@ -802,3 +751,4 @@ export default function PriceFundingTracker() {
     </div>
   );
 }
+
