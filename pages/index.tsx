@@ -1,24 +1,12 @@
+// src/PriceFundingTracker.tsx (or just PriceFundingTracker.tsx)
+
 import { useEffect, useState } from "react";
-import FundingSentimentChart from "./components/FundingSentimentChart"; // Assuming correct path
-import MarketAnalysisDisplay from "./components/MarketAnalysisDisplay"; // Import the new component
+import FundingSentimentChart from "./components/FundingSentimentChart";
+import MarketAnalysisDisplay from "./components/MarketAnalysisDisplay";
+import { SymbolData, SymbolTradeSignal } from "./types"; // <-- UPDATED IMPORT
 
 const BINANCE_API = "https://fapi.binance.com";
 
-type SymbolData = {
-  symbol: string;
-  priceChangePercent: number;
-  fundingRate: number;
-  lastPrice: number;
-  volume: number; // Added 24h volume
-};
-
-type SymbolTradeSignal = {
-  symbol: string;
-  entry: number | null;
-  stopLoss: number | null;
-  takeProfit: number | null;
-  signal: "long" | "short" | null;
-};
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
