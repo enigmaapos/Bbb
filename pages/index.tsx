@@ -1,9 +1,9 @@
-// src/PriceFundingTracker.tsx (or just PriceFundingTracker.tsx)
+// pages/index.tsx or src/PriceFundingTracker.tsx
 
 import { useEffect, useState } from "react";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
-import LeverageProfitCalculator from "../components/LeverageProfitCalculator"; // <--- ADD THIS IMPORT
+import LeverageProfitCalculator from "../components/LeverageProfitCalculator"; // Keep this import
 import { SymbolData, SymbolTradeSignal } from "../types";
 
 const BINANCE_API = "https://fapi.binance.com";
@@ -21,7 +21,7 @@ const formatVolume = (num: number): string => {
 };
 
 export default function PriceFundingTracker() {
-  // --- Define threshold constants at the component level (RESTORED) ---
+  // --- Define threshold constants at the component level ---
   const priceChangeThreshold = 2; // % price change for a basic signal
   const fundingRateThreshold = 0.0001; // 0.01% funding rate for a basic signal
   const highPriceChangeThreshold = 5; // % price change for strong signal
@@ -90,18 +90,27 @@ export default function PriceFundingTracker() {
     },
   });
 
-  // --- FIXED generateTradeSignals FUNCTION ---
+  // --- MODIFIED generateTradeSignals FUNCTION (with entry/sl/tp calculations) ---
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
-    // FIXED: Ensure 'volume' is destructured here, as it's used in the logic
     return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
       let signal: "long" | "short" | null = null;
-      // Corrected type declarations for strength and confidence
       let strength: SymbolTradeSignal['strength'] = "Weak";
       let confidence: SymbolTradeSignal['confidence'] = "Low Confidence";
+      let entry: number | null = null;
+      let stopLoss: number | null = null;
+      let takeProfit: number | null = null;
 
-      // Long Signal Logic (RESTORED THRESHOLD LOGIC)
+      // Define standard TP/SL percentages (you can make these dynamic or user-configurable)
+      const defaultTPSLPercent = 2; // For example, 2% move
+      const defaultSLRatio = 0.01; // 1% stop loss
+
+      // Long Signal Logic
       if (priceChangePercent >= priceChangeThreshold && fundingRate < -fundingRateThreshold) {
         signal = "long";
+        entry = lastPrice;
+        takeProfit = lastPrice * (1 + defaultTPSLPercent / 100);
+        stopLoss = lastPrice * (1 - defaultSLRatio); // 1% below entry for long
+
         if (priceChangePercent >= highPriceChangeThreshold && fundingRate <= -highFundingRateThreshold && volume >= volumeThreshold) {
           strength = "Strong";
           confidence = "High Confidence";
@@ -110,9 +119,13 @@ export default function PriceFundingTracker() {
           confidence = "Medium Confidence";
         }
       }
-      // Short Signal Logic (RESTORED THRESHOLD LOGIC)
+      // Short Signal Logic
       else if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
         signal = "short";
+        entry = lastPrice;
+        takeProfit = lastPrice * (1 - defaultTPSLPercent / 100);
+        stopLoss = lastPrice * (1 + defaultSLRatio); // 1% above entry for short
+
         if (priceChangePercent <= -highPriceChangeThreshold && fundingRate >= highFundingRateThreshold && volume >= volumeThreshold) {
           strength = "Strong";
           confidence = "High Confidence";
@@ -122,17 +135,19 @@ export default function PriceFundingTracker() {
         }
       }
 
-      // If no signal, explicitly set strength/confidence to default for clarity
+      // If no signal, explicitly set strength/confidence/entry/tp/sl to default/null for clarity
       if (signal === null) {
           strength = "Weak";
           confidence = "Low Confidence";
+          entry = null;
+          stopLoss = null;
+          takeProfit = null;
       }
 
-      // FIXED: Return object now matches the SymbolTradeSignal type (no entry/stopLoss/takeProfit)
-      return { symbol, signal, strength, confidence };
+      return { symbol, signal, strength, confidence, entry, stopLoss, takeProfit };
     });
   };
-  // --- END FIXED generateTradeSignals FUNCTION ---
+  // --- END MODIFIED generateTradeSignals FUNCTION ---
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -159,7 +174,7 @@ export default function PriceFundingTracker() {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
-          const volume = parseFloat(ticker?.quoteVolume || "0"); // Assuming quoteVolume is the correct 24h volume in USDT
+          const volume = parseFloat(ticker?.quoteVolume || "0");
 
           return {
             symbol,
@@ -221,6 +236,7 @@ export default function PriceFundingTracker() {
           topLongTrap,
         });
 
+        // --- Use the updated generateTradeSignals ---
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
 
@@ -312,7 +328,7 @@ export default function PriceFundingTracker() {
         let shortSqueezeScore = 0;
 
         if (topShortSqueeze.length > 0) {
-            // Re-introducing correct criteria using component-level thresholds
+            // Updated criteria for more robust analysis: at least 3 strong candidates
             const strongShortSqueezeCandidates = topShortSqueeze.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent > highPriceChangeThreshold);
 
             if (strongShortSqueezeCandidates.length >= 3) {
@@ -336,7 +352,7 @@ export default function PriceFundingTracker() {
         let longTrapScore = 0;
 
         if (topLongTrap.length > 0) {
-            // Re-introducing correct criteria using component-level thresholds
+            // Updated criteria for more robust analysis: at least 3 severe candidates
             const severeLongTrapCandidates = topLongTrap.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent < -highPriceChangeThreshold);
 
             if (severeLongTrapCandidates.length >= 3) {
@@ -434,7 +450,6 @@ export default function PriceFundingTracker() {
     greenNegativeFunding,
     redPositiveFunding,
     // Add all threshold variables to dependencies, even if they are const.
-    // This is good practice for useEffect if they were ever to come from props or state.
     priceChangeThreshold,
     fundingRateThreshold,
     highPriceChangeThreshold,
@@ -456,7 +471,7 @@ export default function PriceFundingTracker() {
       } else {
         direction = "desc";
         if (key === "signal") { // Default sort for signal might be different (e.g., show signals first)
-          direction = "desc"; // Or 'asc' if you want no signal at top
+          direction = "desc";
         }
       }
       return { key, direction };
@@ -468,7 +483,7 @@ export default function PriceFundingTracker() {
     if (total === 0) return "⚪ Neutral: No clear edge, stay cautious";
 
     const greenRatio = greenCount / total;
-    const redRatio = redRatio; // Fixed: was using `redRatio` twice
+    const redRatio = redCount / total; // Corrected: Was redRatio = redRatio;
 
     // These conditions should align with your market analysis logic for consistency
     if (greenRatio > 0.7 && priceUpFundingNegativeCount > 10) {
@@ -629,7 +644,7 @@ export default function PriceFundingTracker() {
           <div className="relative w-full sm:w-64">
             <input
               type="text"
-              placeholder="🔍 Search symbol (e.g. BTCUSDT)"
+              placeholder="🔍 Search symbol (e.e. BTCUSDT)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
               className="bg-gray-800 border border-gray-700 px-4 py-2 pr-10 rounded-md text-sm w-full"
@@ -672,7 +687,7 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-        {/* --- UPDATED TABLE STRUCTURE (REMOVED Entry/SL/TP columns as they don't exist in SymbolTradeSignal) --- */}
+        {/* --- UPDATED TABLE STRUCTURE (Re-added Entry/SL/TP columns and new TP %) --- */}
         <div className="overflow-auto max-h-[480px]">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs sticky top-0 z-10">
@@ -697,7 +712,10 @@ export default function PriceFundingTracker() {
                 >
                   Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                {/* REMOVED: Entry, Stop Loss, Take Profit headers */}
+                <th className="p-2">Entry</th>
+                <th className="p-2">Stop Loss</th>
+                <th className="p-2">Take Profit</th>
+                <th className="p-2">TP %</th> {/* NEW COLUMN */}
                 <th className="p-2">★</th>
               </tr>
             </thead>
@@ -712,6 +730,11 @@ export default function PriceFundingTracker() {
                 })
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
+
+                  // Calculate TP Percentage
+                  const tpPercentage = signal?.takeProfit && signal.entry
+                    ? ((signal.takeProfit - signal.entry) / signal.entry) * 100
+                    : null;
 
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
@@ -729,9 +752,8 @@ export default function PriceFundingTracker() {
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
 
-                      {/* ✅ Updated Signal Column - displays strength and confidence */}
                       <td className="p-2 space-y-1 text-xs text-gray-200">
-                        {signal && signal.signal ? ( // Only render if a signal exists
+                        {signal && signal.signal ? (
                           <div className="flex flex-col">
                             <span className={`font-bold ${signal.signal === "long" ? "text-green-400" : "text-red-400"}`}>
                               {signal.signal.toUpperCase()}
@@ -744,18 +766,22 @@ export default function PriceFundingTracker() {
                         )}
                       </td>
 
-                      {/* REMOVED: Entry, Stop Loss, Take Profit data cells */}
-                      {/*
                       <td className="p-2">
                         {signal && signal.entry !== null ? signal.entry.toFixed(4) : "-"}
                       </td>
+
                       <td className="p-2">
                         {signal && signal.stopLoss !== null ? signal.stopLoss.toFixed(4) : "-"}
                       </td>
+
                       <td className="p-2">
                         {signal && signal.takeProfit !== null ? signal.takeProfit.toFixed(4) : "-"}
                       </td>
-                      */}
+
+                      {/* NEW TP % CELL */}
+                      <td className="p-2">
+                        {tpPercentage !== null ? `${tpPercentage.toFixed(2)}%` : "-"}
+                      </td>
 
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
                         setFavorites((prev) =>
