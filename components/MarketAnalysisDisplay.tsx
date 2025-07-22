@@ -1,6 +1,6 @@
 // src/components/MarketAnalysisDisplay.tsx
 import React from 'react';
-import { SymbolData } from '../PriceFundingTracker'; // Import necessary types from the main component
+import { SymbolData } from '../pages/PriceFundingTracker'; // Import necessary types from the main component
 
 // Define the types for the props that MarketAnalysisDisplay will receive
 interface MarketAnalysisProps {
