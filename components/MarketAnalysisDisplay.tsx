@@ -72,6 +72,15 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
   redPositiveFunding,
   redNegativeFunding,
 }) => {
+  // Helper to determine text color based on sentiment tone for consistency
+  const getOutlookTextColor = (tone: string): string => {
+    if (tone.includes('🟢 Strongly Bullish')) return 'text-green-500';
+    if (tone.includes('🟡 Mixed leaning Bullish')) return 'text-yellow-400';
+    if (tone.includes('↔️ Mixed/Neutral')) return 'text-blue-400'; // Using blue for neutral/mixed now
+    if (tone.includes('🔻 Bearish')) return 'text-red-500';
+    return 'text-gray-400'; // Default
+  };
+
   return (
     <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
       <h2 className="text-lg font-bold text-white mb-3">📈 Detailed Market Analysis & Ratings</h2>
@@ -155,9 +164,12 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
       {/* Final Market Outlook */}
       <div>
         <h3 className="text-white font-bold text-base mb-1">🏁 Final Market Outlook Score:</h3>
-        <p className={`text-lg font-extrabold ${marketAnalysis.overallMarketOutlook.tone.includes('🔻') ? 'text-red-500' : marketAnalysis.overallMarketOutlook.tone.includes('🔺') ? 'text-green-500' : 'text-yellow-400'}`}>
+        {/* Adjusted conditional styling for the new tones */}
+        <p className={`text-lg font-extrabold ${getOutlookTextColor(marketAnalysis.overallMarketOutlook.tone)}`}>
+          {/* Split the tone for the main rating text */}
           {marketAnalysis.overallMarketOutlook.tone.split('—')[0]} <span className="ml-2">({marketAnalysis.overallMarketOutlook.score.toFixed(1)}/10)</span>
         </p>
+        {/* Display the interpretation part */}
         <p className="text-sm italic text-gray-400">{marketAnalysis.overallMarketOutlook.tone.split('—')[1]?.trim()}</p>
         <p className="text-sm text-blue-300 mt-2">
           <span className="font-bold">📌 Strategy Suggestion:</span> {marketAnalysis.overallMarketOutlook.strategySuggestion}
