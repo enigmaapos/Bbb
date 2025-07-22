@@ -313,7 +313,7 @@ export default function PriceFundingTracker() {
         ]);
 
         const tickerData = await tickerRes.json();
-        const fundingData = await fundingData.json();
+        const fundingData = await fundingRes.json(); // Correct - use the response from the fetch call
 
         // Prepare initial combined data
         const initialCombinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
