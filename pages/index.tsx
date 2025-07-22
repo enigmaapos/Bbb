@@ -21,6 +21,17 @@ const formatVolume = (num: number): string => {
 };
 
 export default function PriceFundingTracker() {
+  // --- Define threshold constants at the component level ---
+  // This makes them accessible to both generateTradeSignals and the useEffect hook.
+  const priceChangeThreshold = 2; // % price change for a basic signal
+  const fundingRateThreshold = 0.0001; // 0.01% funding rate for a basic signal
+  const highPriceChangeThreshold = 5; // % price change for strong signal
+  const highFundingRateThreshold = 0.0003; // 0.03% funding rate for strong signal
+  const mediumPriceChangeThreshold = 3; // % price change for medium signal
+  const mediumFundingRateThreshold = 0.0002; // 0.02% funding rate for medium signal
+  const volumeThreshold = 50_000_000; // 50 million USD volume for higher confidence
+  // --- END threshold definitions ---
+
   const [data, setData] = useState<SymbolData[]>([]);
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
   const [greenCount, setGreenCount] = useState(0);
@@ -88,14 +99,8 @@ export default function PriceFundingTracker() {
       let strength: SymbolTradeSignal['strength'] = "Weak";
       let confidence: SymbolTradeSignal['confidence'] = "Low Confidence";
 
-      // Define thresholds for strength and confidence
-      const priceChangeThreshold = 2; // % price change for a basic signal
-      const fundingRateThreshold = 0.0001; // 0.01% funding rate for a basic signal
-      const highPriceChangeThreshold = 5; // % price change for strong signal
-      const highFundingRateThreshold = 0.0003; // 0.03% funding rate for strong signal
-      const mediumPriceChangeThreshold = 3; // % price change for medium signal
-      const mediumFundingRateThreshold = 0.0002; // 0.02% funding rate for medium signal
-      const volumeThreshold = 50_000_000; // 50 million USD volume for higher confidence
+      // These thresholds are now correctly in scope from the parent component.
+      // No need to redeclare them here.
 
       // Long Signal Logic
       if (priceChangePercent >= priceChangeThreshold && fundingRate < -fundingRateThreshold) {
@@ -316,6 +321,7 @@ export default function PriceFundingTracker() {
 
         if (topShortSqueeze.length > 0) {
             // Updated criteria for more robust analysis: at least 3 strong candidates
+            // These lines now correctly access volumeThreshold and highPriceChangeThreshold
             const strongShortSqueezeCandidates = topShortSqueeze.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent > highPriceChangeThreshold);
 
             if (strongShortSqueezeCandidates.length >= 3) {
@@ -340,6 +346,7 @@ export default function PriceFundingTracker() {
 
         if (topLongTrap.length > 0) {
             // Updated criteria for more robust analysis: at least 3 severe candidates
+            // These lines now correctly access volumeThreshold and highPriceChangeThreshold
             const severeLongTrapCandidates = topLongTrap.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent < -highPriceChangeThreshold);
 
             if (severeLongTrapCandidates.length >= 3) {
@@ -428,7 +435,24 @@ export default function PriceFundingTracker() {
     fetchAll();
     const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
-  }, [sortConfig, greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount, greenNegativeFunding, redPositiveFunding]); // Added all states that are dependencies
+  }, [
+    sortConfig,
+    greenCount,
+    redCount,
+    priceUpFundingNegativeCount,
+    priceDownFundingPositiveCount,
+    greenNegativeFunding,
+    redPositiveFunding,
+    // Add all threshold variables to dependencies, even if they are const.
+    // This is good practice for useEffect if they were ever to come from props or state.
+    priceChangeThreshold,
+    fundingRateThreshold,
+    highPriceChangeThreshold,
+    highFundingRateThreshold,
+    mediumPriceChangeThreshold,
+    mediumFundingRateThreshold,
+    volumeThreshold,
+  ]);
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
