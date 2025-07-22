@@ -71,7 +71,7 @@ export default function PriceFundingTracker() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [sortBySignal, setSortBySignal] = useState<"asc" | "desc" | null>(null);
 
-  // New state for funding imbalance data
+  // New state for funding imbalance data (fixed in previous turn)
   const [fundingImbalanceData, setFundingImbalanceData] = useState({
     priceUpShortsPaying: 0,
     priceUpLongsPaying: 0,
@@ -258,6 +258,7 @@ export default function PriceFundingTracker() {
           topShortSqueeze,
           topLongTrap,
         });
+
 
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
@@ -630,9 +631,15 @@ export default function PriceFundingTracker() {
             <tbody>
               {data // Use 'data' which is already sorted in the useEffect
                 .filter(
-                  (item) =>
-                    (!searchTerm || item.symbol.includes(searchTerm)) &&
-                    (!showFavoritesOnly || favorites.includes(item.symbol))
+                  (item) => {
+                    // Check if there's a signal for this item and it's not null
+                    const hasSignal = tradeSignals.some((s) => s.symbol === item.symbol && s.signal !== null);
+                    return (
+                      hasSignal && // Only show if a signal exists
+                      (!searchTerm || item.symbol.includes(searchTerm)) &&
+                      (!showFavoritesOnly || favorites.includes(item.symbol))
+                    );
+                  }
                 )
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
