@@ -1,9 +1,9 @@
 // src/PriceFundingTracker.tsx (or just PriceFundingTracker.tsx)
 
 import { useEffect, useState } from "react";
-import FundingSentimentChart from "./components/FundingSentimentChart";
-import MarketAnalysisDisplay from "./components/MarketAnalysisDisplay";
-import { SymbolData, SymbolTradeSignal } from "./types"; // <-- UPDATED IMPORT
+import FundingSentimentChart from "../components/FundingSentimentChart";
+import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
+import { SymbolData, SymbolTradeSignal } from "../types"; // <-- UPDATED IMPORT
 
 const BINANCE_API = "https://fapi.binance.com";
 
