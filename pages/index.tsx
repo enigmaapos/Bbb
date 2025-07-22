@@ -8,7 +8,7 @@ import { SymbolData, SymbolTradeSignal } from "../types";
 import { analyzeSentiment, MarketStats } from "../utils/sentimentAnalyzer";
 
 const BINANCE_API = "https://fapi.binance.com";
-// const BINANCE_API_V2 = "https://fapi.binance.com/fapi/v2"; // No longer needed for OI, removing this as it causes confusion
+// Removed BINANCE_API_V2 as it was causing confusion for the OI endpoint
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
@@ -198,6 +198,7 @@ export default function PriceFundingTracker() {
           .map((s: any) => s.symbol);
 
         // --- Fetch Ticker and Funding Data ---
+        // These can be fetched in parallel as they support fetching all symbols or are distinct endpoints
         const [tickerRes, fundingRes] = await Promise.all([
           fetch(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           fetch(`${BINANCE_API}/fapi/v1/premiumIndex`),
@@ -209,21 +210,23 @@ export default function PriceFundingTracker() {
         const tickerData = await tickerRes.json();
         const fundingData = await fundingRes.json();
 
-        // --- NEW: Fetch Open Interest History for each symbol individually ---
+        // --- Fetch Open Interest History for each symbol individually ---
+        // This endpoint requires a separate request for each symbol.
         const openInterestPromises = usdtPairs.map(async (symbol: string) => {
             try {
-                // Corrected endpoint: /fapi/v1/openInterestHist (not /fapi/v2/futures/data/openInterestHist)
-                // Correct usage: one symbol per request
+                // Corrected endpoint path: /fapi/v1/openInterestHist
+                // Correct usage: Pass 'symbol' parameter for individual symbol
                 const oiUrl = `${BINANCE_API}/fapi/v1/openInterestHist?symbol=${symbol}&period=5m&limit=1`;
                 const oiRes = await fetch(oiUrl);
 
                 if (!oiRes.ok) {
+                    // Log a warning for individual symbol failures but don't halt the whole process
                     console.warn(`Failed to fetch Open Interest for ${symbol}: ${oiRes.status} ${oiRes.statusText}`);
-                    return { symbol, openInterest: 0 }; // Return default value on error
+                    return { symbol, openInterest: 0 }; // Return default value for this symbol
                 }
                 const oiData = await oiRes.json();
 
-                // Binance's openInterestHist returns an array, the latest is usually the first element.
+                // Binance's openInterestHist returns an array, the latest data is usually the first element.
                 // We're interested in 'sumOpenInterestValue' for USD value.
                 if (oiData.length > 0) {
                     return { symbol, openInterest: parseFloat(oiData[0].sumOpenInterestValue || "0") };
@@ -240,18 +243,18 @@ export default function PriceFundingTracker() {
         const allOpenInterestResults = await Promise.all(openInterestPromises);
         const oiMap = new Map<string, number>();
         allOpenInterestResults.forEach(item => {
-            if (item) { // Ensure the item is not null (from a failed fetch)
+            if (item) { // Ensure the item is not null/undefined from a failed fetch
                 oiMap.set(item.symbol, item.openInterest);
             }
         });
 
-
+        // 4. Combine all fetched data
         const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          const openInterest = oiMap.get(symbol) || 0; // Get OI from map
+          const openInterest = oiMap.get(symbol) || 0; // Get OI from map, default to 0 if not found
 
           // Placeholder for RSI - In a real app, you'd fetch klines and calculate RSI
           const dummyRsi = (Math.random() * 60) + 20; // RSI between 20 and 80 for demo
@@ -267,7 +270,7 @@ export default function PriceFundingTracker() {
             // marketCap: <fetch_or_calculate_market_cap_here>,
             // liquidationVolume: <fetch_liquidation_data_here>,
           };
-        }).filter((d: SymbolData) => d.volume > 0);
+        }).filter((d: SymbolData) => d.volume > 0); // Filter out symbols with no volume (likely inactive)
 
 
         // Update counts for stats
@@ -442,10 +445,9 @@ export default function PriceFundingTracker() {
 
       } catch (err: any) {
         console.error("General error fetching Binance data:", err);
-      } finally {
-        // Ensure loading state is always updated
-        setLoading(false);
       }
+      // Removed the finally block because there was no loading state managed in this component.
+      // If you add a loading state, add `setLoading(false);` in a finally block.
     };
 
     fetchAll();
