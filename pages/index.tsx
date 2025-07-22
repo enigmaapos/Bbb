@@ -297,11 +297,18 @@ export default function PriceFundingTracker() {
         let shortSqueezeScore = 0;
 
         if (topShortSqueeze.length > 0) {
-            shortSqueezeInterpretation = "These coins show potential short squeezes (shorts paying while price rises). Focus on those with high % change and large volume for stronger signals.";
-            shortSqueezeRating = "🟢 Bullish Pockets";
-            shortSqueezeScore = topShortSqueeze.length >= 5 ? 7.0 : 5.0; // Higher score if more candidates
+            const hasHighVolumeChange = topShortSqueeze.some(d => d.volume > 100_000_000 && d.priceChangePercent > 5); // Example criteria
+            if (topShortSqueeze.length >= 3 && hasHighVolumeChange) {
+                shortSqueezeInterpretation = "These coins show strong potential for short squeezes (shorts paying while price rises). The presence of high volume and significant price increases indicates a more impactful squeeze.";
+                shortSqueezeRating = "🟢 Strong Bullish Pockets";
+                shortSqueezeScore = 8.0;
+            } else {
+                shortSqueezeInterpretation = "These coins show potential short squeezes (shorts paying while price rises), but they might be isolated or lack significant volume/price movement to drive broader momentum.";
+                shortSqueezeRating = "🟢 Bullish Pockets (Isolated)";
+                shortSqueezeScore = 6.5;
+            }
         } else {
-            shortSqueezeInterpretation = "No strong short squeeze candidates identified at this moment.";
+            shortSqueezeInterpretation = "No strong short squeeze candidates identified at this moment. The market lacks significant price increases accompanied by negative funding rates.";
             shortSqueezeRating = "⚪ No Squeeze Candidates";
             shortSqueezeScore = 4.0;
         }
@@ -313,11 +320,18 @@ export default function PriceFundingTracker() {
         let longTrapScore = 0;
 
         if (topLongTrap.length > 0) {
-            longTrapInterpretation = "These coins show clear bear momentum + positive funding, meaning longs are trapped. High volume and significant price drops indicate higher risk.";
-            longTrapRating = "🔴 High Risk (Long Trap)";
-            longTrapScore = topLongTrap.length >= 5 ? 9.5 : 7.0; // Higher score if more candidates
+            const hasHighVolumeDrop = topLongTrap.some(d => d.volume > 100_000_000 && d.priceChangePercent < -5); // Example criteria
+            if (topLongTrap.length >= 3 && hasHighVolumeDrop) {
+                longTrapInterpretation = "These coins show clear bear momentum with positive funding, meaning longs are heavily trapped. The combination of significant price drops and high volume makes them classic liquidation magnets and indicates deeper sell-off risk.";
+                longTrapRating = "🔴 High Risk (Severe Long Trap)";
+                longTrapScore = 9.5;
+            } else {
+                longTrapInterpretation = "These coins show clear bear momentum with positive funding, meaning longs are trapped. While present, they might be isolated or have lower volume/less extreme price drops, indicating moderate risk.";
+                longTrapRating = "🔴 High Risk (Moderate Long Trap)";
+                longTrapScore = 7.5;
+            }
         } else {
-            longTrapInterpretation = "No strong long trap candidates identified at this moment.";
+            longTrapInterpretation = "No strong long trap candidates identified at this moment. The market is not showing significant price drops accompanied by positive funding rates, which is a positive sign for longs.";
             longTrapRating = "⚪ No Trap Candidates";
             longTrapScore = 4.0;
         }
@@ -325,7 +339,7 @@ export default function PriceFundingTracker() {
         // Overall Sentiment Accuracy
         let overallSentimentAccuracy = "";
         const currentSentimentClue = getSentimentClue();
-        if (currentSentimentClue.includes("🔴 Bearish Trap") && rPos > gNeg) {
+        if (currentSentimentClue.includes("🔴 Bearish Risk") && rPos > gNeg) { // Changed "Bearish Trap" to "Bearish Risk" based on getSentimentClue output
             overallSentimentAccuracy = "✅ Correct. The sentiment accurately reflects the dominance of trapped longs in a falling market.";
         } else if (currentSentimentClue.includes("🟢 Bullish Momentum") && gNeg > rPos) {
             overallSentimentAccuracy = "✅ Correct. The sentiment accurately reflects potential short squeezes in a rising market.";
@@ -393,7 +407,7 @@ export default function PriceFundingTracker() {
     fetchAll();
     const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
-  }, [sortConfig, greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount, greenNegativeFunding, redPositiveFunding]); // Add dependencies for analysis
+  }, [sortConfig, greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount, greenNegativeFunding, redPositiveFunding]);
     // NOTE: Added more dependencies here to ensure analysis runs when core counts update.
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
