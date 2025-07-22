@@ -8,6 +8,7 @@ type SymbolData = {
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
+  volume: number; // Added 24h volume
 };
 
 type SymbolTradeSignal = {
@@ -19,7 +20,8 @@ type SymbolTradeSignal = {
 };
 
 export default function PriceFundingTracker() {
-  const [data, setData] = useState<SymbolData[]>([]);
+  const [data, setData] = useState<SymbolData[]>([]
+  );
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
@@ -58,15 +60,17 @@ export default function PriceFundingTracker() {
       if (priceChangePercent >= 0 && fundingRate < 0) {
         signal = "long";
         entry = lastPrice;
-        stopLoss = entry - (Math.abs(priceChangePercent) / 100) * entry * 0.5;
-        takeProfit = entry + (Math.abs(priceChangePercent) / 100) * entry * 1.5;
+        // Simple stop loss/take profit for illustration. Adjust as needed.
+        stopLoss = entry * 0.99; // Example: 1% stop loss
+        takeProfit = entry * 1.02; // Example: 2% take profit
       }
 
       if (priceChangePercent < 0 && fundingRate > 0) {
         signal = "short";
         entry = lastPrice;
-        stopLoss = entry + (Math.abs(priceChangePercent) / 100) * entry * 0.5;
-        takeProfit = entry - (Math.abs(priceChangePercent) / 100) * entry * 1.5;
+        // Simple stop loss/take profit for illustration. Adjust as needed.
+        stopLoss = entry * 1.01; // Example: 1% stop loss
+        takeProfit = entry * 0.98; // Example: 2% take profit
       }
 
       return { symbol, entry, stopLoss, takeProfit, signal };
@@ -98,15 +102,19 @@ export default function PriceFundingTracker() {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
+          // Using quoteVolume (USDT equivalent volume)
+          const volume = parseFloat(ticker?.quoteVolume || "0");
 
           return {
             symbol,
             priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
+            volume: volume, // Include volume here
           };
         });
 
+        // Update counts for stats
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
@@ -132,6 +140,7 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
+        // Calculate funding imbalance data
         const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
         const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
         const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
@@ -139,12 +148,12 @@ export default function PriceFundingTracker() {
 
         const topShortSqueeze = combinedData
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
-          .sort((a, b) => a.fundingRate - b.fundingRate)
+          .sort((a, b) => a.fundingRate - b.fundingRate) // Sort by most negative funding
           .slice(0, 5);
 
         const topLongTrap = combinedData
           .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
-          .sort((a, b) => b.fundingRate - a.fundingRate)
+          .sort((a, b) => b.fundingRate - a.fundingRate) // Sort by most positive funding
           .slice(0, 5);
 
         setFundingImbalanceData({
@@ -172,7 +181,7 @@ export default function PriceFundingTracker() {
             const rank = (s: SymbolTradeSignal | undefined) => {
               if (s?.signal === "long") return 0;
               if (s?.signal === "short") return 1;
-              return 2;
+              return 2; // No signal
             };
 
             const rankA = rank(signalA);
@@ -378,7 +387,9 @@ export default function PriceFundingTracker() {
             <ul className="list-disc list-inside text-sm text-yellow-100">
               {fundingImbalanceData.topShortSqueeze.length > 0 ? (
                 fundingImbalanceData.topShortSqueeze.map((d) => (
-                  <li key={d.symbol}>{d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}%</li>
+                  <li key={d.symbol}>
+                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {d.volume.toFixed(0)}
+                  </li>
                 ))
               ) : (
                 <li>No strong short squeeze candidates at the moment.</li>
@@ -391,7 +402,9 @@ export default function PriceFundingTracker() {
             <ul className="list-disc list-inside text-sm text-pink-100">
               {fundingImbalanceData.topLongTrap.length > 0 ? (
                 fundingImbalanceData.topLongTrap.map((d) => (
-                  <li key={d.symbol}>{d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}%</li>
+                  <li key={d.symbol}>
+                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {d.volume.toFixed(0)}
+                  </li>
                 ))
               ) : (
                 <li>No strong long trap candidates at the moment.</li>
