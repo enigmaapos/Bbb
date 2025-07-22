@@ -95,7 +95,7 @@ const getRealSupportResistanceStatus = async (
 
 // --- RSI Calculation Helper Functions ---
 function calculateRSI(prices: number[], period: number = 14): number[] {
-  if (prices.length < period) return [];
+  if (prices.length < period + 1) return []; // Need at least period + 1 prices for 1 period of changes
 
   let changes: number[] = [];
   for (let i = 1; i < prices.length; i++) {
@@ -117,101 +117,108 @@ function calculateRSI(prices: number[], period: number = 14): number[] {
 
   // Wilder's smoothing
   for (let i = period; i < gains.length; i++) {
-    avgGain.push((avgGain[avgGain.length - 1] * (period - 1) + gains[i]) / period);
-    avgLoss.push((avgLoss[avgLoss.length - 1] * (period - 1) + losses[i]) / period);
+    avgGain.push(((avgGain[avgGain.length - 1] * (period - 1)) + gains[i]) / period);
+    avgLoss.push(((avgLoss[avgLoss.length - 1] * (period - 1)) + losses[i]) / period);
   }
 
   let rsiValues: number[] = [];
   for (let i = 0; i < avgGain.length; i++) {
-    let rs = avgGain[i] / avgLoss[i];
-    if (avgLoss[i] === 0) { // Handle division by zero for RS
-      rs = Infinity;
-    }
+    let rs = avgLoss[i] === 0 ? Infinity : avgGain[i] / avgLoss[i]; // Handle division by zero
     rsiValues.push(100 - (100 / (1 + rs)));
   }
-
-  // RSI array will be shorter than prices by 'period'
-  // We need to pad it with nulls or undefined to align with price array if full length is needed
-  // For simplicity, we'll return the calculated RSI values as is.
+  
+  // Return RSI values corresponding to the input prices from period onwards
+  // This means if you input 150 prices, you get 150 - 14 = 136 RSI values
   return rsiValues;
 }
 
 function getRecentRSIDiff(rsi: number[], lookback = 14) {
   if (rsi.length < lookback) return null;
 
-  const recentRSI = rsi.slice(-lookback);
+  const recentRSI = rsi.slice(-lookback); // Ensure we have enough data points for the lookback window
+
+  // Filter out NaN or undefined values if any remain from source data issues
+  const validRecentRSI = recentRSI.filter(value => typeof value === 'number' && !isNaN(value));
+
+  if (validRecentRSI.length === 0) return null; // No valid RSI data in lookback
+
   let recentHigh = -Infinity;
   let recentLow = Infinity;
 
-  for (const value of recentRSI) {
-    if (value !== undefined && !isNaN(value)) { // Ensure value is a valid number
-      if (value > recentHigh) recentHigh = value;
-      if (value < recentLow) recentLow = value;
-    }
+  for (const value of validRecentRSI) {
+    if (value > recentHigh) recentHigh = value;
+    if (value < recentLow) recentLow = value;
   }
 
-  // If recentHigh or recentLow remained at initial (unlikely for valid RSI, but for safety)
+  // If no valid numbers were found (unlikely after filter, but for robustness)
   if (recentHigh === -Infinity || recentLow === Infinity) return null;
 
+  const pumpStrength = recentHigh - recentLow; // Max range within lookback
+  const dumpStrength = recentHigh - recentLow; // Same as pumpStrength, represents the total range
 
-  const pumpStrength = recentHigh - recentLow;
-  const dumpStrength = Math.abs(recentLow - recentHigh); // This seems redundant if pumpStrength captures the range
+  const startRSI = validRecentRSI[0];
+  const endRSI = validRecentRSI[validRecentRSI.length - 1];
 
-  const startRSI = recentRSI[0];
-  const endRSI = recentRSI[recentRSI.length - 1];
-  const direction = endRSI > startRSI ? 'pump' : endRSI < startRSI ? 'dump' : 'neutral';
-  const strength = Math.abs(endRSI - startRSI);
+  let direction: 'pump' | 'dump' | 'neutral';
+  if (endRSI > startRSI) {
+    direction = 'pump';
+  } else if (endRSI < startRSI) {
+    direction = 'dump';
+  } else {
+    direction = 'neutral';
+  }
+  
+  const strength = Math.abs(endRSI - startRSI); // Absolute difference between start and end RSI in lookback window
 
   return {
     recentHigh,
     recentLow,
-    pumpStrength, // Max range within lookback
-    dumpStrength: pumpStrength, // Re-using pumpStrength as it's the total range
-    direction, // Direction from start to end of lookback window
-    strength // Absolute difference between start and end RSI in lookback window
+    pumpStrength, 
+    dumpStrength, 
+    direction, 
+    strength 
   };
 }
 
 const getRsiSignal = (s: SymbolData): string => {
-  if (!s.rsi14 || s.rsi14.length === 0) return 'NO DATA';
+  if (!s.rsi14 || s.rsi14.length === 0 || s.rsi14.some(isNaN)) return 'NO DATA';
+
+  // We need at least 14 RSI values to use getRecentRSIDiff with lookback 14
+  if (s.rsi14.length < 14) return 'INSUFFICIENT RSI DATA';
 
   const pumpDump = getRecentRSIDiff(s.rsi14, 14);
-  if (!pumpDump) return 'NO DATA';
+  if (!pumpDump) return 'NO DATA'; // Fallback if getRecentRSIDiff returns null
 
   const { direction, pumpStrength, dumpStrength } = pumpDump;
 
-  const isAboveThreshold = (val: number | undefined, threshold: number) =>
-    val !== undefined && val >= threshold;
+  const RSI_MOVE_THRESHOLD = 15; // RSI move of 15 points for a "significant" move
 
-  // Define a threshold for "strong" pump/dump in RSI
-  const RSI_SIGNAL_THRESHOLD = 30; // RSI move of 30 points
-
-  if (direction === 'pump' && isAboveThreshold(pumpStrength, RSI_SIGNAL_THRESHOLD)) {
-    // Check if current RSI is high enough to be "overbought" for a pump zone
-    const latestRSI = s.rsi14[s.rsi14.length - 1];
-    if (latestRSI > 70) { // Example: RSI over 70 for pump
-      return 'MAX ZONE PUMP (OVERSOLD)'; // Changed from 'MAX ZONE PUMP' for clearer meaning
-    } else {
-      return 'RSI PUMPING';
-    }
-  }
-
-  if (direction === 'dump' && isAboveThreshold(dumpStrength, RSI_SIGNAL_THRESHOLD)) {
-    // Check if current RSI is low enough to be "oversold" for a dump zone
-    const latestRSI = s.rsi14[s.rsi14.length - 1];
-    if (latestRSI < 30) { // Example: RSI below 30 for dump
-      return 'MAX ZONE DUMP (OVERBOUGHT)'; // Changed from 'MAX ZONE DUMP' for clearer meaning
-    } else {
-      return 'RSI DUMPING';
-    }
-  }
-
-  // Additional conditions for neutrality or specific ranges
   const latestRSI = s.rsi14[s.rsi14.length - 1];
+
+  // Strong Pump: significant upward move AND currently overbought
+  if (direction === 'pump' && pumpStrength >= RSI_MOVE_THRESHOLD && latestRSI > 70) {
+    return 'MAX ZONE PUMP (OVERBOUGHT)'; 
+  }
+  // Moderate Pump: significant upward move, but not yet overbought
+  if (direction === 'pump' && pumpStrength >= RSI_MOVE_THRESHOLD) {
+    return 'RSI PUMPING';
+  }
+
+  // Strong Dump: significant downward move AND currently oversold
+  if (direction === 'dump' && dumpStrength >= RSI_MOVE_THRESHOLD && latestRSI < 30) {
+    return 'MAX ZONE DUMP (OVERSOLD)'; 
+  }
+  // Moderate Dump: significant downward move, but not yet oversold
+  if (direction === 'dump' && dumpStrength >= RSI_MOVE_THRESHOLD) {
+    return 'RSI DUMPING';
+  }
+
+  // Pure Overbought/Oversold (without a strong recent move in the lookback period)
   if (latestRSI > 70) return 'OVERBOUGHT';
   if (latestRSI < 30) return 'OVERSOLD';
-  if (latestRSI >= 45 && latestRSI <= 55) return 'NEUTRAL';
 
+  // Neutral range
+  if (latestRSI >= 45 && latestRSI <= 55) return 'NEUTRAL';
 
   return 'NORMAL'; // Default or no clear signal
 };
@@ -228,7 +235,7 @@ export default function PriceFundingTracker() {
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
-  const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent" | "rsiSignal">("fundingRate"); // Add rsiSignal to sort options
+  const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent" | "rsiSignal">("fundingRate"); 
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -313,7 +320,7 @@ export default function PriceFundingTracker() {
         ]);
 
         const tickerData = await tickerRes.json();
-        const fundingData = await fundingRes.json(); // Correct - use the response from the fetch call
+        const fundingData = await fundingRes.json(); // CORRECTED: This was the `fundingData` typo fix
 
         // Prepare initial combined data
         const initialCombinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
@@ -329,16 +336,19 @@ export default function PriceFundingTracker() {
             majorResistance: 0,
             majorSupport: 0,
             srStatus: "unknown",
-            rsi14: [], // Initialize RSI
-            rsiSignal: "NO DATA", // Initialize RSI signal
+            rsi14: [], 
+            rsiSignal: "NO DATA", 
           };
         });
 
         // Fetch S/R and Close Prices concurrently for all symbols
         const srPromises = initialCombinedData.map(async (item) => {
           const srData = await getRealSupportResistanceStatus(item.symbol, item.lastPrice);
-          const rsiValues = calculateRSI(srData.closePrices); // Calculate RSI here
-          const rsiSignal = getRsiSignal({ ...item, rsi14: rsiValues }); // Get RSI signal
+          const rsiValues = calculateRSI(srData.closePrices); 
+          const rsiSignal = getRsiSignal({ ...item, rsi14: rsiValues }); 
+          
+          // console.log(`Symbol: ${item.symbol}, Close Prices Length: ${srData.closePrices.length}, RSI Length: ${rsiValues.length}, Latest RSI: ${rsiValues[rsiValues.length - 1]?.toFixed(2) || 'N/A'}, Signal: ${rsiSignal}`); // Debugging line
+
           return { ...item, ...srData, rsi14: rsiValues, rsiSignal: rsiSignal };
         });
 
@@ -370,9 +380,15 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        // Calculate RSI signal counts
-        const pumpCount = combinedDataWithSRAndRSI.filter(d => d.rsiSignal === 'MAX ZONE PUMP (OVERSOLD)' || d.rsiSignal === 'RSI PUMPING').length;
-        const dumpCount = combinedDataWithSRAndRSI.filter(d => d.rsiSignal === 'MAX ZONE DUMP (OVERBOUGHT)' || d.rsiSignal === 'RSI DUMPING').length;
+        // Calculate RSI signal counts with UPDATED signal names
+        const pumpCount = combinedDataWithSRAndRSI.filter(d => 
+          d.rsiSignal === 'MAX ZONE PUMP (OVERBOUGHT)' || 
+          d.rsiSignal === 'RSI PUMPING'
+        ).length;
+        const dumpCount = combinedDataWithSRAndRSI.filter(d => 
+          d.rsiSignal === 'MAX ZONE DUMP (OVERSOLD)' || 
+          d.rsiSignal === 'RSI DUMPING'
+        ).length;
         setMaxZonePumpCount(pumpCount);
         setMaxZoneDumpCount(dumpCount);
 
@@ -431,15 +447,16 @@ export default function PriceFundingTracker() {
           if (sortBy === "rsiSignal") {
             // Custom sorting for RSI Signal: Prioritize 'MAX ZONE PUMP' then 'MAX ZONE DUMP', etc.
             const rsiRank = (signal: string | undefined) => {
-              if (signal === 'MAX ZONE PUMP (OVERSOLD)') return 0;
+              if (signal === 'MAX ZONE PUMP (OVERBOUGHT)') return 0; // UPDATED
               if (signal === 'RSI PUMPING') return 1;
-              if (signal === 'MAX ZONE DUMP (OVERBOUGHT)') return 2;
+              if (signal === 'MAX ZONE DUMP (OVERSOLD)') return 2; // UPDATED
               if (signal === 'RSI DUMPING') return 3;
               if (signal === 'OVERBOUGHT') return 4;
               if (signal === 'OVERSOLD') return 5;
               if (signal === 'NEUTRAL') return 6;
               if (signal === 'NORMAL') return 7;
-              return 8; // 'NO DATA' or unknown
+              if (signal === 'INSUFFICIENT RSI DATA') return 8; // Added rank for this status
+              return 9; // 'NO DATA' or unknown
             };
             const rankA = rsiRank(a.rsiSignal);
             const rankB = rsiRank(b.rsiSignal);
@@ -834,13 +851,16 @@ export default function PriceFundingTracker() {
                         )}
                       </td>
 
-                      {/* RSI Signal Cell */}
+                      {/* RSI Signal Cell - Updated color logic */}
                       <td className={`p-2 text-xs font-semibold ${
-                        item.rsiSignal?.includes("PUMP") ? "text-pink-400" :
-                        item.rsiSignal?.includes("DUMP") ? "text-orange-400" :
-                        item.rsiSignal === "OVERBOUGHT" ? "text-red-300" :
-                        item.rsiSignal === "OVERSOLD" ? "text-green-300" :
-                        "text-gray-400"
+                        item.rsiSignal === 'MAX ZONE PUMP (OVERBOUGHT)' ? "text-purple-400" :
+                        item.rsiSignal === 'RSI PUMPING' ? "text-pink-400" :
+                        item.rsiSignal === 'MAX ZONE DUMP (OVERSOLD)' ? "text-indigo-400" :
+                        item.rsiSignal === 'RSI DUMPING' ? "text-orange-400" :
+                        item.rsiSignal === 'OVERBOUGHT' ? "text-red-300" :
+                        item.rsiSignal === 'OVERSOLD' ? "text-green-300" :
+                        item.rsiSignal === 'NEUTRAL' ? "text-blue-300" :
+                        "text-gray-400" // For 'NORMAL', 'NO DATA', 'INSUFFICIENT RSI DATA'
                       }`}>
                         {item.rsiSignal}
                       </td>
