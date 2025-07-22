@@ -4,33 +4,22 @@ import React from 'react';
 import { SymbolData } from '../types';
 
 // Define the types for the props that MarketAnalysisDisplay will receive
+interface SentimentResult {
+  rating: string;
+  interpretation: string;
+  score: number;
+}
+
 interface MarketAnalysisProps {
   marketAnalysis: {
-    generalBias: {
-      rating: string;
-      interpretation: string;
-      score: number;
-    };
-    fundingImbalance: {
-      rating: string;
-      interpretation: string;
-      score: number;
-    };
-    shortSqueezeCandidates: {
-      rating: string;
-      interpretation: string;
-      score: number;
-    };
-    longTrapCandidates: {
-      rating: string;
-      interpretation: string;
-      score: number;
-    };
-    volumeSentiment: { // NEW: Add volumeSentiment to the props interface
-      rating: string;
-      interpretation: string;
-      score: number;
-    };
+    generalBias: SentimentResult;
+    fundingImbalance: SentimentResult;
+    shortSqueezeCandidates: SentimentResult;
+    longTrapCandidates: SentimentResult;
+    volumeSentiment: SentimentResult;
+    speculativeInterest: SentimentResult; // NEW
+    liquidationHeatmap: SentimentResult; // NEW
+    momentumImbalance: SentimentResult; // NEW
     overallSentimentAccuracy: string;
     overallMarketOutlook: {
       score: number;
@@ -80,16 +69,17 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
   const getOutlookTextColor = (tone: string): string => {
     if (tone.includes('🟢 Strongly Bullish')) return 'text-green-500';
     if (tone.includes('🟡 Mixed leaning Bullish')) return 'text-yellow-400';
-    if (tone.includes('↔️ Mixed/Neutral')) return 'text-blue-400'; // Using blue for neutral/mixed now
+    if (tone.includes('↔️ Mixed/Neutral')) return 'text-blue-400';
     if (tone.includes('🔻 Bearish')) return 'text-red-500';
     return 'text-gray-400'; // Default
   };
 
-  // Helper for volume sentiment color
-  const getVolumeSentimentColor = (rating: string): string => {
+  // Helper for general sentiment color (can be reused)
+  const getSentimentColor = (rating: string): string => {
     if (rating.includes('🟢')) return 'text-green-400';
     if (rating.includes('🔴')) return 'text-red-400';
     if (rating.includes('🟡')) return 'text-yellow-300';
+    if (rating.includes('↔️')) return 'text-blue-400'; // For neutral/mixed
     return 'text-gray-400';
   };
 
@@ -104,7 +94,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
           <span className="font-bold">✅ Green:</span> {greenCount} &nbsp;&nbsp;
           <span className="font-bold">❌ Red:</span> {redCount}
         </p>
-        <p className={`text-sm ${marketAnalysis.generalBias.rating.includes('🔴') ? 'text-red-400' : marketAnalysis.generalBias.rating.includes('🟢') ? 'text-green-400' : marketAnalysis.generalBias.rating.includes('🟡') ? 'text-yellow-300' : 'text-gray-400'}`}>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.generalBias.rating)}`}>
           {marketAnalysis.generalBias.rating} <span className="font-bold">({marketAnalysis.generalBias.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400">{marketAnalysis.generalBias.interpretation}</p>
@@ -119,25 +109,52 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
         <p className="text-sm text-gray-300">
           <span className="font-bold">Red Group (Price Down):</span> ➕ Longs Paying: {redPositiveFunding}, ➖ Shorts Paying: {redNegativeFunding}
         </p>
-        <p className={`text-sm ${marketAnalysis.fundingImbalance.rating.includes('🔴') ? 'text-red-400' : marketAnalysis.fundingImbalance.rating.includes('🟢') ? 'text-green-400' : 'text-gray-400'}`}>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.fundingImbalance.rating)}`}>
           {marketAnalysis.fundingImbalance.rating} <span className="font-bold">({marketAnalysis.fundingImbalance.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400">{marketAnalysis.fundingImbalance.interpretation}</p>
       </div>
 
-      {/* NEW: Overall Volume Sentiment */}
+      {/* Overall Volume Sentiment */}
       <div className="mb-4">
         <h3 className="text-orange-300 font-semibold mb-1">📦 Overall Volume Sentiment</h3>
-        <p className={`text-sm ${getVolumeSentimentColor(marketAnalysis.volumeSentiment.rating)}`}>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.volumeSentiment.rating)}`}>
           {marketAnalysis.volumeSentiment.rating} <span className="font-bold">({marketAnalysis.volumeSentiment.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400">{marketAnalysis.volumeSentiment.interpretation}</p>
       </div>
 
+      {/* NEW: Speculative Interest (Open Interest) */}
+      <div className="mb-4">
+        <h3 className="text-teal-300 font-semibold mb-1">🧠 Speculative Interest (OI)</h3>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.speculativeInterest.rating)}`}>
+          {marketAnalysis.speculativeInterest.rating} <span className="font-bold">({marketAnalysis.speculativeInterest.score.toFixed(1)}/10)</span>
+        </p>
+        <p className="text-xs italic text-gray-400">{marketAnalysis.speculativeInterest.interpretation}</p>
+      </div>
+
+      {/* NEW: Momentum Imbalance (RSI) */}
+      <div className="mb-4">
+        <h3 className="text-cyan-300 font-semibold mb-1">📊 Momentum Imbalance (RSI)</h3>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.momentumImbalance.rating)}`}>
+          {marketAnalysis.momentumImbalance.rating} <span className="font-bold">({marketAnalysis.momentumImbalance.score.toFixed(1)}/10)</span>
+        </p>
+        <p className="text-xs italic text-gray-400">{marketAnalysis.momentumImbalance.interpretation}</p>
+      </div>
+
+      {/* NEW: Liquidation Heatmap (Placeholder) */}
+      <div className="mb-4">
+        <h3 className="text-pink-500 font-semibold mb-1">💥 Liquidation Heatmap</h3>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.liquidationHeatmap.rating)}`}>
+          {marketAnalysis.liquidationHeatmap.rating} <span className="font-bold">({marketAnalysis.liquidationHeatmap.score.toFixed(1)}/10)</span>
+        </p>
+        <p className="text-xs italic text-gray-400">{marketAnalysis.liquidationHeatmap.interpretation}</p>
+      </div>
+
       {/* Top Short Squeeze Candidates */}
       <div className="mb-4">
         <h3 className="text-yellow-400 font-semibold mb-1">🔥 Top Short Squeeze Candidates</h3>
-        <p className={`text-sm ${marketAnalysis.shortSqueezeCandidates.rating.includes('🟢') ? 'text-green-400' : 'text-gray-400'}`}>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.shortSqueezeCandidates.rating)}`}>
           {marketAnalysis.shortSqueezeCandidates.rating} <span className="font-bold">({marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
@@ -157,7 +174,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
       {/* Top Long Trap Candidates */}
       <div className="mb-4">
         <h3 className="text-pink-400 font-semibold mb-1">⚠️ Top Long Trap Candidates</h3>
-        <p className={`text-sm ${marketAnalysis.longTrapCandidates.rating.includes('🔴') ? 'text-red-400' : 'text-gray-400'}`}>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.longTrapCandidates.rating)}`}>
           {marketAnalysis.longTrapCandidates.rating} <span className="font-bold">({marketAnalysis.longTrapCandidates.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.longTrapCandidates.interpretation}</p>
@@ -185,12 +202,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
       {/* Final Market Outlook */}
       <div>
         <h3 className="text-white font-bold text-base mb-1">🏁 Final Market Outlook Score:</h3>
-        {/* Adjusted conditional styling for the new tones */}
         <p className={`text-lg font-extrabold ${getOutlookTextColor(marketAnalysis.overallMarketOutlook.tone)}`}>
-          {/* Split the tone for the main rating text */}
           {marketAnalysis.overallMarketOutlook.tone.split('—')[0]} <span className="ml-2">({marketAnalysis.overallMarketOutlook.score.toFixed(1)}/10)</span>
         </p>
-        {/* Display the interpretation part */}
         <p className="text-sm italic text-gray-400">{marketAnalysis.overallMarketOutlook.tone.split('—')[1]?.trim()}</p>
         <p className="text-sm text-blue-300 mt-2">
           <span className="font-bold">📌 Strategy Suggestion:</span> {marketAnalysis.overallMarketOutlook.strategySuggestion}
