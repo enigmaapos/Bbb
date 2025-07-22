@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 // Import the new component from the CORRECT path (assuming it's in a 'components' folder)
-import FundingSentimentChart from "../components/FundingSentimentChart"; 
+import FundingSentimentChart from "../components/FundingSentimentChart";
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -142,7 +142,7 @@ function calculateRSI(prices: number[], period: number = 14): number[] {
     let rs = avgLoss[i] === 0 ? Infinity : avgGain[i] / avgLoss[i]; // Handle division by zero
     rsiValues.push(100 - (100 / (1 + rs)));
   }
-  
+
   // Return RSI values corresponding to the input prices from period onwards
   // This means if you input 150 prices, you get 150 - 14 = 136 RSI values
   return rsiValues;
@@ -183,16 +183,16 @@ function getRecentRSIDiff(rsi: number[], lookback = 14) {
   } else {
     direction = 'neutral';
   }
-  
+
   const strength = Math.abs(endRSI - startRSI); // Absolute difference between start and end RSI in lookback window
 
   return {
     recentHigh,
     recentLow,
-    pumpStrength, 
-    dumpStrength, 
-    direction, 
-    strength 
+    pumpStrength,
+    dumpStrength,
+    direction,
+    strength
   };
 }
 
@@ -213,7 +213,7 @@ const getRsiSignal = (s: SymbolData): string => {
 
   // Strong Pump: significant upward move AND currently overbought
   if (direction === 'pump' && pumpStrength >= RSI_MOVE_THRESHOLD && latestRSI > 70) {
-    return 'MAX ZONE PUMP (OVERBOUGHT)'; 
+    return 'MAX ZONE PUMP (OVERBOUGHT)';
   }
   // Moderate Pump: significant upward move, but not yet overbought
   if (direction === 'pump' && pumpStrength >= RSI_MOVE_THRESHOLD) {
@@ -222,7 +222,7 @@ const getRsiSignal = (s: SymbolData): string => {
 
   // Strong Dump: significant downward move AND currently oversold
   if (direction === 'dump' && dumpStrength >= RSI_MOVE_THRESHOLD && latestRSI < 30) {
-    return 'MAX ZONE DUMP (OVERSOLD)'; 
+    return 'MAX ZONE DUMP (OVERSOLD)';
   }
   // Moderate Dump: significant downward move, but not yet oversold
   if (direction === 'dump' && dumpStrength >= RSI_MOVE_THRESHOLD) {
@@ -251,12 +251,16 @@ export default function PriceFundingTracker() {
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
-  const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent" | "rsiSignal">("fundingRate"); 
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  // Consolidated sorting state
+  const [sortConfig, setSortConfig] = useState<{
+    key: "fundingRate" | "priceChangePercent" | "rsiSignal" | "signal" | null;
+    direction: "asc" | "desc" | null;
+  }>({ key: "fundingRate", direction: "desc" }); // Default sort
+
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [sortBySignal, setSortBySignal] = useState<"asc" | "desc" | null>(null);
 
   // New states for RSI signal counts
   const [maxZonePumpCount, setMaxZonePumpCount] = useState(0);
@@ -336,7 +340,7 @@ export default function PriceFundingTracker() {
         ]);
 
         const tickerData = await tickerRes.json();
-        const fundingData = await fundingRes.json(); // CORRECTED: This was the `fundingData` typo fix
+        const fundingData = await fundingRes.json();
 
         // Prepare initial combined data
         const initialCombinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
@@ -352,18 +356,16 @@ export default function PriceFundingTracker() {
             majorResistance: 0,
             majorSupport: 0,
             srStatus: "unknown",
-            rsi14: [], 
-            rsiSignal: "NO DATA", 
+            rsi14: [],
+            rsiSignal: "NO DATA",
           };
         });
 
         // Fetch S/R and Close Prices concurrently for all symbols
         const srPromises = initialCombinedData.map(async (item) => {
           const srData = await getRealSupportResistanceStatus(item.symbol, item.lastPrice);
-          const rsiValues = calculateRSI(srData.closePrices); 
-          const rsiSignal = getRsiSignal({ ...item, rsi14: rsiValues }); 
-          
-          // console.log(`Symbol: ${item.symbol}, Close Prices Length: ${srData.closePrices.length}, RSI Length: ${rsiValues.length}, Latest RSI: ${rsiValues[rsiValues.length - 1]?.toFixed(2) || 'N/A'}, Signal: ${rsiSignal}`); // Debugging line
+          const rsiValues = calculateRSI(srData.closePrices);
+          const rsiSignal = getRsiSignal({ ...item, rsi14: rsiValues });
 
           return { ...item, ...srData, rsi14: rsiValues, rsiSignal: rsiSignal };
         });
@@ -376,10 +378,10 @@ export default function PriceFundingTracker() {
         setGreenCount(green);
         setRedCount(red);
 
-        const gPos = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
-        const gNeg = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
-        const rPos = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
-        const rNeg = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+        const gPos = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+        const gNeg = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+        const rPos = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+        const rNeg = combinedDataWithSRAndRsi.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
         setGreenPositiveFunding(gPos);
         setGreenNegativeFunding(gNeg);
@@ -396,13 +398,13 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        // Calculate RSI signal counts with UPDATED signal names
-        const pumpCount = combinedDataWithSRAndRSI.filter(d => 
-          d.rsiSignal === 'MAX ZONE PUMP (OVERBOUGHT)' || 
+        // Calculate RSI signal counts
+        const pumpCount = combinedDataWithSRAndRSI.filter(d =>
+          d.rsiSignal === 'MAX ZONE PUMP (OVERBOUGHT)' ||
           d.rsiSignal === 'RSI PUMPING'
         ).length;
-        const dumpCount = combinedDataWithSRAndRSI.filter(d => 
-          d.rsiSignal === 'MAX ZONE DUMP (OVERSOLD)' || 
+        const dumpCount = combinedDataWithSRAndRSI.filter(d =>
+          d.rsiSignal === 'MAX ZONE DUMP (OVERSOLD)' ||
           d.rsiSignal === 'RSI DUMPING'
         ).length;
         setMaxZonePumpCount(pumpCount);
@@ -439,8 +441,12 @@ export default function PriceFundingTracker() {
 
         // Sorting logic based on current sort settings
         const sorted = [...combinedDataWithSRAndRSI].sort((a, b) => {
-          // Priority to signal sorting if active
-          if (sortBySignal !== null) {
+          const { key, direction } = sortConfig;
+          if (!key) return 0; // No sort key selected
+
+          const order = direction === "asc" ? 1 : -1;
+
+          if (key === "signal") {
             const signalA = signals.find((s) => s.symbol === a.symbol);
             const signalB = signals.find((s) => s.symbol === b.symbol);
 
@@ -450,38 +456,37 @@ export default function PriceFundingTracker() {
               if (s?.signal === "short" && s?.isValidatedBySR) return 1;
               if (s?.signal === "long") return 2;
               if (s?.signal === "short") return 3;
-              return 4;
+              return 4; // No signal
             };
 
             const rankA = rank(signalA);
             const rankB = rank(signalB);
 
-            return sortBySignal === "asc" ? rankA - rankB : rankB - rankA;
+            return (rankA - rankB) * order;
           }
-
-          // Fallback to other sorts
-          if (sortBy === "rsiSignal") {
+          else if (key === "rsiSignal") {
             // Custom sorting for RSI Signal: Prioritize 'MAX ZONE PUMP' then 'MAX ZONE DUMP', etc.
             const rsiRank = (signal: string | undefined) => {
-              if (signal === 'MAX ZONE PUMP (OVERBOUGHT)') return 0; // UPDATED
+              if (signal === 'MAX ZONE PUMP (OVERBOUGHT)') return 0;
               if (signal === 'RSI PUMPING') return 1;
-              if (signal === 'MAX ZONE DUMP (OVERSOLD)') return 2; // UPDATED
+              if (signal === 'MAX ZONE DUMP (OVERSOLD)') return 2;
               if (signal === 'RSI DUMPING') return 3;
               if (signal === 'OVERBOUGHT') return 4;
               if (signal === 'OVERSOLD') return 5;
               if (signal === 'NEUTRAL') return 6;
               if (signal === 'NORMAL') return 7;
-              if (signal === 'INSUFFICIENT RSI DATA') return 8; // Added rank for this status
+              if (signal === 'INSUFFICIENT RSI DATA') return 8;
               return 9; // 'NO DATA' or unknown
             };
             const rankA = rsiRank(a.rsiSignal);
             const rankB = rsiRank(b.rsiSignal);
-            return sortOrder === "asc" ? rankA - rankB : rankB - rankA;
-          } else if (sortBy === "fundingRate") {
-            return sortOrder === "desc" ? b.fundingRate - a.fundingRate : a.fundingRate - b.fundingRate;
-          } else { // priceChangePercent
-            return sortOrder === "desc" ? b.priceChangePercent - a.priceChangePercent : a.priceChangePercent - b.priceChangePercent;
+            return (rankA - rankB) * order;
+          } else if (key === "fundingRate") {
+            return (a.fundingRate - b.fundingRate) * order;
+          } else if (key === "priceChangePercent") {
+            return (a.priceChangePercent - b.priceChangePercent) * order;
           }
+          return 0;
         });
 
         setData(sorted);
@@ -494,7 +499,32 @@ export default function PriceFundingTracker() {
     fetchAll();
     const interval = setInterval(fetchAll, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval); // Cleanup on unmount
-  }, [sortBy, sortOrder, sortBySignal]); // Dependencies updated
+  }, [sortConfig]); // Only sortConfig as dependency
+
+  // Function to handle sort changes
+  const handleSort = (key: "fundingRate" | "priceChangePercent" | "rsiSignal" | "signal") => {
+    setSortConfig((prevConfig) => {
+      let direction: "asc" | "desc" = "desc"; // Default to descending for most fields
+      if (prevConfig.key === key) {
+        // If same key, toggle direction or set to null to cycle
+        if (prevConfig.direction === "desc") {
+          direction = "asc";
+        } else if (prevConfig.direction === "asc") {
+          // If you want a third state (no sort), you can add `null` here
+          // For now, let's just toggle between asc/desc
+          direction = "desc";
+        }
+      } else {
+        // New key, reset direction (default desc)
+        direction = "desc";
+        // For 'signal' and 'rsiSignal', a default 'desc' might be more intuitive (strongest signals first)
+        if (key === "signal" || key === "rsiSignal") {
+          direction = "asc"; // For signal, asc shows validated long/short first
+        }
+      }
+      return { key, direction };
+    });
+  };
 
   const getSentimentClue = () => {
     const total = greenCount + redCount;
@@ -753,58 +783,28 @@ export default function PriceFundingTracker() {
                 <th className="p-2">Symbol</th>
                 <th
                   className="p-2 cursor-pointer"
-                  onClick={() => {
-                    setSortBySignal(null);
-                    if (sortBy === "priceChangePercent") {
-                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-                    } else {
-                      setSortBy("priceChangePercent");
-                      setSortOrder("desc");
-                    }
-                  }}
+                  onClick={() => handleSort("priceChangePercent")}
                 >
-                  24h Change {sortBy === "priceChangePercent" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                  24h Change {sortConfig.key === "priceChangePercent" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
                 <th
                   className="p-2 cursor-pointer"
-                  onClick={() => {
-                    setSortBySignal(null);
-                    if (sortBy === "fundingRate") {
-                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-                    } else {
-                      setSortBy("fundingRate");
-                      setSortOrder("desc");
-                    }
-                  }}
+                  onClick={() => handleSort("fundingRate")}
                 >
-                  Funding {sortBy === "fundingRate" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                  Funding {sortConfig.key === "fundingRate" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
                 <th
                   className="p-2 cursor-pointer"
-                  onClick={() => {
-                    setSortBy("fundingRate"); // Reset other sort
-                    setSortOrder("desc"); // Reset other sort
-                    setSortBySignal((prev) =>
-                      prev === "asc" ? "desc" : prev === "desc" ? null : "asc"
-                    );
-                  }}
+                  onClick={() => handleSort("signal")}
                 >
-                  Signal {sortBySignal === "asc" ? "🔼" : sortBySignal === "desc" ? "🔽" : ""}
+                  Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
                 <th className="p-2">S/R Status</th>
                 <th
                   className="p-2 cursor-pointer"
-                  onClick={() => {
-                    setSortBySignal(null); // Reset signal sort
-                    if (sortBy === "rsiSignal") {
-                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-                    } else {
-                      setSortBy("rsiSignal");
-                      setSortOrder("desc"); // Default to desc (most important signals first)
-                    }
-                  }}
+                  onClick={() => handleSort("rsiSignal")}
                 >
-                  RSI Signal {sortBy === "rsiSignal" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                  RSI Signal {sortConfig.key === "rsiSignal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
                 <th className="p-2">Entry</th>
                 <th className="p-2">Stop Loss</th>
