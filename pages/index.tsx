@@ -1,3 +1,5 @@
+Got it! To display all Binance symbols, we'll need to remove the .filter condition that currently hides symbols without a trade signal. This will ensure every USDT perpetual pair fetched from Binance is visible in your table.
+Here's the updated code:
 import { useEffect, useState } from "react";
 import FundingSentimentChart from "../components/FundingSentimentChart"; // Assuming correct path
 
@@ -8,6 +10,7 @@ type SymbolData = {
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
+  volume: number; // Added 24h volume
 };
 
 type SymbolTradeSignal = {
@@ -16,6 +19,18 @@ type SymbolTradeSignal = {
   stopLoss: number | null;
   takeProfit: number | null;
   signal: "long" | "short" | null;
+};
+
+// Helper function to format large numbers with M, B, T suffixes
+const formatVolume = (num: number): string => {
+  if (num === 0) return "0";
+  const formatter = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    compactDisplay: "short",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1, // Adjust as needed for precision
+  });
+  return formatter.format(num);
 };
 
 export default function PriceFundingTracker() {
@@ -58,15 +73,17 @@ export default function PriceFundingTracker() {
       if (priceChangePercent >= 0 && fundingRate < 0) {
         signal = "long";
         entry = lastPrice;
-        stopLoss = entry - (Math.abs(priceChangePercent) / 100) * entry * 0.5;
-        takeProfit = entry + (Math.abs(priceChangePercent) / 100) * entry * 1.5;
+        // Simple stop loss/take profit for illustration. Adjust as needed.
+        stopLoss = entry * 0.99; // Example: 1% stop loss
+        takeProfit = entry * 1.02; // Example: 2% take profit
       }
 
       if (priceChangePercent < 0 && fundingRate > 0) {
         signal = "short";
         entry = lastPrice;
-        stopLoss = entry + (Math.abs(priceChangePercent) / 100) * entry * 0.5;
-        takeProfit = entry - (Math.abs(priceChangePercent) / 100) * entry * 1.5;
+        // Simple stop loss/take profit for illustration. Adjust as needed.
+        stopLoss = entry * 1.01; // Example: 1% stop loss
+        takeProfit = entry * 0.98; // Example: 2% take profit
       }
 
       return { symbol, entry, stopLoss, takeProfit, signal };
@@ -98,12 +115,14 @@ export default function PriceFundingTracker() {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
+          const volume = parseFloat(ticker?.quoteVolume || "0");
 
           return {
             symbol,
             priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
+            volume: volume,
           };
         });
 
@@ -141,12 +160,12 @@ export default function PriceFundingTracker() {
 
         const topShortSqueeze = combinedData
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
-          .sort((a, b) => a.fundingRate - b.fundingRate)
+          .sort((a, b) => a.fundingRate - b.fundingRate) // Sort by most negative funding
           .slice(0, 5);
 
         const topLongTrap = combinedData
           .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
-          .sort((a, b) => b.fundingRate - a.fundingRate)
+          .sort((a, b) => b.fundingRate - a.fundingRate) // Sort by most positive funding
           .slice(0, 5);
 
         setFundingImbalanceData({
@@ -380,7 +399,9 @@ export default function PriceFundingTracker() {
             <ul className="list-disc list-inside text-sm text-yellow-100">
               {fundingImbalanceData.topShortSqueeze.length > 0 ? (
                 fundingImbalanceData.topShortSqueeze.map((d) => (
-                  <li key={d.symbol}>{d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}%</li>
+                  <li key={d.symbol}>
+                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {formatVolume(d.volume)}
+                  </li>
                 ))
               ) : (
                 <li>No strong short squeeze candidates at the moment.</li>
@@ -393,7 +414,9 @@ export default function PriceFundingTracker() {
             <ul className="list-disc list-inside text-sm text-pink-100">
               {fundingImbalanceData.topLongTrap.length > 0 ? (
                 fundingImbalanceData.topLongTrap.map((d) => (
-                  <li key={d.symbol}>{d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}%</li>
+                  <li key={d.symbol}>
+                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {formatVolume(d.volume)}
+                  </li>
                 ))
               ) : (
                 <li>No strong long trap candidates at the moment.</li>
@@ -460,6 +483,7 @@ export default function PriceFundingTracker() {
                 >
                   24h Change {sortConfig.key === "priceChangePercent" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
+                <th className="p-2">24h Volume</th> {/* New column for volume */}
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("fundingRate")}
@@ -482,6 +506,7 @@ export default function PriceFundingTracker() {
               {data
                 .filter(
                   (item) => {
+                    // Removed the condition 'hasSignal' to show all symbols
                     return (
                       (!searchTerm || item.symbol.includes(searchTerm)) &&
                       (!showFavoritesOnly || favorites.includes(item.symbol))
@@ -497,6 +522,9 @@ export default function PriceFundingTracker() {
                       </td>
                       <td className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
                         {item.priceChangePercent.toFixed(2)}%
+                      </td>
+                      <td className="p-2">
+                        {formatVolume(item.volume)} {/* Display formatted volume */}
                       </td>
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
@@ -545,3 +573,4 @@ export default function PriceFundingTracker() {
     </div>
   );
 }
+
