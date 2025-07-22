@@ -9,7 +9,8 @@ import {
   Bar,
   Cell, // Cell is no longer needed here as it's in the chart component
 } from "recharts";
-import FundingSentimentChart from "./FundingSentimentChart"; // Import the new component
+import FundingSentimentChart from "../components/FundingSentimentChart"; // Corrected path
+
 
 const BINANCE_API = "https://fapi.binance.com";
 
