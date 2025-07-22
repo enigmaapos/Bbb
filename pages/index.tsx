@@ -1,16 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  Bar,
-  Cell, // Cell is no longer needed here as it's in the chart component
-} from "recharts";
-import FundingSentimentChart from "../components/FundingSentimentChart"; // Corrected path
-
+// Import the new component from the CORRECT path (assuming it's in a 'components' folder)
+import FundingSentimentChart from "../components/FundingSentimentChart"; 
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -24,6 +14,8 @@ type SymbolData = {
   majorResistance?: number;
   majorSupport?: number;
   srStatus?: SRStatus;
+  rsi14?: number[]; // Add RSI array
+  rsiSignal?: string; // Add RSI signal string
 };
 
 type SymbolTradeSignal = {
@@ -36,32 +28,13 @@ type SymbolTradeSignal = {
   srReason?: string;
 };
 
-// Custom Tooltip component for the main table (if needed, this was for the chart, moved now)
-// For table, a simple browser tooltip or a custom one built for table rows is more appropriate.
-// Keeping this here just in case it's used elsewhere, but for the chart, it's in FundingSentimentChart.
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-gray-800 border border-gray-700 p-2 rounded shadow-lg text-white text-xs">
-        <p className="font-bold mb-1">{label}</p>
-        {payload.map((entry: any, index: number) => (
-          <p key={`item-${index}`} style={{ color: entry.color }}>
-            {`${entry.name}: ${entry.value}`}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
-
 // --- REAL SUPPORT/RESISTANCE FUNCTION ---
 // This function fetches historical kline data to identify S/R levels.
 type SRLevels = {
   majorResistance: number;
   majorSupport: number;
   srStatus: SRStatus;
+  closePrices: number[]; // Return close prices for RSI calculation
 };
 
 const getRealSupportResistanceStatus = async (
@@ -79,22 +52,20 @@ const getRealSupportResistanceStatus = async (
         majorResistance: 0,
         majorSupport: 0,
         srStatus: "unknown",
+        closePrices: [], // No data, no close prices
       };
     }
 
     const highs = rawData.map((k: any) => parseFloat(k[2])); // Highs (index 2 in kline array)
     const lows = rawData.map((k: any) => parseFloat(k[3]));  // Lows (index 3 in kline array)
+    const closePrices = rawData.map((k: any) => parseFloat(k[4])); // Close (index 4 in kline array)
 
-    // Identify resistance = recent swing high (e.g., max of last 20 highs)
-    // Adjust slice for more data if needed, but 20-50 for 'recent' is common.
     const recentHighs = highs.slice(-50); // Consider last 50 days for recent highs
     const resistance = Math.max(...recentHighs);
 
-    // Identify support = recent swing low (e.g., min of last 20 lows)
     const recentLows = lows.slice(-50); // Consider last 50 days for recent lows
     const support = Math.min(...recentLows);
 
-    // Determine SR status based on proximity
     let status: SRStatus = "unknown";
     const buffer = currentPrice * 0.005; // 0.5% buffer for "at" levels
 
@@ -110,16 +81,141 @@ const getRealSupportResistanceStatus = async (
       status = "between";
     }
 
-    return { majorResistance: resistance, majorSupport: support, srStatus: status };
+    return { majorResistance: resistance, majorSupport: support, srStatus: status, closePrices: closePrices };
   } catch (error) {
     console.error(`SR error for ${symbol}:`, error);
     return {
       majorResistance: 0,
       majorSupport: 0,
       srStatus: "unknown",
+      closePrices: [],
     };
   }
 };
+
+// --- RSI Calculation Helper Functions ---
+function calculateRSI(prices: number[], period: number = 14): number[] {
+  if (prices.length < period) return [];
+
+  let changes: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    changes.push(prices[i] - prices[i - 1]);
+  }
+
+  let gains: number[] = changes.map(c => Math.max(0, c));
+  let losses: number[] = changes.map(c => Math.abs(Math.min(0, c)));
+
+  let avgGain: number[] = [];
+  let avgLoss: number[] = [];
+
+  // Initial average gain/loss
+  let sumGain = gains.slice(0, period).reduce((a, b) => a + b, 0);
+  let sumLoss = losses.slice(0, period).reduce((a, b) => a + b, 0);
+
+  avgGain.push(sumGain / period);
+  avgLoss.push(sumLoss / period);
+
+  // Wilder's smoothing
+  for (let i = period; i < gains.length; i++) {
+    avgGain.push((avgGain[avgGain.length - 1] * (period - 1) + gains[i]) / period);
+    avgLoss.push((avgLoss[avgLoss.length - 1] * (period - 1) + losses[i]) / period);
+  }
+
+  let rsiValues: number[] = [];
+  for (let i = 0; i < avgGain.length; i++) {
+    let rs = avgGain[i] / avgLoss[i];
+    if (avgLoss[i] === 0) { // Handle division by zero for RS
+      rs = Infinity;
+    }
+    rsiValues.push(100 - (100 / (1 + rs)));
+  }
+
+  // RSI array will be shorter than prices by 'period'
+  // We need to pad it with nulls or undefined to align with price array if full length is needed
+  // For simplicity, we'll return the calculated RSI values as is.
+  return rsiValues;
+}
+
+function getRecentRSIDiff(rsi: number[], lookback = 14) {
+  if (rsi.length < lookback) return null;
+
+  const recentRSI = rsi.slice(-lookback);
+  let recentHigh = -Infinity;
+  let recentLow = Infinity;
+
+  for (const value of recentRSI) {
+    if (value !== undefined && !isNaN(value)) { // Ensure value is a valid number
+      if (value > recentHigh) recentHigh = value;
+      if (value < recentLow) recentLow = value;
+    }
+  }
+
+  // If recentHigh or recentLow remained at initial (unlikely for valid RSI, but for safety)
+  if (recentHigh === -Infinity || recentLow === Infinity) return null;
+
+
+  const pumpStrength = recentHigh - recentLow;
+  const dumpStrength = Math.abs(recentLow - recentHigh); // This seems redundant if pumpStrength captures the range
+
+  const startRSI = recentRSI[0];
+  const endRSI = recentRSI[recentRSI.length - 1];
+  const direction = endRSI > startRSI ? 'pump' : endRSI < startRSI ? 'dump' : 'neutral';
+  const strength = Math.abs(endRSI - startRSI);
+
+  return {
+    recentHigh,
+    recentLow,
+    pumpStrength, // Max range within lookback
+    dumpStrength: pumpStrength, // Re-using pumpStrength as it's the total range
+    direction, // Direction from start to end of lookback window
+    strength // Absolute difference between start and end RSI in lookback window
+  };
+}
+
+const getRsiSignal = (s: SymbolData): string => {
+  if (!s.rsi14 || s.rsi14.length === 0) return 'NO DATA';
+
+  const pumpDump = getRecentRSIDiff(s.rsi14, 14);
+  if (!pumpDump) return 'NO DATA';
+
+  const { direction, pumpStrength, dumpStrength } = pumpDump;
+
+  const isAboveThreshold = (val: number | undefined, threshold: number) =>
+    val !== undefined && val >= threshold;
+
+  // Define a threshold for "strong" pump/dump in RSI
+  const RSI_SIGNAL_THRESHOLD = 30; // RSI move of 30 points
+
+  if (direction === 'pump' && isAboveThreshold(pumpStrength, RSI_SIGNAL_THRESHOLD)) {
+    // Check if current RSI is high enough to be "overbought" for a pump zone
+    const latestRSI = s.rsi14[s.rsi14.length - 1];
+    if (latestRSI > 70) { // Example: RSI over 70 for pump
+      return 'MAX ZONE PUMP (OVERSOLD)'; // Changed from 'MAX ZONE PUMP' for clearer meaning
+    } else {
+      return 'RSI PUMPING';
+    }
+  }
+
+  if (direction === 'dump' && isAboveThreshold(dumpStrength, RSI_SIGNAL_THRESHOLD)) {
+    // Check if current RSI is low enough to be "oversold" for a dump zone
+    const latestRSI = s.rsi14[s.rsi14.length - 1];
+    if (latestRSI < 30) { // Example: RSI below 30 for dump
+      return 'MAX ZONE DUMP (OVERBOUGHT)'; // Changed from 'MAX ZONE DUMP' for clearer meaning
+    } else {
+      return 'RSI DUMPING';
+    }
+  }
+
+  // Additional conditions for neutrality or specific ranges
+  const latestRSI = s.rsi14[s.rsi14.length - 1];
+  if (latestRSI > 70) return 'OVERBOUGHT';
+  if (latestRSI < 30) return 'OVERSOLD';
+  if (latestRSI >= 45 && latestRSI <= 55) return 'NEUTRAL';
+
+
+  return 'NORMAL'; // Default or no clear signal
+};
+
 
 export default function PriceFundingTracker() {
   const [data, setData] = useState<SymbolData[]>([]);
@@ -132,12 +228,16 @@ export default function PriceFundingTracker() {
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
-  const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent">("fundingRate");
+  const [sortBy, setSortBy] = useState<"fundingRate" | "priceChangePercent" | "rsiSignal">("fundingRate"); // Add rsiSignal to sort options
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [sortBySignal, setSortBySignal] = useState<"asc" | "desc" | null>(null);
+
+  // New states for RSI signal counts
+  const [maxZonePumpCount, setMaxZonePumpCount] = useState(0);
+  const [maxZoneDumpCount, setMaxZoneDumpCount] = useState(0);
 
   const [fundingImbalanceData, setFundingImbalanceData] = useState({
     priceUpShortsPaying: 0,
@@ -213,9 +313,9 @@ export default function PriceFundingTracker() {
         ]);
 
         const tickerData = await tickerRes.json();
-        const fundingData = await fundingRes.json();
+        const fundingData = await fundingData.json();
 
-        // Prepare initial combined data without S/R
+        // Prepare initial combined data
         const initialCombinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
@@ -226,59 +326,69 @@ export default function PriceFundingTracker() {
             priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
-            majorResistance: 0, // Initialize
-            majorSupport: 0,    // Initialize
-            srStatus: "unknown", // Initialize
+            majorResistance: 0,
+            majorSupport: 0,
+            srStatus: "unknown",
+            rsi14: [], // Initialize RSI
+            rsiSignal: "NO DATA", // Initialize RSI signal
           };
         });
 
-        // Fetch S/R data concurrently for all symbols
+        // Fetch S/R and Close Prices concurrently for all symbols
         const srPromises = initialCombinedData.map(async (item) => {
           const srData = await getRealSupportResistanceStatus(item.symbol, item.lastPrice);
-          return { ...item, ...srData };
+          const rsiValues = calculateRSI(srData.closePrices); // Calculate RSI here
+          const rsiSignal = getRsiSignal({ ...item, rsi14: rsiValues }); // Get RSI signal
+          return { ...item, ...srData, rsi14: rsiValues, rsiSignal: rsiSignal };
         });
 
-        const combinedDataWithSR: SymbolData[] = await Promise.all(srPromises);
+        const combinedDataWithSRAndRSI: SymbolData[] = await Promise.all(srPromises);
 
-
-        // Update counts for your stats
-        const green = combinedDataWithSR.filter((d) => d.priceChangePercent >= 0).length;
-        const red = combinedDataWithSR.length - green;
+        // Update counts for stats
+        const green = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent >= 0).length;
+        const red = combinedDataWithSRAndRSI.length - green;
         setGreenCount(green);
         setRedCount(red);
 
-        const gPos = combinedDataWithSR.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
-        const gNeg = combinedDataWithSR.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
-        const rPos = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
-        const rNeg = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+        const gPos = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+        const gNeg = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+        const rPos = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+        const rNeg = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
         setGreenPositiveFunding(gPos);
         setGreenNegativeFunding(gNeg);
         setRedPositiveFunding(rPos);
         setRedNegativeFunding(rNeg);
 
-        const priceUpFundingNegative = combinedDataWithSR.filter(
+        const priceUpFundingNegative = combinedDataWithSRAndRSI.filter(
           (d) => d.priceChangePercent > 0 && d.fundingRate < 0
         ).length;
-        const priceDownFundingPositive = combinedDataWithSR.filter(
+        const priceDownFundingPositive = combinedDataWithSRAndRSI.filter(
           (d) => d.priceChangePercent < 0 && d.fundingRate > 0
         ).length;
 
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        // Calculate funding imbalance data
-        const priceUpShortsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
-        const priceUpLongsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
-        const priceDownLongsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
-        const priceDownShortsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+        // Calculate RSI signal counts
+        const pumpCount = combinedDataWithSRAndRSI.filter(d => d.rsiSignal === 'MAX ZONE PUMP (OVERSOLD)' || d.rsiSignal === 'RSI PUMPING').length;
+        const dumpCount = combinedDataWithSRAndRSI.filter(d => d.rsiSignal === 'MAX ZONE DUMP (OVERBOUGHT)' || d.rsiSignal === 'RSI DUMPING').length;
+        setMaxZonePumpCount(pumpCount);
+        setMaxZoneDumpCount(dumpCount);
 
-        const topShortSqueeze = combinedDataWithSR
+
+        // Calculate funding imbalance data
+        const priceUpShortsPaying = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
+        const priceUpLongsPaying = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
+        const priceDownLongsPaying = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
+        const priceDownShortsPaying = combinedDataWithSRAndRSI.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+
+        const topShortSqueeze = combinedDataWithSRAndRSI
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
           .sort((a, b) => a.fundingRate - b.fundingRate) // More negative funding rate means stronger squeeze potential
           .slice(0, 5);
 
-        const topLongTrap = combinedDataWithSR
+        const topLongTrap = combinedDataWithSRAndRSI
           .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
           .sort((a, b) => b.fundingRate - a.fundingRate) // More positive funding rate means stronger trap
           .slice(0, 5);
@@ -292,11 +402,11 @@ export default function PriceFundingTracker() {
           topLongTrap,
         });
 
-        const signals = generateTradeSignals(combinedDataWithSR);
+        const signals = generateTradeSignals(combinedDataWithSRAndRSI);
         setTradeSignals(signals);
 
         // Sorting logic based on current sort settings
-        const sorted = [...combinedDataWithSR].sort((a, b) => {
+        const sorted = [...combinedDataWithSRAndRSI].sort((a, b) => {
           // Priority to signal sorting if active
           if (sortBySignal !== null) {
             const signalA = signals.find((s) => s.symbol === a.symbol);
@@ -317,8 +427,28 @@ export default function PriceFundingTracker() {
             return sortBySignal === "asc" ? rankA - rankB : rankB - rankA;
           }
 
-          // Fallback to fundingRate or priceChangePercent if signal sorting is not active
-          return sortOrder === "desc" ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy];
+          // Fallback to other sorts
+          if (sortBy === "rsiSignal") {
+            // Custom sorting for RSI Signal: Prioritize 'MAX ZONE PUMP' then 'MAX ZONE DUMP', etc.
+            const rsiRank = (signal: string | undefined) => {
+              if (signal === 'MAX ZONE PUMP (OVERSOLD)') return 0;
+              if (signal === 'RSI PUMPING') return 1;
+              if (signal === 'MAX ZONE DUMP (OVERBOUGHT)') return 2;
+              if (signal === 'RSI DUMPING') return 3;
+              if (signal === 'OVERBOUGHT') return 4;
+              if (signal === 'OVERSOLD') return 5;
+              if (signal === 'NEUTRAL') return 6;
+              if (signal === 'NORMAL') return 7;
+              return 8; // 'NO DATA' or unknown
+            };
+            const rankA = rsiRank(a.rsiSignal);
+            const rankB = rsiRank(b.rsiSignal);
+            return sortOrder === "asc" ? rankA - rankB : rankB - rankA;
+          } else if (sortBy === "fundingRate") {
+            return sortOrder === "desc" ? b.fundingRate - a.fundingRate : a.fundingRate - b.fundingRate;
+          } else { // priceChangePercent
+            return sortOrder === "desc" ? b.priceChangePercent - a.priceChangePercent : a.priceChangePercent - b.priceChangePercent;
+          }
         });
 
         setData(sorted);
@@ -331,7 +461,7 @@ export default function PriceFundingTracker() {
     fetchAll();
     const interval = setInterval(fetchAll, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval); // Cleanup on unmount
-  }, [sortBy, sortOrder, sortBySignal]);
+  }, [sortBy, sortOrder, sortBySignal]); // Dependencies updated
 
   const getSentimentClue = () => {
     const total = greenCount + redCount;
@@ -419,6 +549,15 @@ export default function PriceFundingTracker() {
               <span className="text-green-300 font-bold">{redPositiveFunding}</span> &nbsp;|&nbsp;
               <span className="text-yellow-300">➖:</span>{" "}
               <span className="text-red-200 font-bold">{redNegativeFunding}</span>
+            </div>
+
+            {/* 🌊 RSI Signal Counts - THIS IS THE NEWLY ADDED SECTION */}
+            <div>
+              <p className="text-purple-300 font-semibold mb-1">🌊 RSI Trend Signals:</p>
+              <ul className="text-purple-100 ml-4 list-disc space-y-1">
+                <li><span className="font-semibold text-pink-400">Max Zone Pump / Pumping:</span> {maxZonePumpCount}</li>
+                <li><span className="font-semibold text-orange-400">Max Zone Dump / Dumping:</span> {maxZoneDumpCount}</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -582,7 +721,6 @@ export default function PriceFundingTracker() {
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => {
-                    // Reset signal sort when other sorts are clicked
                     setSortBySignal(null);
                     if (sortBy === "priceChangePercent") {
                       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -597,7 +735,6 @@ export default function PriceFundingTracker() {
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => {
-                    // Reset signal sort when other sorts are clicked
                     setSortBySignal(null);
                     if (sortBy === "fundingRate") {
                       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -612,9 +749,8 @@ export default function PriceFundingTracker() {
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => {
-                    // Disable other sorts when signal sort is active
-                    setSortBy("fundingRate"); // Set a default to clear other sort icons
-                    setSortOrder("desc"); // Set a default to clear other sort icons
+                    setSortBy("fundingRate"); // Reset other sort
+                    setSortOrder("desc"); // Reset other sort
                     setSortBySignal((prev) =>
                       prev === "asc" ? "desc" : prev === "desc" ? null : "asc"
                     );
@@ -622,7 +758,21 @@ export default function PriceFundingTracker() {
                 >
                   Signal {sortBySignal === "asc" ? "🔼" : sortBySignal === "desc" ? "🔽" : ""}
                 </th>
-                <th className="p-2">S/R Status</th> {/* New column for S/R Status */}
+                <th className="p-2">S/R Status</th>
+                <th
+                  className="p-2 cursor-pointer"
+                  onClick={() => {
+                    setSortBySignal(null); // Reset signal sort
+                    if (sortBy === "rsiSignal") {
+                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+                    } else {
+                      setSortBy("rsiSignal");
+                      setSortOrder("desc"); // Default to desc (most important signals first)
+                    }
+                  }}
+                >
+                  RSI Signal {sortBy === "rsiSignal" && (sortOrder === "asc" ? "🔼" : "🔽")}
+                </th>
                 <th className="p-2">Entry</th>
                 <th className="p-2">Stop Loss</th>
                 <th className="p-2">Take Profit</th>
@@ -630,13 +780,12 @@ export default function PriceFundingTracker() {
               </tr>
             </thead>
             <tbody>
-              {data // Use 'data' which is already sorted in the useEffect
+              {data
                 .filter(
                   (item) => {
-                    // Check if there's a signal for this item and it's not null
                     const hasSignal = tradeSignals.some((s) => s.symbol === item.symbol && s.signal !== null);
                     return (
-                      hasSignal && // Only show if a signal exists
+                      hasSignal &&
                       (!searchTerm || item.symbol.includes(searchTerm)) &&
                       (!showFavoritesOnly || favorites.includes(item.symbol))
                     );
@@ -676,7 +825,6 @@ export default function PriceFundingTracker() {
                         )}
                       </td>
 
-                      {/* New S/R Status Cell */}
                       <td className="p-2 text-gray-400 text-xs">
                         {item.srStatus?.replace(/_/g, ' ') || "N/A"}
                         {item.majorSupport && item.majorResistance && (
@@ -684,6 +832,17 @@ export default function PriceFundingTracker() {
                                 (S: {item.majorSupport.toFixed(4)}, R: {item.majorResistance.toFixed(4)})
                             </span>
                         )}
+                      </td>
+
+                      {/* RSI Signal Cell */}
+                      <td className={`p-2 text-xs font-semibold ${
+                        item.rsiSignal?.includes("PUMP") ? "text-pink-400" :
+                        item.rsiSignal?.includes("DUMP") ? "text-orange-400" :
+                        item.rsiSignal === "OVERBOUGHT" ? "text-red-300" :
+                        item.rsiSignal === "OVERSOLD" ? "text-green-300" :
+                        "text-gray-400"
+                      }`}>
+                        {item.rsiSignal}
                       </td>
 
                       <td className="p-2">
