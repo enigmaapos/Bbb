@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
+import LiquidationHeatmap from "../components/LiquidationHeatmap"; // <--- NEW: Import LiquidationHeatmap
 import { SymbolData, SymbolTradeSignal } from "../types";
 import { analyzeSentiment, MarketStats } from "../utils/sentimentAnalyzer";
 
@@ -458,7 +459,7 @@ export default function PriceFundingTracker() {
     generateTradeSignals,
     // The following dependencies are probably not necessary for useEffect
     // if their values are only used inside fetchAllData, which is re-created
-    // if these change. However, keep them if they are truly used outside fetchAll.
+    // if these change. However, however, keep them if they are truly used outside fetchAll.
     // greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount,
     // greenNegativeFunding, redPositiveFunding, priceChangeThreshold, fundingRateThreshold,
     // highPriceChangeThreshold, highFundingRateThreshold, mediumPriceChangeThreshold,
@@ -624,11 +625,19 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
- ---
- <div className="mb-8">
-   <LeverageProfitCalculator />
- </div>
- ---
+        ---
+
+        <div className="mb-8">
+          <LeverageProfitCalculator />
+        </div>
+
+        {/* NEW: Liquidation Heatmap component integration */}
+        <div className="mb-8">
+          <LiquidationHeatmap />
+        </div>
+        {/* END NEW COMPONENT INTEGRATION */}
+
+        ---
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
           <div className="relative w-full sm:w-64">
