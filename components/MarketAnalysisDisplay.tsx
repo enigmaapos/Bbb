@@ -5,14 +5,6 @@ import { SymbolData } from '../types'; // <-- UPDATED IMPORT (adjust path if typ
 
 // Define the types for the props that MarketAnalysisDisplay will receive
 interface MarketAnalysisProps {
-  // ... (rest of your interface)
-}
-
-// ... rest of your MarketAnalysisDisplay component
-
-
-// Define the types for the props that MarketAnalysisDisplay will receive
-interface MarketAnalysisProps {
   marketAnalysis: {
     generalBias: {
       rating: string;
