@@ -5,13 +5,12 @@ export type SymbolData = {
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
-  volume: number; // Added 24h volume
+  volume: number;
 };
 
 export type SymbolTradeSignal = {
   symbol: string;
-  entry: number | null;
-  stopLoss: number | null;
-  takeProfit: number | null;
   signal: "long" | "short" | null;
+  strength: "Weak" | "Medium" | "Strong"; // Added strength
+  confidence: "Low Confidence" | "Medium Confidence" | "High Confidence"; // Added confidence
 };
