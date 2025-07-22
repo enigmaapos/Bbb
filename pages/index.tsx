@@ -1,12 +1,12 @@
-// src/PriceFundingTracker.tsx (or just PriceFundingTracker.tsx)
+// pages/index.tsx (assuming this is where your main component resides)
+// OR src/PriceFundingTracker.tsx (adjust import paths accordingly)
 
 import { useEffect, useState } from "react";
-import FundingSentimentChart from "../components/FundingSentimentChart";
-import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
-import { SymbolData, SymbolTradeSignal } from "../types"; // <-- UPDATED IMPORT
+import FundingSentimentChart from "../components/FundingSentimentChart"; // Adjust path if needed
+import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay"; // Adjust path if needed
+import { SymbolData, SymbolTradeSignal } from "../types"; // Adjust path if needed (e.g., './types' if in same dir as page)
 
 const BINANCE_API = "https://fapi.binance.com";
-
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
@@ -80,41 +80,55 @@ export default function PriceFundingTracker() {
     },
   });
 
-  // --- MODIFIED generateTradeSignals FUNCTION ---
+  // --- MODIFIED generateTradeSignals FUNCTION (with type fixes) ---
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
     return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
       let signal: "long" | "short" | null = null;
-      let strength: string = "Weak";
-      let confidence: string = "Low Confidence";
+      // Corrected type declarations for strength and confidence
+      let strength: SymbolTradeSignal['strength'] = "Weak";
+      let confidence: SymbolTradeSignal['confidence'] = "Low Confidence";
 
       // Define thresholds for strength and confidence
-      const priceChangeThreshold = 2; // % price change
-      const fundingRateThreshold = 0.0001; // 0.01% funding rate
-      const volumeThreshold = 50_000_000; // 50 million USD volume
+      const priceChangeThreshold = 2; // % price change for a basic signal
+      const fundingRateThreshold = 0.0001; // 0.01% funding rate for a basic signal
+      const highPriceChangeThreshold = 5; // % price change for strong signal
+      const highFundingRateThreshold = 0.0003; // 0.03% funding rate for strong signal
+      const mediumPriceChangeThreshold = 3; // % price change for medium signal
+      const mediumFundingRateThreshold = 0.0002; // 0.02% funding rate for medium signal
+      const volumeThreshold = 50_000_000; // 50 million USD volume for higher confidence
 
       // Long Signal Logic
       if (priceChangePercent >= priceChangeThreshold && fundingRate < -fundingRateThreshold) {
         signal = "long";
-        if (priceChangePercent > 5 && fundingRate < -0.0003 && volume > volumeThreshold) {
+        if (priceChangePercent >= highPriceChangeThreshold && fundingRate <= -highFundingRateThreshold && volume >= volumeThreshold) {
           strength = "Strong";
           confidence = "High Confidence";
-        } else if (priceChangePercent > 3 && fundingRate < -0.0002) {
+        } else if (priceChangePercent >= mediumPriceChangeThreshold && fundingRate <= -mediumFundingRateThreshold) {
           strength = "Medium";
           confidence = "Medium Confidence";
         }
+        // Else defaults to "Weak" and "Low Confidence"
       }
 
       // Short Signal Logic
-      if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
+      else if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
         signal = "short";
-        if (priceChangePercent < -5 && fundingRate > 0.0003 && volume > volumeThreshold) {
+        if (priceChangePercent <= -highPriceChangeThreshold && fundingRate >= highFundingRateThreshold && volume >= volumeThreshold) {
           strength = "Strong";
           confidence = "High Confidence";
-        } else if (priceChangePercent < -3 && fundingRate > 0.0002) {
+        } else if (priceChangePercent <= -mediumPriceChangeThreshold && fundingRate >= mediumFundingRateThreshold) {
           strength = "Medium";
           confidence = "Medium Confidence";
         }
+        // Else defaults to "Weak" and "Low Confidence"
       }
+
+      // If no signal, explicitly set strength/confidence to default for clarity
+      if (signal === null) {
+          strength = "Weak"; // Or could be 'None' if you add that to your type
+          confidence = "Low Confidence"; // Or could be 'None' if you add that to your type
+      }
+
 
       // Return the new structure for SymbolTradeSignal
       return { symbol, signal, strength, confidence };
@@ -147,7 +161,7 @@ export default function PriceFundingTracker() {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
-          const volume = parseFloat(ticker?.quoteVolume || "0");
+          const volume = parseFloat(ticker?.quoteVolume || "0"); // Assuming quoteVolume is the correct 24h volume in USDT
 
           return {
             symbol,
@@ -301,8 +315,10 @@ export default function PriceFundingTracker() {
         let shortSqueezeScore = 0;
 
         if (topShortSqueeze.length > 0) {
-            const hasHighVolumeChange = topShortSqueeze.some(d => d.volume > 100_000_000 && d.priceChangePercent > 5); // Example criteria
-            if (topShortSqueeze.length >= 3 && hasHighVolumeChange) {
+            // Updated criteria for more robust analysis: at least 3 strong candidates
+            const strongShortSqueezeCandidates = topShortSqueeze.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent > highPriceChangeThreshold);
+
+            if (strongShortSqueezeCandidates.length >= 3) {
                 shortSqueezeInterpretation = "These coins show strong potential for short squeezes (shorts paying while price rises). The presence of high volume and significant price increases indicates a more impactful squeeze.";
                 shortSqueezeRating = "🟢 Strong Bullish Pockets";
                 shortSqueezeScore = 8.0;
@@ -323,8 +339,10 @@ export default function PriceFundingTracker() {
         let longTrapScore = 0;
 
         if (topLongTrap.length > 0) {
-            const hasHighVolumeDrop = topLongTrap.some(d => d.volume > 100_000_000 && d.priceChangePercent < -5); // Example criteria
-            if (topLongTrap.length >= 3 && hasHighVolumeDrop) {
+            // Updated criteria for more robust analysis: at least 3 severe candidates
+            const severeLongTrapCandidates = topLongTrap.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent < -highPriceChangeThreshold);
+
+            if (severeLongTrapCandidates.length >= 3) {
                 longTrapInterpretation = "These coins show clear bear momentum with positive funding, meaning longs are heavily trapped. The combination of significant price drops and high volume makes them classic liquidation magnets and indicates deeper sell-off risk.";
                 longTrapRating = "🔴 High Risk (Severe Long Trap)";
                 longTrapScore = 9.5;
@@ -410,7 +428,7 @@ export default function PriceFundingTracker() {
     fetchAll();
     const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
-  }, [sortConfig, greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount, greenNegativeFunding, redPositiveFunding]);
+  }, [sortConfig, greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount, greenNegativeFunding, redPositiveFunding]); // Added all states that are dependencies
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
@@ -423,8 +441,8 @@ export default function PriceFundingTracker() {
         }
       } else {
         direction = "desc";
-        if (key === "signal") {
-          direction = "asc";
+        if (key === "signal") { // Default sort for signal might be different (e.g., show signals first)
+          direction = "desc"; // Or 'asc' if you want no signal at top
         }
       }
       return { key, direction };
@@ -438,6 +456,7 @@ export default function PriceFundingTracker() {
     const greenRatio = greenCount / total;
     const redRatio = redCount / total;
 
+    // These conditions should align with your market analysis logic for consistency
     if (greenRatio > 0.7 && priceUpFundingNegativeCount > 10) {
       return "🟢 Bullish Momentum: Look for dips or short squeezes";
     }
@@ -446,11 +465,11 @@ export default function PriceFundingTracker() {
       return "🔴 Bearish Risk: Caution, longs are trapped and funding still positive";
     }
 
-    if (greenNegativeFunding > 10) {
+    if (greenNegativeFunding > 10) { // Price Up, Funding Negative
       return "🟢 Hidden Strength: Price is up but shorts are paying → squeeze potential";
     }
 
-    if (redPositiveFunding > 20) {
+    if (redPositiveFunding > 20) { // Price Down, Funding Positive
       return "🔴 Bearish Breakdown: Price down but longs still funding → more pain likely";
     }
 
