@@ -1,6 +1,6 @@
 // pages/index.tsx or src/PriceFundingTracker.tsx
 
-import { useEffect, useState, useCallback } from "react"; // Added useCallback
+import { useEffect, useState, useCallback } from "react";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
@@ -22,8 +22,6 @@ const formatVolume = (num: number): string => {
 
 export default function PriceFundingTracker() {
   // --- Define threshold constants at the component level ---
-  // Using `const` outside the component or `useMemo` if they were derived from props/state
-  // but here, they are fixed, so `const` within the component body is fine.
   const priceChangeThreshold = 2; // % price change for a basic signal
   const fundingRateThreshold = 0.0001; // 0.01% funding rate for a basic signal
   const highPriceChangeThreshold = 5; // % price change for strong signal
@@ -41,9 +39,6 @@ export default function PriceFundingTracker() {
   const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
-  // priceUpFundingNegativeCount and priceDownFundingPositiveCount are used directly for display
-  // but their logic is now integrated into fundingImbalanceData and marketAnalysis.
-  // We'll keep them as state for the direct display below the summary.
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
 
@@ -54,8 +49,7 @@ export default function PriceFundingTracker() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>(() => {
-    // Initialize favorites from localStorage
-    if (typeof window !== 'undefined') { // Check if window is defined (for SSR)
+    if (typeof window !== 'undefined') {
       const savedFavorites = localStorage.getItem('favorites');
       return savedFavorites ? JSON.parse(savedFavorites) : [];
     }
@@ -63,7 +57,6 @@ export default function PriceFundingTracker() {
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  // Effect to save favorites to localStorage whenever it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('favorites', JSON.stringify(favorites));
@@ -102,6 +95,11 @@ export default function PriceFundingTracker() {
       interpretation: "",
       score: 0,
     },
+    volumeSentiment: { // NEW: Add volume sentiment to market analysis state
+      rating: "",
+      interpretation: "",
+      score: 0,
+    },
     overallSentimentAccuracy: "",
     overallMarketOutlook: {
       score: 0,
@@ -110,15 +108,12 @@ export default function PriceFundingTracker() {
     },
   });
 
-  // --- MODIFIED generateTradeSignals FUNCTION (removed entry/sl/tp calculations) ---
-  // Memoize this function since it's a dependency of useEffect
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
     return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
       let signal: "long" | "short" | null = null;
       let strength: SymbolTradeSignal['strength'] = "Weak";
       let confidence: SymbolTradeSignal['confidence'] = "Low Confidence";
 
-      // Long Signal Logic
       if (priceChangePercent >= priceChangeThreshold && fundingRate < -fundingRateThreshold) {
         signal = "long";
         if (priceChangePercent >= highPriceChangeThreshold && fundingRate <= -highFundingRateThreshold && volume >= volumeThreshold) {
@@ -128,9 +123,7 @@ export default function PriceFundingTracker() {
           strength = "Medium";
           confidence = "Medium Confidence";
         }
-      }
-      // Short Signal Logic
-      else if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
+      } else if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
         signal = "short";
         if (priceChangePercent <= -highPriceChangeThreshold && fundingRate >= highFundingRateThreshold && volume >= volumeThreshold) {
           strength = "Strong";
@@ -141,13 +134,11 @@ export default function PriceFundingTracker() {
         }
       }
 
-      // If no signal, explicitly set strength/confidence to default/null for clarity
       if (signal === null) {
         strength = "Weak";
         confidence = "Low Confidence";
       }
 
-      // Entry, stopLoss, and takeProfit are explicitly null as per SymbolTradeSignal type
       return { symbol, signal, strength, confidence, entry: null, stopLoss: null, takeProfit: null };
     });
   }, [
@@ -159,19 +150,9 @@ export default function PriceFundingTracker() {
     mediumFundingRateThreshold,
     volumeThreshold,
   ]);
-  // --- END MODIFIED generateTradeSignals FUNCTION ---
 
-  // Memoize getSentimentClue as it uses state variables and is called in render
   const getSentimentClue = useCallback(() => {
-    const total = greenCount + redCount;
-    if (total === 0) return "⚪ Neutral: No clear edge, stay cautious";
-
-    const greenRatio = greenCount / total;
-    const redRatio = redCount / total;
-
-    // These conditions should align with your market analysis logic for consistency
-    // Refined to be slightly more consistent with the detailed analysis categories
-    // but still serve as a quick clue.
+    // This clue will now directly reference the calculated overallMarketOutlook score
     if (marketAnalysis.overallMarketOutlook.score >= 8.0) {
       return "🟢 Bullish Momentum: Look for dips or short squeezes";
     }
@@ -185,33 +166,8 @@ export default function PriceFundingTracker() {
       return "🔴 Bearish Risk: Caution, longs are trapped";
     }
 
-    // Fallback if marketAnalysis scores aren't yet available or don't match
-    if (greenRatio > 0.7 && priceUpFundingNegativeCount > 10) {
-      return "🟢 Bullish Momentum: Look for dips or short squeezes";
-    }
-    if (redRatio > 0.6 && priceDownFundingPositiveCount > 15) {
-      return "🔴 Bearish Risk: Caution, longs are trapped and funding still positive";
-    }
-    if (greenNegativeFunding > 10) { // Price Up, Funding Negative
-      return "🟢 Hidden Strength: Price is up but shorts are paying → squeeze potential";
-    }
-    if (redPositiveFunding > 20) { // Price Down, Funding Positive
-      return "🔴 Bearish Breakdown: Price down but longs still funding → more pain likely";
-    }
-    if (priceUpFundingNegativeCount > 5 && priceDownFundingPositiveCount > 5) {
-      return "🟡 Mixed Signals: Both sides trapped → choppy market expected";
-    }
-
     return "⚪ Neutral: No clear edge, stay cautious";
-  }, [
-    greenCount,
-    redCount,
-    priceUpFundingNegativeCount,
-    priceDownFundingPositiveCount,
-    greenNegativeFunding,
-    redPositiveFunding,
-    marketAnalysis.overallMarketOutlook.score // Crucial dependency
-  ]);
+  }, [marketAnalysis.overallMarketOutlook.score]);
 
 
   useEffect(() => {
@@ -239,7 +195,7 @@ export default function PriceFundingTracker() {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
-          const volume = parseFloat(ticker?.quoteVolume || "0"); // Corrected to quoteVolume for USD volume
+          const volume = parseFloat(ticker?.quoteVolume || "0");
 
           return {
             symbol,
@@ -248,7 +204,7 @@ export default function PriceFundingTracker() {
             lastPrice: lastPrice,
             volume: volume,
           };
-        }).filter((d: SymbolData) => d.volume > 0); // Filter out symbols with 0 volume
+        }).filter((d: SymbolData) => d.volume > 0); // Corrected to explicitly type `d`
 
 
         // Update counts for stats
@@ -285,12 +241,12 @@ export default function PriceFundingTracker() {
 
         const topShortSqueeze = combinedData
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
-          .sort((a, b) => a.fundingRate - b.fundingRate) // Sort by most negative funding
+          .sort((a, b) => a.fundingRate - b.fundingRate)
           .slice(0, 5);
 
         const topLongTrap = combinedData
           .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
-          .sort((a, b) => b.fundingRate - a.fundingRate) // Sort by most positive funding
+          .sort((a, b) => b.fundingRate - a.fundingRate)
           .slice(0, 5);
 
         setFundingImbalanceData({
@@ -302,7 +258,6 @@ export default function PriceFundingTracker() {
           topLongTrap,
         });
 
-        // --- Use the updated generateTradeSignals ---
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
 
@@ -319,7 +274,7 @@ export default function PriceFundingTracker() {
             const rank = (s: SymbolTradeSignal | undefined) => {
               if (s?.signal === "long") return 0;
               if (s?.signal === "short") return 1;
-              return 2; // No signal
+              return 2;
             };
 
             const rankA = rank(signalA);
@@ -347,8 +302,7 @@ export default function PriceFundingTracker() {
         const greenRatio = green / totalCoins;
         const redRatio = red / totalCoins;
 
-        // Consistency check: Ensure these ratios drive the score correctly
-        if (redRatio > 0.7) { // Increased threshold for "Strong Bearish Bias"
+        if (redRatio > 0.7) {
             generalBiasInterpretation = `The market is dominated by red candles, and most coins are either flat or down. Over ${Math.round(redRatio * 100)}% of the market is bearish or stagnant.`;
             generalBiasRating = "🔴 Strong Bearish Bias";
             generalBiasScore = 8.5;
@@ -371,7 +325,7 @@ export default function PriceFundingTracker() {
         let fundingImbalanceRating = "";
         let fundingImbalanceScore = 0;
 
-        if (rPos > gNeg * 2 && rPos > 100) { // If red positive is significantly higher than green negative
+        if (rPos > gNeg * 2 && rPos > 100) {
             fundingImbalanceInterpretation = "In the red group, longs are massively funding shorts while price is falling → trapped bulls. Green group shows small bullish squeeze potential, but it’s too small to shift momentum.";
             fundingImbalanceRating = "🔴 Bearish Trap Dominance";
             fundingImbalanceScore = 9.0;
@@ -391,17 +345,16 @@ export default function PriceFundingTracker() {
         let shortSqueezeScore = 0;
 
         if (topShortSqueeze.length > 0) {
-            // Updated criteria for more robust analysis: at least 3 strong candidates
             const strongShortSqueezeCandidates = topShortSqueeze.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent > highPriceChangeThreshold);
 
-            if (strongShortSqueezeCandidates.length >= 3) { // This `3` is crucial for the 8.0 score
+            if (strongShortSqueezeCandidates.length >= 3) {
                 shortSqueezeInterpretation = "These coins show strong potential for short squeezes (shorts paying while price rises). The presence of high volume and significant price increases indicates a more impactful squeeze.";
                 shortSqueezeRating = "🟢 Strong Bullish Pockets";
                 shortSqueezeScore = 8.0;
             } else {
                 shortSqueezeInterpretation = "These coins show potential short squeezes (shorts paying while price rises), but they might be isolated or lack significant volume/price movement to drive broader momentum.";
                 shortSqueezeRating = "🟢 Bullish Pockets (Isolated)";
-                shortSqueezeScore = 6.5; // This is the score if < 3 strong candidates
+                shortSqueezeScore = 6.5;
             }
         } else {
             shortSqueezeInterpretation = "No strong short squeeze candidates identified at this moment. The market lacks significant price increases accompanied by negative funding rates.";
@@ -415,7 +368,6 @@ export default function PriceFundingTracker() {
         let longTrapScore = 0;
 
         if (topLongTrap.length > 0) {
-            // Updated criteria for more robust analysis: at least 3 severe candidates
             const severeLongTrapCandidates = topLongTrap.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent < -highPriceChangeThreshold);
 
             if (severeLongTrapCandidates.length >= 3) {
@@ -433,36 +385,66 @@ export default function PriceFundingTracker() {
             longTrapScore = 4.0;
         }
 
+        // --- NEW: Calculate Overall Volume Sentiment ---
+        const totalBullishVolume = combinedData
+          .filter(item => item.priceChangePercent > 0)
+          .reduce((sum, item) => sum + item.volume, 0);
+
+        const totalBearishVolume = combinedData
+          .filter(item => item.priceChangePercent < 0)
+          .reduce((sum, item) => sum + item.volume, 0);
+
+        let volumeSentimentRating = "⚪ Neutral Volume Bias";
+        let volumeSentimentInterpretation = "Volume flow is balanced, indicating no strong directional consensus from traders based on recent price movements.";
+        let volumeSentimentScore = 5.0; // Default neutral score
+
+        if (totalBullishVolume > totalBearishVolume * 1.3) { // 30% more bullish volume
+          volumeSentimentRating = "🟢 Buyer-Dominated Volume";
+          volumeSentimentInterpretation = "Significantly more trading volume is associated with price increases, suggesting strong buyer conviction.";
+          volumeSentimentScore = 7.5;
+        } else if (totalBearishVolume > totalBullishVolume * 1.3) { // 30% more bearish volume
+          volumeSentimentRating = "🔴 Seller-Dominated Volume";
+          volumeSentimentInterpretation = "A higher proportion of trading volume occurs during price declines, indicating strong selling pressure.";
+          volumeSentimentScore = 8.0; // Slightly higher weight for bearish volume as it implies distribution
+        } else if (totalBullishVolume > totalBearishVolume * 1.1) { // 10% to 30% more bullish volume (mild bias)
+          volumeSentimentRating = "🟡 Slight Bullish Volume Bias";
+          volumeSentimentInterpretation = "Volume slightly favors price increases, but not decisively so.";
+          volumeSentimentScore = 6.0;
+        } else if (totalBearishVolume > totalBullishVolume * 1.1) { // 10% to 30% more bearish volume (mild bias)
+          volumeSentimentRating = "🟡 Slight Bearish Volume Bias";
+          volumeSentimentInterpretation = "Volume slightly favors price decreases, but without strong conviction.";
+          volumeSentimentScore = 6.5;
+        }
+        // --- END NEW VOLUME SENTIMENT CALCULATION ---
+
         // Overall Sentiment Accuracy
         let overallSentimentAccuracy = "";
-        // You'll need to define a local helper or adjust `getSentimentClue` logic
-        // for this specific accuracy check if it needs to be calculated right here.
-        // For now, let's simplify based on the calculated scores.
-        if (generalBiasScore >= 7.0 && fundingImbalanceScore >= 7.0 && shortSqueezeScore >= 7.0) {
-            overallSentimentAccuracy = "✅ Bullish Confirmation: Multiple indicators align for a bullish outlook.";
-        } else if (generalBiasScore <= 5.0 && fundingImbalanceScore >= 8.0 && longTrapScore >= 8.0) {
+        if (generalBiasScore >= 7.0 && fundingImbalanceScore >= 7.0 && shortSqueezeScore >= 7.0 && volumeSentimentScore >= 7.0) {
+            overallSentimentAccuracy = "✅ Bullish Confirmation: All major indicators align for a bullish outlook.";
+        } else if (generalBiasScore <= 5.0 && fundingImbalanceScore >= 8.0 && longTrapScore >= 8.0 && volumeSentimentScore >= 7.5) {
             overallSentimentAccuracy = "✅ Bearish Confirmation: Strong indicators point to a bearish market.";
-        } else if (generalBiasScore === 5.0 && fundingImbalanceScore === 5.0) {
+        } else if (generalBiasScore === 5.0 && fundingImbalanceScore === 5.0 && volumeSentimentScore === 5.0) {
             overallSentimentAccuracy = "🟡 Mixed Signals: Market is indecisive with conflicting data points.";
         } else {
-            overallSentimentAccuracy = "💡 Neutral. The sentiment is currently neutral, awaiting clearer market direction.";
+            overallSentimentAccuracy = "💡 Neutral. The sentiment is currently neutral, awaiting clearer market direction or mixed signals are present.";
         }
 
         // --- Adjusted Final Market Outlook Score Logic ---
-        const averageScore = (generalBiasScore + fundingImbalanceScore + shortSqueezeScore + longTrapScore) / 4;
+        // Include volumeSentimentScore in the average
+        const averageScore = (generalBiasScore + fundingImbalanceScore + shortSqueezeScore + longTrapScore + volumeSentimentScore) / 5;
         let finalOutlookTone = "";
         let strategySuggestion = "";
 
         if (averageScore >= 8.0) {
             finalOutlookTone = "🟢 Strongly Bullish — The market shows clear bullish momentum and strong setups.";
             strategySuggestion = "Aggressively seek **long opportunities**, especially on strong short squeeze candidates.";
-        } else if (averageScore >= 7.0) { // Lowered the upper bound for "Mixed leaning Bullish"
+        } else if (averageScore >= 7.0) {
             finalOutlookTone = "🟡 Mixed leaning Bullish — Some bullish momentum exists, but caution is advised due to underlying risks.";
             strategySuggestion = "Look for **long opportunities** on high-conviction setups, but be prepared for volatility and consider tighter stop losses.";
-        } else if (averageScore >= 5.0) { // Increased the lower bound for "Mixed/Neutral"
+        } else if (averageScore >= 5.0) {
             finalOutlookTone = "↔️ Mixed/Neutral — The market lacks a clear direction, with both bullish and bearish elements.";
             strategySuggestion = "Focus on **scalping** or **range trading** specific high-volume symbols. Avoid strong directional bets until clarity emerges.";
-        } else { // This range will now capture more bearish scenarios
+        } else {
             finalOutlookTone = "🔻 Bearish — The market is under heavy selling pressure. Longs are trapped, and few bullish setups exist.";
             strategySuggestion = "Consider **shorting opportunities** on long trap candidates, or **staying on the sidelines**. Exercise extreme caution with long positions.";
         }
@@ -488,6 +470,11 @@ export default function PriceFundingTracker() {
                 interpretation: longTrapInterpretation,
                 score: longTrapScore,
             },
+            volumeSentiment: { // NEW: Set volume sentiment
+                rating: volumeSentimentRating,
+                interpretation: volumeSentimentInterpretation,
+                score: volumeSentimentScore,
+            },
             overallSentimentAccuracy: overallSentimentAccuracy,
             overallMarketOutlook: {
                 score: parseFloat(averageScore.toFixed(1)),
@@ -507,16 +494,13 @@ export default function PriceFundingTracker() {
     return () => clearInterval(interval);
   }, [
     sortConfig,
-    generateTradeSignals, // Add generateTradeSignals to dependencies
-    // All relevant state variables used in calculations inside useEffect:
-    greenCount, // Although set within, it affects `getSentimentClue`
-    redCount,   // Same as above
-    priceUpFundingNegativeCount, // Same as above
-    priceDownFundingPositiveCount, // Same as above
-    greenNegativeFunding, // Same as above
-    redPositiveFunding,   // Same as above
-    // Add all threshold variables to dependencies for `generateTradeSignals` to be stable
-    // even though they are const, `useCallback` needs them.
+    generateTradeSignals,
+    greenCount,
+    redCount,
+    priceUpFundingNegativeCount,
+    priceDownFundingPositiveCount,
+    greenNegativeFunding,
+    redPositiveFunding,
     priceChangeThreshold,
     fundingRateThreshold,
     highPriceChangeThreshold,
@@ -524,7 +508,7 @@ export default function PriceFundingTracker() {
     mediumPriceChangeThreshold,
     mediumFundingRateThreshold,
     volumeThreshold,
-    getSentimentClue, // Add getSentimentClue to dependencies for stable interval
+    getSentimentClue,
   ]);
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
@@ -538,7 +522,7 @@ export default function PriceFundingTracker() {
         }
       } else {
         direction = "desc";
-        if (key === "signal") { // Default sort for signal might be different (e.g., show signals first)
+        if (key === "signal") {
           direction = "desc";
         }
       }
@@ -613,7 +597,7 @@ export default function PriceFundingTracker() {
                 : getSentimentClue().includes("🟡")
                 ? "text-yellow-300"
                 : getSentimentClue().includes("↔️")
-                ? "text-blue-400" // Added for Mixed/Neutral
+                ? "text-blue-400"
                 : "text-gray-400"
             }
           >
@@ -679,12 +663,12 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
- {/* --- INTEGRATE LEVERAGE PROFIT CALCULATOR HERE --- */}
-        <div className="mb-8"> {/* Added a div for spacing */}
-          <LeverageProfitCalculator />
-        </div>
-        {/* --- END LEVERAGE PROFIT CALCULATOR INTEGRATION --- */}       
-        
+ ---
+ <div className="mb-8">
+   <LeverageProfitCalculator />
+ </div>
+ ---
+
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
           <div className="relative w-full sm:w-64">
             <input
