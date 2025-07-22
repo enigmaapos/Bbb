@@ -672,13 +672,19 @@ export default function PriceFundingTracker() {
         />
         {/* --- END NEW COMPONENT USAGE --- */}
 
-        {/* --- INTEGRATE LEVERAGE PROFIT CALCULATOR HERE --- */}
+        <FundingSentimentChart
+          greenPositiveFunding={greenPositiveFunding}
+          greenNegativeFunding={greenNegativeFunding}
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding}
+        />
+
+ {/* --- INTEGRATE LEVERAGE PROFIT CALCULATOR HERE --- */}
         <div className="mb-8"> {/* Added a div for spacing */}
           <LeverageProfitCalculator />
         </div>
-        {/* --- END LEVERAGE PROFIT CALCULATOR INTEGRATION --- */}
-
-
+        {/* --- END LEVERAGE PROFIT CALCULATOR INTEGRATION --- */}       
+        
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
           <div className="relative w-full sm:w-64">
             <input
@@ -719,12 +725,6 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        <FundingSentimentChart
-          greenPositiveFunding={greenPositiveFunding}
-          greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
-        />
 
         {/* --- UPDATED TABLE STRUCTURE (Removed Entry/SL/TP columns) --- */}
         <div className="overflow-auto max-h-[480px]">
