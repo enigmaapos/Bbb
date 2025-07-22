@@ -248,7 +248,7 @@ export default function PriceFundingTracker() {
             lastPrice: lastPrice,
             volume: volume,
           };
-        }).filter(d => d.volume > 0); // Filter out symbols with 0 volume
+        }).filter((d: SymbolData) => d.volume > 0); // Filter out symbols with 0 volume
 
 
         // Update counts for stats
