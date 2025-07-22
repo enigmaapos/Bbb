@@ -80,30 +80,47 @@ export default function PriceFundingTracker() {
     },
   });
 
+  // --- MODIFIED generateTradeSignals FUNCTION ---
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
-    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice }) => {
+    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
       let signal: "long" | "short" | null = null;
-      let entry: number | null = null;
-      let stopLoss: number | null = null;
-      let takeProfit: number | null = null;
+      let strength: string = "Weak";
+      let confidence: string = "Low Confidence";
 
-      if (priceChangePercent >= 0 && fundingRate < 0) {
+      // Define thresholds for strength and confidence
+      const priceChangeThreshold = 2; // % price change
+      const fundingRateThreshold = 0.0001; // 0.01% funding rate
+      const volumeThreshold = 50_000_000; // 50 million USD volume
+
+      // Long Signal Logic
+      if (priceChangePercent >= priceChangeThreshold && fundingRate < -fundingRateThreshold) {
         signal = "long";
-        entry = lastPrice;
-        stopLoss = entry * 0.99;
-        takeProfit = entry * 1.02;
+        if (priceChangePercent > 5 && fundingRate < -0.0003 && volume > volumeThreshold) {
+          strength = "Strong";
+          confidence = "High Confidence";
+        } else if (priceChangePercent > 3 && fundingRate < -0.0002) {
+          strength = "Medium";
+          confidence = "Medium Confidence";
+        }
       }
 
-      if (priceChangePercent < 0 && fundingRate > 0) {
+      // Short Signal Logic
+      if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
         signal = "short";
-        entry = lastPrice;
-        stopLoss = entry * 1.01;
-        takeProfit = entry * 0.98;
+        if (priceChangePercent < -5 && fundingRate > 0.0003 && volume > volumeThreshold) {
+          strength = "Strong";
+          confidence = "High Confidence";
+        } else if (priceChangePercent < -3 && fundingRate > 0.0002) {
+          strength = "Medium";
+          confidence = "Medium Confidence";
+        }
       }
 
-      return { symbol, entry, stopLoss, takeProfit, signal };
+      // Return the new structure for SymbolTradeSignal
+      return { symbol, signal, strength, confidence };
     });
   };
+  // --- END MODIFIED generateTradeSignals FUNCTION ---
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -192,6 +209,7 @@ export default function PriceFundingTracker() {
           topLongTrap,
         });
 
+        // --- Use the updated generateTradeSignals ---
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
 
@@ -614,9 +632,10 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
+        {/* --- UPDATED TABLE STRUCTURE --- */}
         <div className="overflow-auto max-h-[480px]">
           <table className="w-full text-sm text-left border border-gray-700">
-            <thead className="bg-gray-800 text-gray-300 uppercase text-xs sticky top-0">
+            <thead className="bg-gray-800 text-gray-300 uppercase text-xs sticky top-0 z-10">
               <tr>
                 <th className="p-2">Symbol</th>
                 <th
@@ -638,59 +657,50 @@ export default function PriceFundingTracker() {
                 >
                   Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">Entry</th>
-                <th className="p-2">Stop Loss</th>
-                <th className="p-2">Take Profit</th>
                 <th className="p-2">★</th>
               </tr>
             </thead>
+
             <tbody>
               {data
-                .filter(
-                  (item) => {
-                    return (
-                      (!searchTerm || item.symbol.includes(searchTerm)) &&
-                      (!showFavoritesOnly || favorites.includes(item.symbol))
-                    );
-                  }
-                )
+                .filter((item) => {
+                  return (
+                    (!searchTerm || item.symbol.includes(searchTerm)) &&
+                    (!showFavoritesOnly || favorites.includes(item.symbol))
+                  );
+                })
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
+
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
-                      <td className="p-2 flex items-center gap-2">
-                        {item.symbol}
-                      </td>
+                      <td className="p-2 flex items-center gap-2">{item.symbol}</td>
+
                       <td className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
                         {item.priceChangePercent.toFixed(2)}%
                       </td>
+
                       <td className="p-2">
                         {formatVolume(item.volume)}
                       </td>
+
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
 
-                      <td className={`p-2 font-semibold ${
-                        signal?.signal === "long"
-                          ? "text-green-400"
-                          : signal?.signal === "short"
-                          ? "text-red-400"
-                          : "text-gray-400"
-                      }`}>
-                        {signal?.signal ? signal.signal.toUpperCase() : "-"}
-                      </td>
-
-                      <td className="p-2">
-                        {signal && signal.entry !== null ? signal.entry.toFixed(4) : "-"}
-                      </td>
-
-                      <td className="p-2">
-                        {signal && signal.stopLoss !== null ? signal.stopLoss.toFixed(4) : "-"}
-                      </td>
-
-                      <td className="p-2">
-                        {signal && signal.takeProfit !== null ? signal.takeProfit.toFixed(4) : "-"}
+                      {/* ✅ Updated Signal Column - displays strength and confidence */}
+                      <td className="p-2 space-y-1 text-xs text-gray-200">
+                        {signal && signal.signal ? ( // Only render if a signal exists
+                          <div className="flex flex-col">
+                            <span className={`font-bold ${signal.signal === "long" ? "text-green-400" : "text-red-400"}`}>
+                              {signal.signal.toUpperCase()}
+                            </span>
+                            <span className="text-yellow-300">{signal.strength}</span>
+                            <span className="text-gray-400 italic">{signal.confidence}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
                       </td>
 
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
@@ -708,6 +718,7 @@ export default function PriceFundingTracker() {
             </tbody>
           </table>
         </div>
+        {/* --- END UPDATED TABLE STRUCTURE --- */}
 
         <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 10 seconds | Powered by Binance API</p>
       </div>
