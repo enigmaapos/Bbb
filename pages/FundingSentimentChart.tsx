@@ -58,19 +58,11 @@ export default function FundingSentimentChart({
           <Legend
             wrapperStyle={{ color: "#E5E7EB", fontSize: "12px", marginTop: "10px" }}
           />
-          <Bar
-            dataKey="Positive"
-            stackId="a"
-            name="Funding ➕ (Longs Paying)"
-          >
+          <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Longs Paying)">
             <Cell fill="#EF4444" /> {/* Green group */}
             <Cell fill="#EF4444" /> {/* Red group */}
           </Bar>
-          <Bar
-            dataKey="Negative"
-            stackId="a"
-            name="Funding ➖ (Shorts Paying)"
-          >
+          <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Shorts Paying)">
             <Cell fill="#10B981" /> {/* Green group */}
             <Cell fill="#10B981" /> {/* Red group */}
           </Bar>
@@ -101,6 +93,37 @@ export default function FundingSentimentChart({
           ✅ Tip: Watch for green bars rising in red group for early reversal. Avoid longs when red bars dominate in red group.
         </div>
       </div>
+
+      {/* Cheatsheet */}
+      <div className="mt-4 p-4 border border-gray-700 bg-gray-800 rounded-lg text-sm text-gray-200 space-y-2">
+        <h3 className="font-semibold text-white">🧠 Interpretation Cheatsheet:</h3>
+        <table className="text-sm text-gray-300 w-full table-fixed">
+          <thead>
+            <tr className="text-gray-400">
+              <th className="text-left w-1/2">Condition</th>
+              <th className="text-left w-1/2">Meaning</th>
+            </tr>
+          </thead>
+          <tbody className="mt-1 space-y-2">
+            <tr>
+              <td>🟥 &gt; 🟩 in Green Group</td>
+              <td>🚨 Bull Trap Risk</td>
+            </tr>
+            <tr>
+              <td>🟩 &gt; 🟥 in Green Group</td>
+              <td>✅ Real Bullish Momentum</td>
+            </tr>
+            <tr>
+              <td>🟥 &gt; 🟩 in Red Group</td>
+              <td>⚠️ Bearish Continuation / Trap</td>
+            </tr>
+            <tr>
+              <td>🟩 &gt; 🟥 in Red Group</td>
+              <td>🔁 Short Covering / Reversal Zone</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
-    }
+}
