@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import FundingSentimentChart from "../components/FundingSentimentChart"; // Assuming correct path
+import FundingSentimentChart from "./components/FundingSentimentChart"; // Assuming correct path
+import MarketAnalysisDisplay from "./components/MarketAnalysisDisplay"; // Import the new component
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -61,7 +62,7 @@ export default function PriceFundingTracker() {
     topLongTrap: [] as SymbolData[],
   });
 
-  // --- NEW STATE FOR MARKET ANALYSIS ---
+  // --- STATE FOR MARKET ANALYSIS ---
   const [marketAnalysis, setMarketAnalysis] = useState({
     generalBias: {
       rating: "",
@@ -101,17 +102,15 @@ export default function PriceFundingTracker() {
       if (priceChangePercent >= 0 && fundingRate < 0) {
         signal = "long";
         entry = lastPrice;
-        // Simple stop loss/take profit for illustration. Adjust as needed.
-        stopLoss = entry * 0.99; // Example: 1% stop loss
-        takeProfit = entry * 1.02; // Example: 2% take profit
+        stopLoss = entry * 0.99;
+        takeProfit = entry * 1.02;
       }
 
       if (priceChangePercent < 0 && fundingRate > 0) {
         signal = "short";
         entry = lastPrice;
-        // Simple stop loss/take profit for illustration. Adjust as needed.
-        stopLoss = entry * 1.01; // Example: 1% stop loss
-        takeProfit = entry * 0.98; // Example: 2% take profit
+        stopLoss = entry * 1.01;
+        takeProfit = entry * 0.98;
       }
 
       return { symbol, entry, stopLoss, takeProfit, signal };
@@ -143,7 +142,7 @@ export default function PriceFundingTracker() {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
-          const volume = parseFloat(ticker?.quoteVolume || "0"); // Corrected to quoteVolume for USDT value
+          const volume = parseFloat(ticker?.quoteVolume || "0");
 
           return {
             symbol,
@@ -290,7 +289,6 @@ export default function PriceFundingTracker() {
             fundingImbalanceScore = 5.0;
         }
 
-
         // Top Short Squeeze Candidates
         let shortSqueezeRating = "";
         let shortSqueezeInterpretation = "";
@@ -312,7 +310,6 @@ export default function PriceFundingTracker() {
             shortSqueezeRating = "⚪ No Squeeze Candidates";
             shortSqueezeScore = 4.0;
         }
-
 
         // Top Long Trap Candidates
         let longTrapRating = "";
@@ -338,8 +335,8 @@ export default function PriceFundingTracker() {
 
         // Overall Sentiment Accuracy
         let overallSentimentAccuracy = "";
-        const currentSentimentClue = getSentimentClue();
-        if (currentSentimentClue.includes("🔴 Bearish Risk") && rPos > gNeg) { // Changed "Bearish Trap" to "Bearish Risk" based on getSentimentClue output
+        const currentSentimentClue = getSentimentClue(); // Call getSentimentClue with current counts
+        if (currentSentimentClue.includes("🔴 Bearish Risk") && rPos > gNeg) {
             overallSentimentAccuracy = "✅ Correct. The sentiment accurately reflects the dominance of trapped longs in a falling market.";
         } else if (currentSentimentClue.includes("🟢 Bullish Momentum") && gNeg > rPos) {
             overallSentimentAccuracy = "✅ Correct. The sentiment accurately reflects potential short squeezes in a rising market.";
@@ -408,7 +405,6 @@ export default function PriceFundingTracker() {
     const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
   }, [sortConfig, greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount, greenNegativeFunding, redPositiveFunding]);
-    // NOTE: Added more dependencies here to ensure analysis runs when core counts update.
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
@@ -570,146 +566,18 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
-          <h2 className="text-lg font-bold text-white mb-3">💰 Funding Imbalance Overview</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gray-700 p-3 rounded shadow-inner">
-              <h3 className="text-green-400 font-bold mb-1">🟢 Price Up</h3>
-              <p className="text-sm">➕ Longs Paying: {fundingImbalanceData.priceUpLongsPaying}</p>
-              <p className="text-sm">➖ Shorts Paying: {fundingImbalanceData.priceUpShortsPaying}</p>
-            </div>
-            <div className="bg-gray-700 p-3 rounded shadow-inner">
-              <h3 className="text-red-400 font-bold mb-1">🔴 Price Down</h3>
-              <p className="text-sm">➕ Longs Paying: {fundingImbalanceData.priceDownLongsPaying}</p>
-              <p className="text-sm">➖ Shorts Paying: {fundingImbalanceData.priceDownShortsPaying}</p>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <h3 className="text-yellow-400 font-bold mb-2">🔥 Top Short Squeeze Candidates</h3>
-            <ul className="list-disc list-inside text-sm text-yellow-100">
-              {fundingImbalanceData.topShortSqueeze.length > 0 ? (
-                fundingImbalanceData.topShortSqueeze.map((d) => (
-                  <li key={d.symbol}>
-                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {formatVolume(d.volume)}
-                  </li>
-                ))
-              ) : (
-                <li>No strong short squeeze candidates at the moment.</li>
-              )}
-            </ul>
-          </div>
-
-          <div className="mt-6">
-            <h3 className="text-pink-400 font-bold mb-2">⚠️ Top Long Trap Candidates</h3>
-            <ul className="list-disc list-inside text-sm text-pink-100">
-              {fundingImbalanceData.topLongTrap.length > 0 ? (
-                fundingImbalanceData.topLongTrap.map((d) => (
-                  <li key={d.symbol}>
-                    {d.symbol} — Funding: {(d.fundingRate * 100).toFixed(4)}% | Change: {d.priceChangePercent.toFixed(2)}% | Volume: {formatVolume(d.volume)}
-                  </li>
-                ))
-              ) : (
-                <li>No strong long trap candidates at the moment.</li>
-              )}
-            </ul>
-          </div>
-        </div>
-
-        {/* --- NEW MARKET ANALYSIS RATING SECTION --- */}
-        <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
-            <h2 className="text-lg font-bold text-white mb-3">📈 Detailed Market Analysis & Ratings</h2>
-
-            {/* General Market Bias */}
-            <div className="mb-4">
-                <h3 className="text-blue-300 font-semibold mb-1">🧮 General Market Bias</h3>
-                <p className="text-sm text-gray-300">
-                    <span className="font-bold">✅ Green:</span> {greenCount} &nbsp;&nbsp;
-                    <span className="font-bold">❌ Red:</span> {redCount}
-                </p>
-                <p className={`text-sm ${marketAnalysis.generalBias.rating.includes('🔴') ? 'text-red-400' : marketAnalysis.generalBias.rating.includes('🟢') ? 'text-green-400' : marketAnalysis.generalBias.rating.includes('🟡') ? 'text-yellow-300' : 'text-gray-400'}`}>
-                    {marketAnalysis.generalBias.rating} <span className="font-bold">({marketAnalysis.generalBias.score.toFixed(1)}/10)</span>
-                </p>
-                <p className="text-xs italic text-gray-400">{marketAnalysis.generalBias.interpretation}</p>
-            </div>
-
-            {/* Funding Sentiment Imbalance */}
-            <div className="mb-4">
-                <h3 className="text-purple-300 font-semibold mb-1">📉 Funding Sentiment Imbalance</h3>
-                <p className="text-sm text-gray-300">
-                    <span className="font-bold">Green Group (Price Up):</span> ➕ Longs Paying: {greenPositiveFunding}, ➖ Shorts Paying: {greenNegativeFunding}
-                </p>
-                <p className="text-sm text-gray-300">
-                    <span className="font-bold">Red Group (Price Down):</span> ➕ Longs Paying: {redPositiveFunding}, ➖ Shorts Paying: {redNegativeFunding}
-                </p>
-                <p className={`text-sm ${marketAnalysis.fundingImbalance.rating.includes('🔴') ? 'text-red-400' : marketAnalysis.fundingImbalance.rating.includes('🟢') ? 'text-green-400' : 'text-gray-400'}`}>
-                    {marketAnalysis.fundingImbalance.rating} <span className="font-bold">({marketAnalysis.fundingImbalance.score.toFixed(1)}/10)</span>
-                </p>
-                <p className="text-xs italic text-gray-400">{marketAnalysis.fundingImbalance.interpretation}</p>
-            </div>
-
-            {/* Top Short Squeeze Candidates */}
-            <div className="mb-4">
-                <h3 className="text-yellow-400 font-semibold mb-1">🔥 Top Short Squeeze Candidates</h3>
-                <p className={`text-sm ${marketAnalysis.shortSqueezeCandidates.rating.includes('🟢') ? 'text-green-400' : 'text-gray-400'}`}>
-                    {marketAnalysis.shortSqueezeCandidates.rating} <span className="font-bold">({marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}/10)</span>
-                </p>
-                <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
-                <ul className="list-disc list-inside text-sm text-yellow-100">
-                    {fundingImbalanceData.topShortSqueeze.length > 0 ? (
-                        fundingImbalanceData.topShortSqueeze.map((d) => (
-                            <li key={d.symbol}>
-                                <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-green-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-green-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
-                            </li>
-                        ))
-                    ) : (
-                        <li>No strong short squeeze candidates at the moment.</li>
-                    )}
-                </ul>
-            </div>
-
-            {/* Top Long Trap Candidates */}
-            <div className="mb-4">
-                <h3 className="text-pink-400 font-semibold mb-1">⚠️ Top Long Trap Candidates</h3>
-                <p className={`text-sm ${marketAnalysis.longTrapCandidates.rating.includes('🔴') ? 'text-red-400' : 'text-gray-400'}`}>
-                    {marketAnalysis.longTrapCandidates.rating} <span className="font-bold">({marketAnalysis.longTrapCandidates.score.toFixed(1)}/10)</span>
-                </p>
-                <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.longTrapCandidates.interpretation}</p>
-                <ul className="list-disc list-inside text-sm text-pink-100">
-                    {fundingImbalanceData.topLongTrap.length > 0 ? (
-                        fundingImbalanceData.topLongTrap.map((d) => (
-                            <li key={d.symbol}>
-                                <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-red-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-red-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
-                            </li>
-                        ))
-                    ) : (
-                        <li>No strong long trap candidates at the moment.</li>
-                    )}
-                </ul>
-            </div>
-
-            {/* Overall Sentiment Accuracy */}
-            <div className="mb-4">
-                <h3 className="text-cyan-300 font-semibold mb-1">🌐 Overall Sentiment Accuracy</h3>
-                <p className={`text-sm ${marketAnalysis.overallSentimentAccuracy.includes('✅') ? 'text-green-400' : 'text-yellow-300'}`}>
-                    {marketAnalysis.overallSentimentAccuracy}
-                </p>
-            </div>
-
-            {/* Final Market Outlook */}
-            <div>
-                <h3 className="text-white font-bold text-base mb-1">🏁 Final Market Outlook Score:</h3>
-                <p className={`text-lg font-extrabold ${marketAnalysis.overallMarketOutlook.tone.includes('🔻') ? 'text-red-500' : marketAnalysis.overallMarketOutlook.tone.includes('🔺') ? 'text-green-500' : 'text-yellow-400'}`}>
-                    {marketAnalysis.overallMarketOutlook.tone.split('—')[0]} <span className="ml-2">({marketAnalysis.overallMarketOutlook.score.toFixed(1)}/10)</span>
-                </p>
-                <p className="text-sm italic text-gray-400">{marketAnalysis.overallMarketOutlook.tone.split('—')[1]?.trim()}</p>
-                <p className="text-sm text-blue-300 mt-2">
-                    <span className="font-bold">📌 Strategy Suggestion:</span> {marketAnalysis.overallMarketOutlook.strategySuggestion}
-                </p>
-            </div>
-
-        </div>
-        {/* --- END NEW MARKET ANALYSIS RATING SECTION --- */}
+        {/* --- USE THE NEW MarketAnalysisDisplay COMPONENT HERE --- */}
+        <MarketAnalysisDisplay
+          marketAnalysis={marketAnalysis}
+          fundingImbalanceData={fundingImbalanceData}
+          greenCount={greenCount}
+          redCount={redCount}
+          greenPositiveFunding={greenPositiveFunding}
+          greenNegativeFunding={greenNegativeFunding}
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding}
+        />
+        {/* --- END NEW COMPONENT USAGE --- */}
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
           <div className="relative w-full sm:w-64">
@@ -769,7 +637,7 @@ export default function PriceFundingTracker() {
                 >
                   24h Change {sortConfig.key === "priceChangePercent" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">24h Volume</th> {/* New column for volume */}
+                <th className="p-2">24h Volume</th>
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("fundingRate")}
@@ -792,7 +660,6 @@ export default function PriceFundingTracker() {
               {data
                 .filter(
                   (item) => {
-                    // Removed the condition 'hasSignal' to show all symbols
                     return (
                       (!searchTerm || item.symbol.includes(searchTerm)) &&
                       (!showFavoritesOnly || favorites.includes(item.symbol))
@@ -810,7 +677,7 @@ export default function PriceFundingTracker() {
                         {item.priceChangePercent.toFixed(2)}%
                       </td>
                       <td className="p-2">
-                        {formatVolume(item.volume)} {/* Display formatted volume */}
+                        {formatVolume(item.volume)}
                       </td>
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
