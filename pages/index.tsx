@@ -19,7 +19,6 @@ type SymbolData = {
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
-  // Added for conceptual S/R integration
   majorResistance?: number;
   majorSupport?: number;
   srStatus?: SRStatus;
@@ -31,7 +30,6 @@ type SymbolTradeSignal = {
   stopLoss: number | null;
   takeProfit: number | null;
   signal: "long" | "short" | null;
-  // Added to store signal validity based on S/R
   isValidatedBySR?: boolean;
   srReason?: string;
 };
@@ -53,6 +51,71 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+// --- REAL SUPPORT/RESISTANCE FUNCTION ---
+// This function fetches historical kline data to identify S/R levels.
+type SRLevels = {
+  majorResistance: number;
+  majorSupport: number;
+  srStatus: SRStatus;
+};
+
+const getRealSupportResistanceStatus = async (
+  symbol: string,
+  currentPrice: number
+): Promise<SRLevels> => {
+  try {
+    const response = await fetch(
+      `${BINANCE_API}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=150`
+    );
+    const rawData = await response.json();
+
+    if (!rawData || rawData.length === 0) {
+      return {
+        majorResistance: 0,
+        majorSupport: 0,
+        srStatus: "unknown",
+      };
+    }
+
+    const highs = rawData.map((k: any) => parseFloat(k[2])); // Highs (index 2 in kline array)
+    const lows = rawData.map((k: any) => parseFloat(k[3]));  // Lows (index 3 in kline array)
+
+    // Identify resistance = recent swing high (e.g., max of last 20 highs)
+    // Adjust slice for more data if needed, but 20-50 for 'recent' is common.
+    const recentHighs = highs.slice(-50); // Consider last 50 days for recent highs
+    const resistance = Math.max(...recentHighs);
+
+    // Identify support = recent swing low (e.g., min of last 20 lows)
+    const recentLows = lows.slice(-50); // Consider last 50 days for recent lows
+    const support = Math.min(...recentLows);
+
+    // Determine SR status based on proximity
+    let status: SRStatus = "unknown";
+    const buffer = currentPrice * 0.005; // 0.5% buffer for "at" levels
+
+    if (currentPrice >= resistance - buffer && currentPrice <= resistance + buffer) {
+      status = "at_resistance";
+    } else if (currentPrice > resistance + buffer) {
+      status = "above_resistance";
+    } else if (currentPrice <= support + buffer && currentPrice >= support - buffer) {
+      status = "at_support";
+    } else if (currentPrice < support - buffer) {
+      status = "below_support";
+    } else {
+      status = "between";
+    }
+
+    return { majorResistance: resistance, majorSupport: support, srStatus: status };
+  } catch (error) {
+    console.error(`SR error for ${symbol}:`, error);
+    return {
+      majorResistance: 0,
+      majorSupport: 0,
+      srStatus: "unknown",
+    };
+  }
+};
+
 export default function PriceFundingTracker() {
   const [data, setData] = useState<SymbolData[]>([]);
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
@@ -71,7 +134,6 @@ export default function PriceFundingTracker() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [sortBySignal, setSortBySignal] = useState<"asc" | "desc" | null>(null);
 
-  // New state for funding imbalance data (fixed in previous turn)
   const [fundingImbalanceData, setFundingImbalanceData] = useState({
     priceUpShortsPaying: 0,
     priceUpLongsPaying: 0,
@@ -81,50 +143,9 @@ export default function PriceFundingTracker() {
     topLongTrap: [] as SymbolData[],
   });
 
-  // --- MOCK FUNCTION FOR SUPPORT/RESISTANCE ---
-  // In a real application, this would involve fetching historical klines
-  // and running a complex algorithm to identify actual S/R levels.
-  // For this example, it's just a placeholder for demonstration.
-  const getMockSupportResistanceStatus = (
-    symbol: string,
-    currentPrice: number
-  ): { majorResistance: number; majorSupport: number; srStatus: SRStatus } => {
-    // This is a SIMULATION. Replace with actual S/R logic.
-    // Example: For BTCUSDT, set arbitrary S/R levels
-    let resistance = 0;
-    let support = 0;
-    if (symbol === "BTCUSDT") {
-      resistance = 70000; // Example resistance
-      support = 60000;   // Example support
-    } else if (symbol === "ETHUSDT") {
-      resistance = 4000;
-      support = 3000;
-    } else {
-      // For other symbols, simulate some generic S/R relative to current price
-      resistance = currentPrice * 1.05; // 5% above
-      support = currentPrice * 0.95;    // 5% below
-    }
-
-    let status: SRStatus = "unknown";
-    const buffer = currentPrice * 0.005; // 0.5% buffer for "at"
-    if (currentPrice >= resistance - buffer && currentPrice <= resistance + buffer) {
-        status = "at_resistance";
-    } else if (currentPrice > resistance + buffer) {
-        status = "above_resistance";
-    } else if (currentPrice <= support + buffer && currentPrice >= support - buffer) {
-        status = "at_support";
-    } else if (currentPrice < support - buffer) {
-        status = "below_support";
-    } else {
-        status = "between";
-    }
-
-    return { majorResistance: resistance, majorSupport: support, srStatus: status };
-  };
-
   // Generate trade signals based on priceChangePercent, fundingRate, and S/R
   const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
-    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, srStatus }) => {
+    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, srStatus, majorResistance, majorSupport }) => {
       let signal: "long" | "short" | null = null;
       let entry: number | null = null;
       let stopLoss: number | null = null;
@@ -189,45 +210,52 @@ export default function PriceFundingTracker() {
         const tickerData = await tickerRes.json();
         const fundingData = await fundingRes.json();
 
-        let combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
+        // Prepare initial combined data without S/R
+        const initialCombinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
-
-          // --- Integrate Mock S/R calculation here ---
-          const { majorResistance, majorSupport, srStatus } = getMockSupportResistanceStatus(symbol, lastPrice);
 
           return {
             symbol,
             priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
-            majorResistance,
-            majorSupport,
-            srStatus,
+            majorResistance: 0, // Initialize
+            majorSupport: 0,    // Initialize
+            srStatus: "unknown", // Initialize
           };
         });
 
+        // Fetch S/R data concurrently for all symbols
+        const srPromises = initialCombinedData.map(async (item) => {
+          const srData = await getRealSupportResistanceStatus(item.symbol, item.lastPrice);
+          return { ...item, ...srData };
+        });
+
+        const combinedDataWithSR: SymbolData[] = await Promise.all(srPromises);
+
+
         // Update counts for your stats
-        const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
-        const red = combinedData.length - green;
+        const green = combinedDataWithSR.filter((d) => d.priceChangePercent >= 0).length;
+        const red = combinedDataWithSR.length - green;
         setGreenCount(green);
         setRedCount(red);
 
-        const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
-        const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
-        const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
-        const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+        const gPos = combinedDataWithSR.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+        const gNeg = combinedDataWithSR.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+        const rPos = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+        const rNeg = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
         setGreenPositiveFunding(gPos);
         setGreenNegativeFunding(gNeg);
         setRedPositiveFunding(rPos);
         setRedNegativeFunding(rNeg);
 
-        const priceUpFundingNegative = combinedData.filter(
+        const priceUpFundingNegative = combinedDataWithSR.filter(
           (d) => d.priceChangePercent > 0 && d.fundingRate < 0
         ).length;
-        const priceDownFundingPositive = combinedData.filter(
+        const priceDownFundingPositive = combinedDataWithSR.filter(
           (d) => d.priceChangePercent < 0 && d.fundingRate > 0
         ).length;
 
@@ -235,17 +263,17 @@ export default function PriceFundingTracker() {
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
         // Calculate funding imbalance data
-        const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
-        const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
-        const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
-        const priceDownShortsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+        const priceUpShortsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
+        const priceUpLongsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
+        const priceDownLongsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
+        const priceDownShortsPaying = combinedDataWithSR.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
-        const topShortSqueeze = combinedData
+        const topShortSqueeze = combinedDataWithSR
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
           .sort((a, b) => a.fundingRate - b.fundingRate) // More negative funding rate means stronger squeeze potential
           .slice(0, 5);
 
-        const topLongTrap = combinedData
+        const topLongTrap = combinedDataWithSR
           .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
           .sort((a, b) => b.fundingRate - a.fundingRate) // More positive funding rate means stronger trap
           .slice(0, 5);
@@ -259,12 +287,11 @@ export default function PriceFundingTracker() {
           topLongTrap,
         });
 
-
-        const signals = generateTradeSignals(combinedData);
+        const signals = generateTradeSignals(combinedDataWithSR);
         setTradeSignals(signals);
 
         // Sorting logic based on current sort settings
-        const sorted = [...combinedData].sort((a, b) => {
+        const sorted = [...combinedDataWithSR].sort((a, b) => {
           // Priority to signal sorting if active
           if (sortBySignal !== null) {
             const signalA = signals.find((s) => s.symbol === a.symbol);
