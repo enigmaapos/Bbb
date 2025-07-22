@@ -5,11 +5,10 @@ import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import { SymbolData, SymbolTradeSignal } from "../types";
-// Import the new sentiment analyzer utility
-import { analyzeSentiment, MarketStats } from "../utils/sentimentAnalyzer"; // <-- NEW IMPORT
+import { analyzeSentiment, MarketStats } from "../utils/sentimentAnalyzer";
 
 const BINANCE_API = "https://fapi.binance.com";
-const BINANCE_API_V2 = "https://fapi.binance.com/fapi/v2"; // For Open Interest
+// const BINANCE_API_V2 = "https://fapi.binance.com/fapi/v2"; // No longer needed for OI, removing this as it causes confusion
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
@@ -198,33 +197,53 @@ export default function PriceFundingTracker() {
           .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: any) => s.symbol);
 
-        // --- Fetch Ticker, Funding, and NEW: Open Interest data ---
-        const [tickerRes, fundingRes, oiRes] = await Promise.all([
+        // --- Fetch Ticker and Funding Data ---
+        const [tickerRes, fundingRes] = await Promise.all([
           fetch(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           fetch(`${BINANCE_API}/fapi/v1/premiumIndex`),
-          fetch(`${BINANCE_API_V2}/futures/data/openInterestHist?period=5m&limit=1&symbol=${usdtPairs.join(',')}`), // Fetching current OI (last 5 min data)
         ]);
 
         if (!tickerRes.ok) console.error("Error fetching ticker data:", await tickerRes.text());
         if (!fundingRes.ok) console.error("Error fetching funding data:", await fundingRes.text());
-        if (!oiRes.ok) console.error("Error fetching Open Interest data:", await oiRes.text());
-
 
         const tickerData = await tickerRes.json();
         const fundingData = await fundingRes.json();
-        const oiData = await oiRes.json(); // Array of OI objects
 
+        // --- NEW: Fetch Open Interest History for each symbol individually ---
+        const openInterestPromises = usdtPairs.map(async (symbol: string) => {
+            try {
+                // Corrected endpoint: /fapi/v1/openInterestHist (not /fapi/v2/futures/data/openInterestHist)
+                // Correct usage: one symbol per request
+                const oiUrl = `${BINANCE_API}/fapi/v1/openInterestHist?symbol=${symbol}&period=5m&limit=1`;
+                const oiRes = await fetch(oiUrl);
 
-        // Create a map for quick OI lookup
-        const oiMap = new Map();
-        if (Array.isArray(oiData)) { // Ensure oiData is an array
-            oiData.forEach((item: any) => {
-                // Binance's openInterestHist returns an array of objects,
-                // each with 'symbol', 'sumOpenInterest', 'sumOpenInterestValue', etc.
+                if (!oiRes.ok) {
+                    console.warn(`Failed to fetch Open Interest for ${symbol}: ${oiRes.status} ${oiRes.statusText}`);
+                    return { symbol, openInterest: 0 }; // Return default value on error
+                }
+                const oiData = await oiRes.json();
+
+                // Binance's openInterestHist returns an array, the latest is usually the first element.
                 // We're interested in 'sumOpenInterestValue' for USD value.
-                oiMap.set(item.symbol, parseFloat(item.sumOpenInterestValue || "0"));
-            });
-        }
+                if (oiData.length > 0) {
+                    return { symbol, openInterest: parseFloat(oiData[0].sumOpenInterestValue || "0") };
+                } else {
+                    return { symbol, openInterest: 0 }; // No data found for this symbol
+                }
+            } catch (oiError) {
+                console.error(`Error fetching Open Interest for ${symbol}:`, oiError);
+                return { symbol, openInterest: 0 }; // Return default on network/parsing error
+            }
+        });
+
+        // Wait for all individual Open Interest fetches to complete
+        const allOpenInterestResults = await Promise.all(openInterestPromises);
+        const oiMap = new Map<string, number>();
+        allOpenInterestResults.forEach(item => {
+            if (item) { // Ensure the item is not null (from a failed fetch)
+                oiMap.set(item.symbol, item.openInterest);
+            }
+        });
 
 
         const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
@@ -235,8 +254,6 @@ export default function PriceFundingTracker() {
           const openInterest = oiMap.get(symbol) || 0; // Get OI from map
 
           // Placeholder for RSI - In a real app, you'd fetch klines and calculate RSI
-          // For now, let's assign a dummy RSI for demonstration
-          // A proper RSI implementation would be much more involved
           const dummyRsi = (Math.random() * 60) + 20; // RSI between 20 and 80 for demo
 
           return {
@@ -247,8 +264,8 @@ export default function PriceFundingTracker() {
             volume: volume,
             openInterest: openInterest, // Include Open Interest
             rsi: dummyRsi, // Include RSI (dummy for now)
-            // marketCap: <fetch_or_calculate_market_cap_here>, // You'd need a separate source for this
-            // liquidationVolume: <fetch_liquidation_data_here>, // Binance provides this via a separate API or WebSocket
+            // marketCap: <fetch_or_calculate_market_cap_here>,
+            // liquidationVolume: <fetch_liquidation_data_here>,
           };
         }).filter((d: SymbolData) => d.volume > 0);
 
@@ -354,7 +371,6 @@ export default function PriceFundingTracker() {
             fundingRate: d.fundingRate,
             rsi: d.rsi, // Pass RSI
             openInterest: d.openInterest, // Pass Open Interest
-            // You'll add marketCap and liquidationVolume here once fetched
             // marketCap: d.marketCap,
             // liquidationVolume: d.liquidationVolume,
           })),
@@ -369,10 +385,10 @@ export default function PriceFundingTracker() {
         const shortSqueezeScore = sentimentResults.shortSqueeze.score;
         const longTrapScore = sentimentResults.longTrap.score;
         const volumeSentimentScore = sentimentResults.volumeSentiment.score;
-        const speculativeInterestScore = sentimentResults.speculativeInterest.score; // NEW
-        const momentumImbalanceScore = sentimentResults.momentumImbalance.score; // NEW
-        // const liquidationHeatmapScore = sentimentResults.liquidationHeatmap.score; // NEW (if implemented)
-        // const breakoutVolumeScore = sentimentResults.breakoutVolume.score; // NEW (if implemented)
+        const speculativeInterestScore = sentimentResults.speculativeInterest.score;
+        const momentumImbalanceScore = sentimentResults.momentumImbalance.score;
+        // const liquidationHeatmapScore = sentimentResults.liquidationHeatmap.score;
+        // const breakoutVolumeScore = sentimentResults.breakoutVolume.score;
 
 
         // Adjusted Final Market Outlook Score Logic - INCLUDE NEW SCORES
@@ -412,10 +428,10 @@ export default function PriceFundingTracker() {
             shortSqueezeCandidates: sentimentResults.shortSqueeze,
             longTrapCandidates: sentimentResults.longTrap,
             volumeSentiment: sentimentResults.volumeSentiment,
-            speculativeInterest: sentimentResults.speculativeInterest, // NEW
-            liquidationHeatmap: sentimentResults.liquidationHeatmap, // NEW (placeholder)
-            momentumImbalance: sentimentResults.momentumImbalance, // NEW
-            overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy, // Updated to come from analyzer
+            speculativeInterest: sentimentResults.speculativeInterest,
+            liquidationHeatmap: sentimentResults.liquidationHeatmap,
+            momentumImbalance: sentimentResults.momentumImbalance,
+            overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
             overallMarketOutlook: {
                 score: parseFloat(averageScore.toFixed(1)),
                 tone: finalOutlookTone,
@@ -424,8 +440,11 @@ export default function PriceFundingTracker() {
         });
 
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("General error fetching Binance data:", err);
+      } finally {
+        // Ensure loading state is always updated
+        setLoading(false);
       }
     };
 
@@ -435,20 +454,13 @@ export default function PriceFundingTracker() {
   }, [
     sortConfig,
     generateTradeSignals,
-    greenCount,
-    redCount,
-    priceUpFundingNegativeCount,
-    priceDownFundingPositiveCount,
-    greenNegativeFunding,
-    redPositiveFunding,
-    priceChangeThreshold,
-    fundingRateThreshold,
-    highPriceChangeThreshold,
-    highFundingRateThreshold,
-    mediumPriceChangeThreshold,
-    mediumFundingRateThreshold,
-    volumeThreshold,
-    getSentimentClue, // This dependency should ideally be removed if getSentimentClue only relies on marketAnalysis.overallMarketOutlook.score
+    // The following dependencies are probably not necessary for useEffect
+    // if their values are only used inside fetchAllData, which is re-created
+    // if these change. However, keep them if they are truly used outside fetchAll.
+    // greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount,
+    // greenNegativeFunding, redPositiveFunding, priceChangeThreshold, fundingRateThreshold,
+    // highPriceChangeThreshold, highFundingRateThreshold, mediumPriceChangeThreshold,
+    // mediumFundingRateThreshold, volumeThreshold, getSentimentClue,
   ]);
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
@@ -469,6 +481,13 @@ export default function PriceFundingTracker() {
       return { key, direction };
     });
   };
+
+  const filteredData = data.filter((item) => {
+    return (
+      (!searchTerm || item.symbol.includes(searchTerm)) &&
+      (!showFavoritesOnly || favorites.includes(item.symbol))
+    );
+  });
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -682,13 +701,7 @@ export default function PriceFundingTracker() {
             </thead>
 
             <tbody>
-              {data
-                .filter((item) => {
-                  return (
-                    (!searchTerm || item.symbol.includes(searchTerm)) &&
-                    (!showFavoritesOnly || favorites.includes(item.symbol))
-                  );
-                })
+              {filteredData // Use filteredData here
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
 
@@ -751,4 +764,3 @@ export default function PriceFundingTracker() {
     </div>
   );
 }
-
