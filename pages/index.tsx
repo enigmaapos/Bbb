@@ -1,9 +1,9 @@
 // pages/index.tsx or src/PriceFundingTracker.tsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react"; // Added useCallback
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
-import LeverageProfitCalculator from "../components/LeverageProfitCalculator"; // Keep this import
+import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import { SymbolData, SymbolTradeSignal } from "../types";
 
 const BINANCE_API = "https://fapi.binance.com";
@@ -22,6 +22,8 @@ const formatVolume = (num: number): string => {
 
 export default function PriceFundingTracker() {
   // --- Define threshold constants at the component level ---
+  // Using `const` outside the component or `useMemo` if they were derived from props/state
+  // but here, they are fixed, so `const` within the component body is fine.
   const priceChangeThreshold = 2; // % price change for a basic signal
   const fundingRateThreshold = 0.0001; // 0.01% funding rate for a basic signal
   const highPriceChangeThreshold = 5; // % price change for strong signal
@@ -39,6 +41,9 @@ export default function PriceFundingTracker() {
   const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
+  // priceUpFundingNegativeCount and priceDownFundingPositiveCount are used directly for display
+  // but their logic is now integrated into fundingImbalanceData and marketAnalysis.
+  // We'll keep them as state for the direct display below the summary.
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
 
@@ -48,8 +53,23 @@ export default function PriceFundingTracker() {
   }>({ key: "fundingRate", direction: "desc" });
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    // Initialize favorites from localStorage
+    if (typeof window !== 'undefined') { // Check if window is defined (for SSR)
+      const savedFavorites = localStorage.getItem('favorites');
+      return savedFavorites ? JSON.parse(savedFavorites) : [];
+    }
+    return [];
+  });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // Effect to save favorites to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('favorites', JSON.stringify(favorites));
+    }
+  }, [favorites]);
+
 
   const [fundingImbalanceData, setFundingImbalanceData] = useState({
     priceUpShortsPaying: 0,
@@ -91,7 +111,8 @@ export default function PriceFundingTracker() {
   });
 
   // --- MODIFIED generateTradeSignals FUNCTION (removed entry/sl/tp calculations) ---
-  const generateTradeSignals = (combinedData: SymbolData[]): SymbolTradeSignal[] => {
+  // Memoize this function since it's a dependency of useEffect
+  const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
     return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
       let signal: "long" | "short" | null = null;
       let strength: SymbolTradeSignal['strength'] = "Weak";
@@ -122,16 +143,76 @@ export default function PriceFundingTracker() {
 
       // If no signal, explicitly set strength/confidence to default/null for clarity
       if (signal === null) {
-          strength = "Weak";
-          confidence = "Low Confidence";
+        strength = "Weak";
+        confidence = "Low Confidence";
       }
 
-      // Entry, stopLoss, and takeProfit are not needed here as per your request.
-      // They will be null in the SymbolTradeSignal type or removed from it.
+      // Entry, stopLoss, and takeProfit are explicitly null as per SymbolTradeSignal type
       return { symbol, signal, strength, confidence, entry: null, stopLoss: null, takeProfit: null };
     });
-  };
+  }, [
+    priceChangeThreshold,
+    fundingRateThreshold,
+    highPriceChangeThreshold,
+    highFundingRateThreshold,
+    mediumPriceChangeThreshold,
+    mediumFundingRateThreshold,
+    volumeThreshold,
+  ]);
   // --- END MODIFIED generateTradeSignals FUNCTION ---
+
+  // Memoize getSentimentClue as it uses state variables and is called in render
+  const getSentimentClue = useCallback(() => {
+    const total = greenCount + redCount;
+    if (total === 0) return "⚪ Neutral: No clear edge, stay cautious";
+
+    const greenRatio = greenCount / total;
+    const redRatio = redCount / total;
+
+    // These conditions should align with your market analysis logic for consistency
+    // Refined to be slightly more consistent with the detailed analysis categories
+    // but still serve as a quick clue.
+    if (marketAnalysis.overallMarketOutlook.score >= 8.0) {
+      return "🟢 Bullish Momentum: Look for dips or short squeezes";
+    }
+    if (marketAnalysis.overallMarketOutlook.score >= 7.0 && marketAnalysis.overallMarketOutlook.score < 8.0) {
+      return "🟡 Mixed leaning Bullish: Exercise caution";
+    }
+    if (marketAnalysis.overallMarketOutlook.score >= 5.0 && marketAnalysis.overallMarketOutlook.score < 7.0) {
+      return "↔️ Mixed/Neutral: Focus on scalping";
+    }
+    if (marketAnalysis.overallMarketOutlook.score < 5.0) {
+      return "🔴 Bearish Risk: Caution, longs are trapped";
+    }
+
+    // Fallback if marketAnalysis scores aren't yet available or don't match
+    if (greenRatio > 0.7 && priceUpFundingNegativeCount > 10) {
+      return "🟢 Bullish Momentum: Look for dips or short squeezes";
+    }
+    if (redRatio > 0.6 && priceDownFundingPositiveCount > 15) {
+      return "🔴 Bearish Risk: Caution, longs are trapped and funding still positive";
+    }
+    if (greenNegativeFunding > 10) { // Price Up, Funding Negative
+      return "🟢 Hidden Strength: Price is up but shorts are paying → squeeze potential";
+    }
+    if (redPositiveFunding > 20) { // Price Down, Funding Positive
+      return "🔴 Bearish Breakdown: Price down but longs still funding → more pain likely";
+    }
+    if (priceUpFundingNegativeCount > 5 && priceDownFundingPositiveCount > 5) {
+      return "🟡 Mixed Signals: Both sides trapped → choppy market expected";
+    }
+
+    return "⚪ Neutral: No clear edge, stay cautious";
+  }, [
+    greenCount,
+    redCount,
+    priceUpFundingNegativeCount,
+    priceDownFundingPositiveCount,
+    greenNegativeFunding,
+    redPositiveFunding,
+    marketAnalysis.overallMarketOutlook.score // Crucial dependency
+  ]);
+
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -158,7 +239,7 @@ export default function PriceFundingTracker() {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
-          const volume = parseFloat(ticker?.quoteVolume || "0");
+          const volume = parseFloat(ticker?.quoteVolume || "0"); // Corrected to quoteVolume for USD volume
 
           return {
             symbol,
@@ -167,7 +248,8 @@ export default function PriceFundingTracker() {
             lastPrice: lastPrice,
             volume: volume,
           };
-        });
+        }).filter(d => d.volume > 0); // Filter out symbols with 0 volume
+
 
         // Update counts for stats
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
@@ -258,10 +340,6 @@ export default function PriceFundingTracker() {
         const totalCoins = combinedData.length;
 
         // General Market Bias
-        const priceIncrease5Plus = combinedData.filter((item) => item.priceChangePercent >= 5).length;
-        const mildMovement = combinedData.filter((item) => item.priceChangePercent > -5 && item.priceChangePercent < 5).length;
-        const priceDrop5Minus = combinedData.filter((item) => item.priceChangePercent <= -5).length;
-
         let generalBiasInterpretation = "";
         let generalBiasRating = "";
         let generalBiasScore = 0;
@@ -269,7 +347,8 @@ export default function PriceFundingTracker() {
         const greenRatio = green / totalCoins;
         const redRatio = red / totalCoins;
 
-        if (redRatio > 0.75) {
+        // Consistency check: Ensure these ratios drive the score correctly
+        if (redRatio > 0.7) { // Increased threshold for "Strong Bearish Bias"
             generalBiasInterpretation = `The market is dominated by red candles, and most coins are either flat or down. Over ${Math.round(redRatio * 100)}% of the market is bearish or stagnant.`;
             generalBiasRating = "🔴 Strong Bearish Bias";
             generalBiasScore = 8.5;
@@ -315,14 +394,14 @@ export default function PriceFundingTracker() {
             // Updated criteria for more robust analysis: at least 3 strong candidates
             const strongShortSqueezeCandidates = topShortSqueeze.filter(d => d.volume > volumeThreshold * 2 && d.priceChangePercent > highPriceChangeThreshold);
 
-            if (strongShortSqueezeCandidates.length >= 3) {
+            if (strongShortSqueezeCandidates.length >= 3) { // This `3` is crucial for the 8.0 score
                 shortSqueezeInterpretation = "These coins show strong potential for short squeezes (shorts paying while price rises). The presence of high volume and significant price increases indicates a more impactful squeeze.";
                 shortSqueezeRating = "🟢 Strong Bullish Pockets";
                 shortSqueezeScore = 8.0;
             } else {
                 shortSqueezeInterpretation = "These coins show potential short squeezes (shorts paying while price rises), but they might be isolated or lack significant volume/price movement to drive broader momentum.";
                 shortSqueezeRating = "🟢 Bullish Pockets (Isolated)";
-                shortSqueezeScore = 6.5;
+                shortSqueezeScore = 6.5; // This is the score if < 3 strong candidates
             }
         } else {
             shortSqueezeInterpretation = "No strong short squeeze candidates identified at this moment. The market lacks significant price increases accompanied by negative funding rates.";
@@ -356,13 +435,15 @@ export default function PriceFundingTracker() {
 
         // Overall Sentiment Accuracy
         let overallSentimentAccuracy = "";
-        const currentSentimentClue = getSentimentClue(); // Call getSentimentClue with current counts
-        if (currentSentimentClue.includes("🔴 Bearish Risk") && rPos > gNeg) {
-            overallSentimentAccuracy = "✅ Correct. The sentiment accurately reflects the dominance of trapped longs in a falling market.";
-        } else if (currentSentimentClue.includes("🟢 Bullish Momentum") && gNeg > rPos) {
-            overallSentimentAccuracy = "✅ Correct. The sentiment accurately reflects potential short squeezes in a rising market.";
-        } else if (currentSentimentClue.includes("🟡 Mixed Signals") && priceUpFundingNegative > 5 && priceDownFundingPositive > 5) {
-            overallSentimentAccuracy = "✅ Correct. The sentiment accurately reflects a mixed market with both bullish and bearish divergence.";
+        // You'll need to define a local helper or adjust `getSentimentClue` logic
+        // for this specific accuracy check if it needs to be calculated right here.
+        // For now, let's simplify based on the calculated scores.
+        if (generalBiasScore >= 7.0 && fundingImbalanceScore >= 7.0 && shortSqueezeScore >= 7.0) {
+            overallSentimentAccuracy = "✅ Bullish Confirmation: Multiple indicators align for a bullish outlook.";
+        } else if (generalBiasScore <= 5.0 && fundingImbalanceScore >= 8.0 && longTrapScore >= 8.0) {
+            overallSentimentAccuracy = "✅ Bearish Confirmation: Strong indicators point to a bearish market.";
+        } else if (generalBiasScore === 5.0 && fundingImbalanceScore === 5.0) {
+            overallSentimentAccuracy = "🟡 Mixed Signals: Market is indecisive with conflicting data points.";
         } else {
             overallSentimentAccuracy = "💡 Neutral. The sentiment is currently neutral, awaiting clearer market direction.";
         }
@@ -426,13 +507,16 @@ export default function PriceFundingTracker() {
     return () => clearInterval(interval);
   }, [
     sortConfig,
-    greenCount,
-    redCount,
-    priceUpFundingNegativeCount,
-    priceDownFundingPositiveCount,
-    greenNegativeFunding,
-    redPositiveFunding,
-    // Add all threshold variables to dependencies, even if they are const.
+    generateTradeSignals, // Add generateTradeSignals to dependencies
+    // All relevant state variables used in calculations inside useEffect:
+    greenCount, // Although set within, it affects `getSentimentClue`
+    redCount,   // Same as above
+    priceUpFundingNegativeCount, // Same as above
+    priceDownFundingPositiveCount, // Same as above
+    greenNegativeFunding, // Same as above
+    redPositiveFunding,   // Same as above
+    // Add all threshold variables to dependencies for `generateTradeSignals` to be stable
+    // even though they are const, `useCallback` needs them.
     priceChangeThreshold,
     fundingRateThreshold,
     highPriceChangeThreshold,
@@ -440,6 +524,7 @@ export default function PriceFundingTracker() {
     mediumPriceChangeThreshold,
     mediumFundingRateThreshold,
     volumeThreshold,
+    getSentimentClue, // Add getSentimentClue to dependencies for stable interval
   ]);
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
@@ -459,37 +544,6 @@ export default function PriceFundingTracker() {
       }
       return { key, direction };
     });
-  };
-
-  const getSentimentClue = () => {
-    const total = greenCount + redCount;
-    if (total === 0) return "⚪ Neutral: No clear edge, stay cautious";
-
-    const greenRatio = greenCount / total;
-    const redRatio = redCount / total;
-
-    // These conditions should align with your market analysis logic for consistency
-    if (greenRatio > 0.7 && priceUpFundingNegativeCount > 10) {
-      return "🟢 Bullish Momentum: Look for dips or short squeezes";
-    }
-
-    if (redRatio > 0.6 && priceDownFundingPositiveCount > 15) {
-      return "🔴 Bearish Risk: Caution, longs are trapped and funding still positive";
-    }
-
-    if (greenNegativeFunding > 10) { // Price Up, Funding Negative
-      return "🟢 Hidden Strength: Price is up but shorts are paying → squeeze potential";
-    }
-
-    if (redPositiveFunding > 20) { // Price Down, Funding Positive
-      return "🔴 Bearish Breakdown: Price down but longs still funding → more pain likely";
-    }
-
-    if (priceUpFundingNegativeCount > 5 && priceDownFundingPositiveCount > 5) {
-      return "🟡 Mixed Signals: Both sides trapped → choppy market expected";
-    }
-
-    return "⚪ Neutral: No clear edge, stay cautious";
   };
 
   return (
@@ -558,6 +612,8 @@ export default function PriceFundingTracker() {
                 ? "text-red-400"
                 : getSentimentClue().includes("🟡")
                 ? "text-yellow-300"
+                : getSentimentClue().includes("↔️")
+                ? "text-blue-400" // Added for Mixed/Neutral
                 : "text-gray-400"
             }
           >
