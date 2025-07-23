@@ -62,7 +62,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
     if (rating.includes('🔴')) return 'text-red-400';
     if (rating.includes('🟡')) return 'text-yellow-300';
     if (rating.includes('↔️')) return 'text-blue-400'; // For neutral/mixed
-    // if (rating.includes('📈') || rating.includes('📉')) return 'text-purple-400'; // For OI - REMOVED EMOJI CHECK
     if (rating.includes('💥')) return 'text-pink-400'; // For Liquidation
     return 'text-gray-400';
   };
@@ -108,9 +107,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
         <p className="text-xs italic text-gray-400">{marketAnalysis.volumeSentiment.interpretation}</p>
       </div>
 
-      {/* Removed: NEW: Speculative Interest (Open Interest) */}
-      {/* This section is removed as Open Interest data is no longer fetched/available */}
-
+      {/* Removed: NEW: Speculative Interest (Open Interest) as it's no longer fetched */}
+      {/* If you wanted a placeholder for "not tracked", you'd add it here, but it's not strictly necessary */}
 
       {/* NEW: Momentum Imbalance (RSI) */}
       <div className="mb-4">
@@ -124,7 +122,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
       {/* NEW: Liquidation Heatmap */}
       <div className="mb-4">
         <h3 className="text-pink-500 font-semibold mb-1">💥 Liquidation Heatmap</h3>
-        {/* The color mapping needs to be updated in getSentimentColor to recognize the new emoji */}
         <p className={`text-sm ${getSentimentColor(marketAnalysis.liquidationHeatmap.rating)}`}>
           {marketAnalysis.liquidationHeatmap.rating} <span className="font-bold">({marketAnalysis.liquidationHeatmap.score.toFixed(1)}/10)</span>
         </p>

@@ -9,7 +9,7 @@ export const analyzeSentiment = (marketStats: MarketStats): MarketAnalysisResult
     shortSqueezeCandidates: { rating: "", interpretation: "", score: 0 },
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
-    // speculativeInterest: { rating: "", interpretation: "", score: 0 }, // REMOVED
+    // speculativeInterest: { rating: "", interpretation: "", score: 0 }, // REMOVED - not part of the type anymore
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     momentumImbalance: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "High", // Default, can be dynamic later
@@ -135,14 +135,17 @@ export const analyzeSentiment = (marketStats: MarketStats): MarketAnalysisResult
   }
 
   // --- 6. Speculative Interest (Open Interest) ---
-  // REMOVED: This section is removed as Open Interest data is no longer fetched.
+  // This section is commented out / logic removed because OI data is no longer fetched.
   // If you wish to re-introduce a 'speculative interest' metric, you'd need
   // an alternative data source or a different interpretation.
+  // We're intentionally leaving this out to reduce API calls.
+  /*
   results.speculativeInterest = {
     rating: "Data Not Available",
     interpretation: "Open Interest data is currently not being tracked to reduce API load.",
     score: 5.0 // Neutral score as it's not contributing to bias
   };
+  */
 
 
   // --- 7. Liquidation Heatmap Analysis ---

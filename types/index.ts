@@ -5,7 +5,7 @@ export interface SymbolData {
   lastPrice: number;
   volume: number;
   // openInterest?: number; // REMOVED: No longer fetching this to save API calls
-  rsi?: number;
+  rsi?: number; // Kept for dummy data display
   // Add other properties if you expand SymbolData further (e.g., marketCap, liquidationVolume)
 }
 
@@ -56,7 +56,7 @@ export interface MarketStats {
   red: number;
   fundingStats: {
     greenFundingPositive: number;
-    greenNegativeFunding: number; // Corrected to match component state variable
+    greenNegativeFunding: number;
     redPositiveFunding: number;
     redNegativeFunding: number;
   };
