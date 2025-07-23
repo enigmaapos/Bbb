@@ -3,8 +3,8 @@ import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
-import LiquidationHeatmap from "../components/LiquidationHeatmap";
-import {
+import { LiquidationHeatmap } from "../components/LiquidationHeatmap"; // Ensure this import is correct based on your file structure
+import { // Ensure these types are correctly imported
   SymbolData,
   SymbolTradeSignal,
   MarketStats,
@@ -17,7 +17,7 @@ import {
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
-} from "../types/binance"; // Corrected type import to binance.ts
+} from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import axios, { AxiosError } from 'axios';
 
@@ -240,11 +240,7 @@ export default function PriceFundingTracker() {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             method: "PING"
-          })); // Binance WebSocket expects a PING message for some streams, or an empty string for others.
-          // For !forceOrder@arr, a simple ws.ping() (browser native) is usually fine.
-          // If you face issues, try ws.send('{"method":"PING"}') or an empty string based on specific docs.
-          // For this public stream, a native ping() is more likely to be ignored or handled implicitly by the underlying TCP.
-          // But it is still good practice to send some data to keep the connection active for network intermediates.
+          }));
           console.log('Liquidation WS: Sent Ping frame/message.');
         }
       }, 3 * 60 * 1000); // Send ping every 3 minutes (180,000 ms)
@@ -285,8 +281,6 @@ export default function PriceFundingTracker() {
             setAggregatedLiquidationForSentiment(aggregated);
           }, 500); // Aggregate every 500ms for sentiment analysis
         }
-        // If it's an array of events (e.g., snapshot or different stream), handle differently if needed
-        // The !forceOrder@arr stream sends individual forceOrder objects.
       } catch (e) {
         console.error('Error parsing WS message or processing liquidation event:', e);
       }
@@ -421,6 +415,8 @@ export default function PriceFundingTracker() {
         } else {
           setError("Failed to fetch initial market data. Unknown error.");
         }
+        // In a production app, you might implement exponential backoff here
+        // or temporarily increase the fetch interval on 429 errors.
       } finally {
         setLoading(false);
       }
@@ -428,7 +424,8 @@ export default function PriceFundingTracker() {
 
     // Initial fetch and then set interval for periodic refresh of REST data
     fetchAllData();
-    const interval = setInterval(fetchAllData, 15000); // Increased to 15 seconds for more leniency
+    // Setting REST API data refresh to 10 seconds. This is well within Binance's public API rate limits.
+    const interval = setInterval(fetchAllData, 10000); // Changed from 15000 to 10000 ms
 
     // Connect to WebSocket here after REST data fetch, or independently if preferred
     connectLiquidationWs();
@@ -746,10 +743,12 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-<div className="mb-8">
-          <LiquidationHeatmap
-            liquidationEvents={recentLiquidationEvents}
-          />
+        <div className="mb-8">
+          {/* LiquidationHeatmap requires the `liquidationMap` and `processLiquidation` functions 
+              to be defined globally or passed down appropriately. If they are internal to 
+              LiquidationHeatmap.js as per the previous full code, you don't pass props here 
+              like 'liquidationEvents'. Instead, the Heatmap component manages its own data. */}
+          <LiquidationHeatmap />
         </div>
         
         <div className="my-8 h-px bg-gray-700" />
@@ -885,7 +884,7 @@ export default function PriceFundingTracker() {
           </table>
         </div>
 
-        <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 15 seconds | Powered by Binance API</p>
+        <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 10 seconds | Powered by Binance API</p>
       </div>
     </div>
   );
