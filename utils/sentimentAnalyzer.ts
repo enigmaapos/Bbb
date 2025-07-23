@@ -2,7 +2,7 @@
 import {
   MarketStats,
   MarketAnalysisResults,
-  AggregatedLiquidationData, // Make sure this is imported
+  AggregatedLiquidationData,
 } from "../types";
 
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
@@ -11,7 +11,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     red,
     fundingStats,
     volumeData,
-    liquidationData, // Now receiving liquidationData
+    liquidationData,
   } = data;
 
   const results: MarketAnalysisResults = {
@@ -20,10 +20,10 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     shortSqueezeCandidates: { rating: "", interpretation: "", score: 0 },
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
-    liquidationHeatmap: { rating: "", interpretation: "", score: 0 }, // Initialize here
-    momentumImbalance: { rating: "", interpretation: "", score: 0 }, // Initialize here
+    liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
+    momentumImbalance: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
-    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" }, // This will be calculated in PriceFundingTracker
+    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   };
 
   // --- 1. General Bias ---
@@ -59,16 +59,16 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // --- 2. Funding Imbalance (using your new logic) ---
+  // --- 2. Funding Imbalance (ONLY CUSTOM TRAP SQUEEZE LOGIC) ---
   const priceUpFundingNegative = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0).length;
   const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
 
   // Define thresholds based on your custom formula
-  const BULLISH_PUN_THRESHOLD = 13; // Price Up Negative Funding
-  const BULLISH_PDP_THRESHOLD = 250; // Price Down Positive Funding
+  const BULLISH_PUN_THRESHOLD = 30; // Price Up Negative Funding (changed from 13 as per your example: "≤ 30")
+  const BULLISH_PDP_THRESHOLD = 230; // Price Down Positive Funding (as per your example: "≥ 230")
 
-  const BEARISH_PUN_THRESHOLD = 250;
-  const BEARISH_PDP_THRESHOLD = 13;
+  const BEARISH_PUN_THRESHOLD = 230; // Price Up Negative Funding (as per your example: "≥ 230")
+  const BEARISH_PDP_THRESHOLD = 30; // Price Down Positive Funding (changed from 13 as per your example: "≤ 30")
 
   if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
     results.fundingImbalance = {
@@ -83,29 +83,12 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
       score: 1.0, // A low score for bearish
     };
   } else {
-    // Existing logic for funding imbalance or refined neutral
-    const totalPositiveFunding = fundingStats.greenFundingPositive + fundingStats.redPositiveFunding; // CORRECTED TYPO HERE
-    const totalNegativeFunding = fundingStats.greenNegativeFunding + fundingStats.redNegativeFunding;
-
-    if (totalPositiveFunding > totalNegativeFunding * 1.5) {
-      results.fundingImbalance = {
-        rating: "Strongly Bearish (Longs Paying)",
-        interpretation: "Overall funding rates are strongly positive, indicating longs are eagerly paying shorts.",
-        score: 3,
-      };
-    } else if (totalNegativeFunding > totalPositiveFunding * 1.5) {
-      results.fundingImbalance = {
-        rating: "Strongly Bullish (Shorts Paying)",
-        interpretation: "Overall funding rates are strongly negative, indicating shorts are eagerly paying longs.",
-        score: 7,
-      };
-    } else {
-      results.fundingImbalance = {
-        rating: "Neutral/Mixed Funding",
-        interpretation: "Funding rates are relatively balanced or show no strong bias.",
-        score: 5,
-      };
-    }
+    // If neither specific trap squeeze condition is met, it's neutral
+    results.fundingImbalance = {
+      rating: "Neutral/Mixed Funding",
+      interpretation: "Funding rates do not meet specific 'trap squeeze' criteria.",
+      score: 5,
+    };
   }
 
   // --- 3. Short Squeeze Candidates ---
@@ -220,7 +203,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 7. Momentum Imbalance (New, using RSI as a proxy for now) ---
-  // This is a simple example. A real momentum analysis would be more complex.
   const overboughtCount = volumeData.filter(d => (d.rsi || 0) >= 70).length;
   const oversoldCount = volumeData.filter(d => (d.rsi || 0) <= 30).length;
 
@@ -244,12 +226,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // Accuracy can be determined by how many clear signals are present, etc.
-  // For simplicity, let's keep it as a placeholder or remove it if not used.
   results.overallSentimentAccuracy = "Based on multiple indicators.";
-
-  // Overall market outlook score and tone will be calculated in PriceFundingTracker
-  // and applied to overallMarketOutlook.
 
   return results;
 }
