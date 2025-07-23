@@ -672,6 +672,13 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
+       <FundingSentimentChart
+          greenPositiveFunding={greenPositiveFunding}
+          greenNegativeFunding={greenNegativeFunding}
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding}
+        /> 
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
@@ -710,7 +717,18 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        <p className="text-white text-sm font-bold mb-2">
+        <MarketAnalysisDisplay
+          marketAnalysis={marketAnalysis}
+          fundingImbalanceData={fundingImbalanceData}
+          greenCount={greenCount}
+          redCount={redCount}
+          greenPositiveFunding={greenPositiveFunding}
+          greenNegativeFunding={greenNegativeFunding}
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding}
+        />
+
+<p className="text-white text-sm font-bold mb-2">
           🌐 Overall Sentiment:{" "}
           <span
             className={
@@ -729,23 +747,6 @@ export default function PriceFundingTracker() {
           </span>
         </p>
 
-        <MarketAnalysisDisplay
-          marketAnalysis={marketAnalysis}
-          fundingImbalanceData={fundingImbalanceData}
-          greenCount={greenCount}
-          redCount={redCount}
-          greenPositiveFunding={greenPositiveFunding}
-          greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
-        />
-
-        <FundingSentimentChart
-          greenPositiveFunding={greenPositiveFunding}
-          greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
-        />
 
 <div className="mb-8">
           <LiquidationHeatmap
