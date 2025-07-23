@@ -108,15 +108,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
         <p className="text-xs italic text-gray-400">{marketAnalysis.volumeSentiment.interpretation}</p>
       </div>
 
-      {/* NEW: Speculative Interest (Open Interest) */}
-      {/* Conditionally render or update interpretation */}
-      <div className="mb-4">
-        <h3 className="text-teal-300 font-semibold mb-1">🧠 Speculative Interest (OI)</h3>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.speculativeInterest.rating)}`}>
-          {marketAnalysis.speculativeInterest.rating} <span className="font-bold">({marketAnalysis.speculativeInterest.score.toFixed(1)}/10)</span>
-        </p>
-        <p className="text-xs italic text-gray-400">{marketAnalysis.speculativeInterest.interpretation}</p>
-      </div>
+      {/* Removed: NEW: Speculative Interest (Open Interest) */}
+      {/* This section is removed as Open Interest data is no longer fetched/available */}
 
 
       {/* NEW: Momentum Imbalance (RSI) */}
