@@ -1,14 +1,58 @@
-// src/components/LiquidationHeatmap.tsx
+// components/LiquidationHeatmap.tsx
 import { useEffect, useState } from "react";
-import { LiquidationEvent } from '../types'; // Import from central types file
 
-interface LiquidationHeatmapProps {
-  liquidationEvents: LiquidationEvent[]; // Receive events as prop
-}
+type LiquidationEvent = {
+  symbol: string;
+  side: "BUY" | "SELL";
+  price: number;
+  quantity: number;
+  timestamp: number;
+};
 
-export default function LiquidationHeatmap({ liquidationEvents }: LiquidationHeatmapProps) {
-  // No need for internal WebSocket state/logic here, it's handled in PriceFundingTracker
-  // const [events, setEvents] = useState<LiquidationEvent[]>([]); // REMOVED
+export default function LiquidationHeatmap() {
+  const [events, setEvents] = useState<LiquidationEvent[]>([]);
+
+  useEffect(() => {
+    // Note: Binance WebSocket URLs typically start with wss:// for secure connection.
+    // For production, you might want to use a more robust WebSocket library or handle reconnections.
+    const ws = new WebSocket("wss://fstream.binance.com/ws/!forceOrder@arr");
+
+    ws.onopen = () => {
+      console.log("WebSocket connected for liquidations.");
+    };
+
+    ws.onmessage = (msg) => {
+      try {
+        const data = JSON.parse(msg.data);
+        // Binance's !forceOrder@arr stream sends an array of liquidation events
+        // each event has 'o' object containing order details
+        const evts = data.map((o: any) => ({
+          symbol: o.o.s as string,
+          side: o.o.S as "BUY" | "SELL",
+          price: parseFloat(o.o.p),
+          quantity: parseFloat(o.o.q),
+          timestamp: o.E as number,
+        }));
+        // Prepend new events and keep only the latest 500 to prevent memory issues
+        setEvents((prev) => [...evts, ...prev].slice(0, 500));
+      } catch (e) {
+        console.error("Error parsing WebSocket message for liquidations:", e);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error for liquidations:", error);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket disconnected for liquidations.");
+    };
+
+    // Clean up the WebSocket connection when the component unmounts
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   // TODO: Aggregate events into price buckets and render a heatmap UI
   // For now, it displays a raw list of recent events.
@@ -23,8 +67,8 @@ export default function LiquidationHeatmap({ liquidationEvents }: LiquidationHea
         Monitoring **forced liquidations** can indicate market sentiment shifts and potential volatility.
       </p>
       <ul className="text-xs text-gray-300 max-h-64 overflow-y-auto custom-scrollbar">
-        {liquidationEvents.length > 0 ? (
-          liquidationEvents.slice(0, 50).map((e, i) => ( // Displaying top 50 for readability
+        {events.length > 0 ? (
+          events.slice(0, 50).map((e, i) => ( // Displaying top 50 for readability
             <li
               key={`${e.symbol}-${e.timestamp}-${i}`}
               className={`py-1 px-2 mb-0.5 rounded ${
