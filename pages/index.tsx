@@ -112,7 +112,7 @@ export default function PriceFundingTracker() {
     shortSqueezeCandidates: { rating: "", interpretation: "", score: 0 },
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
-    speculativeInterest: { rating: "Data Not Available", interpretation: "Open Interest data is currently not being tracked to reduce API load.", score: 5.0 }, // Default for removed data
+    // speculativeInterest: { rating: "Data Not Available", interpretation: "Open Interest data is currently not being tracked to reduce API load.", score: 5.0 }, // REMOVED THIS LINE
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     momentumImbalance: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
@@ -267,7 +267,7 @@ export default function PriceFundingTracker() {
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
           // const openInterest = oiMap.get(symbol) || 0; // REMOVED: No longer using OI
-          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2));
+          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
 
           return {
             symbol,
@@ -459,7 +459,7 @@ export default function PriceFundingTracker() {
       sentimentResults.shortSqueezeCandidates.score,
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
-      sentimentResults.speculativeInterest.score, // This will now reflect "Data Not Available" score
+      // sentimentResults.speculativeInterest.score, // REMOVED from average
       sentimentResults.liquidationHeatmap.score,
       sentimentResults.momentumImbalance.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
@@ -489,7 +489,7 @@ export default function PriceFundingTracker() {
       shortSqueezeCandidates: sentimentResults.shortSqueezeCandidates,
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
-      speculativeInterest: sentimentResults.speculativeInterest,
+      // speculativeInterest: sentimentResults.speculativeInterest, // REMOVED THIS LINE
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
       momentumImbalance: sentimentResults.momentumImbalance,
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
