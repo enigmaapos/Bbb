@@ -13,14 +13,14 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults, // Import MarketAnalysisResults
-} from "../types"; // ALL TYPES FROM HERE!
+} from ".../types/index"; // ALL TYPES FROM HERE!
 import {
   BinanceExchangeInfoResponse,
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
   BinanceOpenInterestHistory,
-} from "../types/binance"; // Import specific Binance API response types
+} from ".../types/binance"; // Import specific Binance API response types
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import axios from 'axios'; // Import axios for cleaner HTTP requests
 
