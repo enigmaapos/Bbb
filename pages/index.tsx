@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react"; // Added useRef
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
-import { LiquidationHeatmap } from "../components/LiquidationHeatmap"; // Ensure this import is correct based on your file structure
-import { // Ensure these types are correctly imported
+// 🚨 FIX HERE: Changed to default import as suggested by the build error
+import LiquidationHeatmap from "../components/LiquidationHeatmap";
+import {
   SymbolData,
   SymbolTradeSignal,
   MarketStats,
@@ -58,7 +59,7 @@ export default function PriceFundingTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [rawData, setRawData] = useState<SymbolData[]>([]); // Store raw data, separated from sorted
+  const [rawData, setRawData] = useState<SymbolData[]>([]);
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
@@ -85,10 +86,8 @@ export default function PriceFundingTracker() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   // Liquidation data states
-  const liquidationEventsRef = useRef<LiquidationEvent[]>([]); // Store raw events
-  // This state is for the component to render recent events
+  const liquidationEventsRef = useRef<LiquidationEvent[]>([]);
   const [recentLiquidationEvents, setRecentLiquidationEvents] = useState<LiquidationEvent[]>([]);
-  // This state is for passing aggregated data to sentiment analysis
   const [aggregatedLiquidationForSentiment, setAggregatedLiquidationForSentiment] = useState<
     AggregatedLiquidationData | undefined
   >(undefined);
@@ -97,7 +96,7 @@ export default function PriceFundingTracker() {
   const liquidationWsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsPingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const aggregationTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce for aggregation
+  const aggregationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -310,11 +309,11 @@ export default function PriceFundingTracker() {
     ws.onerror = (errorEvent) => {
       console.error('Liquidation WS error:', errorEvent);
       // This will trigger onclose, which handles reconnection
-      liquidationWsRef.current?.close(); // Use ref to close
+      liquidationWsRef.current?.close();
     };
 
-    liquidationWsRef.current = ws; // Store the WebSocket instance in the ref
-  }, [aggregateLiquidationEvents]); // Depend on aggregateLiquidationEvents which is useCallback'd
+    liquidationWsRef.current = ws;
+  }, [aggregateLiquidationEvents]);
 
   // --- Main Data Fetching and WebSocket Management Effect ---
   useEffect(() => {
@@ -342,7 +341,7 @@ export default function PriceFundingTracker() {
           const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
+          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2));
 
           return {
             symbol,
@@ -354,7 +353,7 @@ export default function PriceFundingTracker() {
           };
         }).filter((d: SymbolData) => d.volume > 0);
 
-        setRawData(combinedData); // Set rawData here
+        setRawData(combinedData);
 
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
@@ -415,8 +414,6 @@ export default function PriceFundingTracker() {
         } else {
           setError("Failed to fetch initial market data. Unknown error.");
         }
-        // In a production app, you might implement exponential backoff here
-        // or temporarily increase the fetch interval on 429 errors.
       } finally {
         setLoading(false);
       }
@@ -425,7 +422,7 @@ export default function PriceFundingTracker() {
     // Initial fetch and then set interval for periodic refresh of REST data
     fetchAllData();
     // Setting REST API data refresh to 10 seconds. This is well within Binance's public API rate limits.
-    const interval = setInterval(fetchAllData, 10000); // Changed from 15000 to 10000 ms
+    const interval = setInterval(fetchAllData, 10000); // Changed interval to 10 seconds (10000 ms)
 
     // Connect to WebSocket here after REST data fetch, or independently if preferred
     connectLiquidationWs();
@@ -443,7 +440,7 @@ export default function PriceFundingTracker() {
         wsPingIntervalRef.current = null;
       }
       if (liquidationWsRef.current) {
-        liquidationWsRef.current.close(1000, 'Component Unmounted'); // Close normally
+        liquidationWsRef.current.close(1000, 'Component Unmounted');
         liquidationWsRef.current = null;
       }
       if (aggregationTimeoutRef.current) {
@@ -468,14 +465,14 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      volumeData: rawData.map(d => ({ // Use rawData here
+      volumeData: rawData.map(d => ({
         symbol: d.symbol,
         volume: d.volume,
         priceChange: d.priceChangePercent,
         fundingRate: d.fundingRate,
         rsi: d.rsi,
       })),
-      liquidationData: aggregatedLiquidationForSentiment, // Pass the aggregated liquidation data here
+      liquidationData: aggregatedLiquidationForSentiment,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
@@ -744,10 +741,7 @@ export default function PriceFundingTracker() {
         />
 
         <div className="mb-8">
-          {/* LiquidationHeatmap requires the `liquidationMap` and `processLiquidation` functions 
-              to be defined globally or passed down appropriately. If they are internal to 
-              LiquidationHeatmap.js as per the previous full code, you don't pass props here 
-              like 'liquidationEvents'. Instead, the Heatmap component manages its own data. */}
+          {/* As per previous LiquidationHeatmap.js code, it manages its own data and doesn't need props here. */}
           <LiquidationHeatmap />
         </div>
         
