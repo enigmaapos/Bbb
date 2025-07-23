@@ -1,5 +1,5 @@
 // pages/index.tsx (or src/pages/index.tsx)
-import { useEffect, useState, useCallback, useMemo, useRef } from "react"; // Added useRef
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
@@ -12,13 +12,14 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults,
+  // Removed FundingStats here as it's not directly used in overall logic
 } from "../types";
 import {
   BinanceExchangeInfoResponse,
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
-} from "../types/binance"; // Corrected type import to binance.ts
+} from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import axios, { AxiosError } from 'axios';
 
@@ -59,7 +60,7 @@ export default function PriceFundingTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [rawData, setRawData] = useState<SymbolData[]>([]); // Store raw data, separated from sorted
+  const [rawData, setRawData] = useState<SymbolData[]>([]);
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
@@ -86,10 +87,8 @@ export default function PriceFundingTracker() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   // Liquidation data states
-  const liquidationEventsRef = useRef<LiquidationEvent[]>([]); // Store raw events
-  // This state is for the component to render recent events
+  const liquidationEventsRef = useRef<LiquidationEvent[]>([]);
   const [recentLiquidationEvents, setRecentLiquidationEvents] = useState<LiquidationEvent[]>([]);
-  // This state is for passing aggregated data to sentiment analysis
   const [aggregatedLiquidationForSentiment, setAggregatedLiquidationForSentiment] = useState<
     AggregatedLiquidationData | undefined
   >(undefined);
@@ -98,7 +97,7 @@ export default function PriceFundingTracker() {
   const liquidationWsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsPingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const aggregationTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce for aggregation
+  const aggregationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -122,7 +121,7 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    momentumImbalance: { rating: "", interpretation: "", score: 0 },
+    // momentumImbalance: { rating: "", interpretation: "", score: 0 }, // REMOVED
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   });
@@ -177,7 +176,6 @@ export default function PriceFundingTracker() {
     let shortLiquidationCount = 0;
 
     const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-    // Filter events older than 5 minutes for aggregation
     const recentEvents = events.filter(e => e.timestamp > fiveMinutesAgo);
 
     recentEvents.forEach((event) => {
@@ -199,10 +197,8 @@ export default function PriceFundingTracker() {
     };
   }, []);
 
-
   // --- WebSocket Connection Function (useCallback for stability) ---
   const connectLiquidationWs = useCallback(() => {
-    // If a WebSocket is already open or connecting, do not create a new one.
     if (liquidationWsRef.current && (liquidationWsRef.current.readyState === WebSocket.OPEN || liquidationWsRef.current.readyState === WebSocket.CONNECTING)) {
       console.log('Liquidation WS already open or connecting. Skipping new connection attempt.');
       return;
@@ -213,12 +209,10 @@ export default function PriceFundingTracker() {
 
     ws.onopen = () => {
       console.log('Liquidation WS connected');
-      // Clear any pending reconnect timeout
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      // Start sending pings to keep the connection alive
       wsPingIntervalRef.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
@@ -232,37 +226,33 @@ export default function PriceFundingTracker() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.e === 'forceOrder') { // Check if it's a single forceOrder event
+        if (data.e === 'forceOrder') {
           const liquidationEvent: LiquidationEvent = {
             symbol: data.o.s,
             side: data.o.S as "BUY" | "SELL",
             price: parseFloat(data.o.ap),
             quantity: parseFloat(data.o.q),
-            timestamp: data.o.T, // Use the correct timestamp field 'T'
+            timestamp: data.o.T,
           };
 
-          // Update recent events for display (e.g., last 10)
           setRecentLiquidationEvents(prev => {
             const updated = [liquidationEvent, ...prev].slice(0, 10);
             return updated;
           });
 
-          // Store for aggregation
           liquidationEventsRef.current.push(liquidationEvent);
 
-          // Limit history to prevent memory issues (e.g., last 1000 events)
           if (liquidationEventsRef.current.length > 1000) {
             liquidationEventsRef.current = liquidationEventsRef.current.slice(liquidationEventsRef.current.length - 1000);
           }
 
-          // Debounce aggregation for performance
           if (aggregationTimeoutRef.current) {
             clearTimeout(aggregationTimeoutRef.current);
           }
           aggregationTimeoutRef.current = setTimeout(() => {
             const aggregated = aggregateLiquidationEvents(liquidationEventsRef.current);
             setAggregatedLiquidationForSentiment(aggregated);
-          }, 500); // Aggregate every 500ms for sentiment analysis
+          }, 500);
         }
       } catch (e) {
         console.error('Error parsing WS message or processing liquidation event:', e);
@@ -271,19 +261,17 @@ export default function PriceFundingTracker() {
 
     ws.onclose = (event) => {
       console.warn('Liquidation WS closed:', event.code, event.reason);
-      // Clear existing ping interval
       if (wsPingIntervalRef.current) {
         clearInterval(wsPingIntervalRef.current);
         wsPingIntervalRef.current = null;
       }
 
-      // Attempt to reconnect after a delay, but only if not explicitly closed (1000: Normal, 1001: Going Away)
       if (event.code !== 1000 && event.code !== 1001) {
-        if (!reconnectTimeoutRef.current) { // Only set a new timeout if one isn't already pending
+        if (!reconnectTimeoutRef.current) {
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log('Reconnecting Liquidation WS...');
-            connectLiquidationWs(); // Call the reconnect function
-          }, 5000); // Try to reconnect after 5 seconds
+            connectLiquidationWs();
+          }, 5000);
         }
       } else {
         console.log('Liquidation WS closed normally or intentionally.');
@@ -292,11 +280,10 @@ export default function PriceFundingTracker() {
 
     ws.onerror = (errorEvent) => {
       console.error('Liquidation WS error:', errorEvent);
-      // This will trigger onclose, which handles reconnection
-      liquidationWsRef.current?.close(); // Use ref to close
+      liquidationWsRef.current?.close();
     };
 
-    liquidationWsRef.current = ws; // Store the WebSocket instance in the ref
+    liquidationWsRef.current = ws;
   }, [aggregateLiquidationEvents]);
 
   // --- Main Data Fetching and WebSocket Management Effect ---
@@ -325,7 +312,8 @@ export default function PriceFundingTracker() {
           const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
+          // RSI removed - no longer generating dummy or real RSI here
+          // const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
 
           return {
             symbol,
@@ -333,18 +321,17 @@ export default function PriceFundingTracker() {
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
             volume: volume,
-            rsi: dummyRsi,
+            // rsi: dummyRsi, // REMOVED
           };
-        }).filter((d: SymbolData) => d.volume > 0);
+        }).filter((d: SymbolData) => d.volume > 0); // Filter out pairs with 0 volume
 
-        setRawData(combinedData); // Set rawData here
+        setRawData(combinedData);
 
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
         setRedCount(red);
 
-        // These counts are for display in Market Summary, not directly used by the new sentiment formula
         const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
         const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
         const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
@@ -372,12 +359,12 @@ export default function PriceFundingTracker() {
 
         const topShortSqueeze = combinedData
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
-          .sort((a, b) => a.fundingRate - b.fundingRate) // Sort by most negative funding rate
+          .sort((a, b) => a.fundingRate - b.fundingRate)
           .slice(0, 5);
 
         const topLongTrap = combinedData
           .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
-          .sort((a, b) => b.fundingRate - a.fundingRate) // Sort by most positive funding rate
+          .sort((a, b) => b.fundingRate - a.fundingRate)
           .slice(0, 5);
 
         setFundingImbalanceData({
@@ -404,14 +391,11 @@ export default function PriceFundingTracker() {
       }
     };
 
-    // Initial fetch and then set interval for periodic refresh of REST data
     fetchAllData();
-    const interval = setInterval(fetchAllData, 10000); // Refresh every 10 seconds
+    const interval = setInterval(fetchAllData, 10000);
 
-    // Connect to WebSocket here
     connectLiquidationWs();
 
-    // Cleanup function for REST API interval and WebSockets
     return () => {
       console.log('Cleaning up effects...');
       clearInterval(interval);
@@ -424,7 +408,7 @@ export default function PriceFundingTracker() {
         wsPingIntervalRef.current = null;
       }
       if (liquidationWsRef.current) {
-        liquidationWsRef.current.close(1000, 'Component Unmounted'); // Close normally
+        liquidationWsRef.current.close(1000, 'Component Unmounted');
         liquidationWsRef.current = null;
       }
       if (aggregationTimeoutRef.current) {
@@ -432,38 +416,34 @@ export default function PriceFundingTracker() {
         aggregationTimeoutRef.current = null;
       }
     };
-  }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]); // Added rawData.length for initial load condition
+  }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
 
   // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
   useEffect(() => {
-    // Only run analysis if we have initial data
     if (rawData.length === 0 && !aggregatedLiquidationForSentiment) return;
 
-    // Prepare data for sentiment analyzer
     const marketStatsForAnalysis: MarketStats = {
       green: greenCount,
       red: redCount,
-      // fundingStats is still part of MarketStats type, but its internal properties
-      // are not directly used by the *new* fundingImbalance logic in sentimentAnalyzer.ts
-      // However, it's good to pass complete data structure if other parts might use it.
-      fundingStats: {
+      fundingStats: { // Still provide this structure even if individual properties aren't used by new fundingImbalance logic
         greenFundingPositive: greenPositiveFunding,
         greenNegativeFunding: greenNegativeFunding,
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      volumeData: rawData.map(d => ({ // IMPORTANT: Ensure volume and rsi are mapped here
+      volumeData: rawData.map(d => ({
         symbol: d.symbol,
         volume: d.volume,
         priceChange: d.priceChangePercent,
         fundingRate: d.fundingRate,
-        rsi: d.rsi,
+        // rsi: d.rsi, // REMOVED
       })),
       liquidationData: aggregatedLiquidationForSentiment,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
 
+    // Update totalScores calculation based on remaining sentiment factors
     const totalScores = [
       sentimentResults.generalBias.score,
       sentimentResults.fundingImbalance.score,
@@ -471,7 +451,7 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
-      sentimentResults.momentumImbalance.score,
+      // sentimentResults.momentumImbalance.score, // REMOVED
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
     const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
@@ -500,7 +480,7 @@ export default function PriceFundingTracker() {
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
-      momentumImbalance: sentimentResults.momentumImbalance,
+      // momentumImbalance: sentimentResults.momentumImbalance, // REMOVED
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
       overallMarketOutlook: {
         score: parseFloat(averageScore.toFixed(1)),
@@ -783,7 +763,8 @@ export default function PriceFundingTracker() {
                 >
                   Funding {sortConfig.key === "fundingRate" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">RSI (Dummy)</th>
+                {/* Removed RSI column header */}
+                {/* <th className="p-2">RSI (Dummy)</th> */}
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("signal")}
@@ -815,9 +796,12 @@ export default function PriceFundingTracker() {
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
 
+                      {/* Removed RSI data cell */}
+                      {/*
                       <td className="p-2">
                         {item.rsi ? item.rsi.toFixed(2) : 'N/A'}
                       </td>
+                      */}
 
                       <td className="p-2 space-y-1 text-xs text-gray-200">
                         {signal && signal.signal ? (
