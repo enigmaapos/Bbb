@@ -1,6 +1,7 @@
-// pages/index.tsx or src/PriceFundingTracker.tsx
+// pages/index.tsx (or src/PriceFundingTracker.tsx)
 
-import { useEffect, useState, useCallback, useMemo } from "react"; // Added useMemo
+import { useEffect, useState, useCallback, useMemo } from "react";
+import Head from "next/head"; // Assuming Next.js, if not, remove this.
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
@@ -11,8 +12,15 @@ import {
   MarketStats,
   LiquidationEvent,
   AggregatedLiquidationData,
-  MarketAnalysisResults // Import MarketAnalysisResults
+  MarketAnalysisResults, // Import MarketAnalysisResults
 } from "../types"; // ALL TYPES FROM HERE!
+import {
+  BinanceExchangeInfoResponse,
+  BinanceSymbol,
+  BinanceTicker24hr,
+  BinancePremiumIndex,
+  BinanceOpenInterestHistory,
+} from "../types/binance"; // Import specific Binance API response types
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import axios from 'axios'; // Import axios for cleaner HTTP requests
 
@@ -210,14 +218,14 @@ export default function PriceFundingTracker() {
       setLoading(true);
       setError(null);
       try {
-        const infoRes = await axios.get(`${BINANCE_API}/fapi/v1/exchangeInfo`);
+        const infoRes = await axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`);
         const usdtPairs = infoRes.data.symbols
-          .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
-          .map((s: any) => s.symbol);
+          .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
+          .map((s: BinanceSymbol) => s.symbol);
 
         const [tickerRes, fundingRes] = await Promise.all([
-          axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
-          axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
+          axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
+          axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
         ]);
 
         const tickerData = tickerRes.data;
@@ -225,7 +233,7 @@ export default function PriceFundingTracker() {
 
         const openInterestPromises = usdtPairs.map(async (symbol: string) => {
           try {
-            const oiRes = await axios.get(`${BINANCE_API}/fapi/v1/openInterestHist?symbol=${symbol}&period=5m&limit=1`);
+            const oiRes = await axios.get<BinanceOpenInterestHistory[]>(`${BINANCE_API}/fapi/v1/openInterestHist?symbol=${symbol}&period=5m&limit=1`);
             if (oiRes.data.length > 0) {
               return { symbol, openInterest: parseFloat(oiRes.data[0].sumOpenInterestValue || "0") };
             } else {
@@ -240,12 +248,12 @@ export default function PriceFundingTracker() {
         const oiMap = new Map<string, number>(allOpenInterestResults.map(item => [item.symbol, item.openInterest]));
 
         const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
-          const ticker = tickerData.find((t: any) => t.symbol === symbol);
-          const funding = fundingData.find((f: any) => f.symbol === symbol);
+          const ticker = tickerData.find((t) => t.symbol === symbol);
+          const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
           const openInterest = oiMap.get(symbol) || 0;
-          const dummyRsi = (Math.random() * 60) + 20; // RSI between 20 and 80 for demo
+          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // RSI between 20 and 80 for demo
 
           return {
             symbol,
@@ -353,36 +361,66 @@ export default function PriceFundingTracker() {
     };
 
     // WebSocket for Liquidations
-    liquidationWs = new WebSocket("wss://fstream.binance.com/ws/!forceOrder@arr");
-    liquidationWs.onopen = () => console.log("Liquidation WS connected");
-
-    liquidationWs.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (Array.isArray(data)) {
-          const newEvts: LiquidationEvent[] = data.map((o: any) => ({
-            symbol: o.o.s as string,
-            side: o.o.S as "BUY" | "SELL",
-            price: parseFloat(o.o.p),
-            quantity: parseFloat(o.o.q),
-            timestamp: o.E as number,
-          }));
-
-          setRecentLiquidationEvents((prev) => {
-            const updatedEvents = [...newEvts, ...prev].slice(0, 500); // Keep last 500 events
-            // Aggregate *all* recent events for sentiment analysis
-            const aggregated = aggregateLiquidationEvents(updatedEvents);
-            setAggregatedLiquidationForSentiment(aggregated);
-            return updatedEvents;
-          });
-        }
-      } catch (e) {
-        console.error("Failed to parse liquidation WS message:", e);
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    const connectLiquidationWs = () => {
+      if (liquidationWs) {
+        liquidationWs.close(); // Close existing connection before trying to reconnect
       }
+
+      liquidationWs = new WebSocket("wss://fstream.binance.com/ws/!forceOrder@arr");
+      console.log("Attempting to connect to Liquidation WS...");
+
+      liquidationWs.onopen = () => {
+        console.log("Liquidation WS connected");
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+      };
+
+      liquidationWs.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (Array.isArray(data)) {
+            const newEvts: LiquidationEvent[] = data.map((o: any) => ({
+              symbol: o.o.s as string,
+              side: o.o.S as "BUY" | "SELL",
+              price: parseFloat(o.o.p),
+              quantity: parseFloat(o.o.q),
+              timestamp: o.E as number,
+            }));
+
+            setRecentLiquidationEvents((prev) => {
+              const updatedEvents = [...newEvts, ...prev].slice(0, 500); // Keep last 500 events for heatmap
+              // Aggregate *all* recent events within the time window for sentiment analysis
+              const aggregated = aggregateLiquidationEvents(updatedEvents);
+              setAggregatedLiquidationForSentiment(aggregated);
+              return updatedEvents;
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse liquidation WS message:", e);
+        }
+      };
+
+      liquidationWs.onclose = (event) => {
+        console.warn("Liquidation WS closed:", event.code, event.reason);
+        // Attempt to reconnect after a delay
+        if (!reconnectTimeout) {
+          reconnectTimeout = setTimeout(() => {
+            console.log("Reconnecting Liquidation WS...");
+            connectLiquidationWs();
+          }, 5000); // Try to reconnect after 5 seconds
+        }
+      };
+
+      liquidationWs.onerror = (err) => {
+        console.error("Liquidation WS error:", err);
+        liquidationWs?.close(); // Force close to trigger onclose and reconnection attempt
+      };
     };
 
-    liquidationWs.onclose = () => console.log("Liquidation WS closed");
-    liquidationWs.onerror = (err) => console.error("Liquidation WS error:", err);
+    connectLiquidationWs(); // Initial connection
 
     // Initial fetch and then set interval for periodic refresh of REST data
     fetchAllData();
@@ -391,7 +429,12 @@ export default function PriceFundingTracker() {
     // Cleanup function for WebSockets and Interval
     return () => {
       clearInterval(interval);
-      liquidationWs?.close();
+      if (liquidationWs) {
+        liquidationWs.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
     };
   }, [sortConfig, generateTradeSignals, aggregateLiquidationEvents]); // Added aggregateLiquidationEvents to dependencies
 
@@ -525,6 +568,12 @@ export default function PriceFundingTracker() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+      <Head>
+        <title>Binance USDT Perpetual Tracker</title>
+        <meta name="description" content="Real-time Binance USDT Perpetual Tracker with Sentiment Analysis and Liquidation Data" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
 
@@ -656,7 +705,7 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-        ---
+        <div className="my-8 h-px bg-gray-700" /> {/* Separator */}
 
         <div className="mb-8">
           <LeverageProfitCalculator />
@@ -670,7 +719,7 @@ export default function PriceFundingTracker() {
         </div>
         {/* END NEW COMPONENT INTEGRATION */}
 
-        ---
+        <div className="my-8 h-px bg-gray-700" /> {/* Separator */}
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
           <div className="relative w-full sm:w-64">
