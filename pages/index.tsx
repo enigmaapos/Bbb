@@ -1,15 +1,22 @@
 // pages/index.tsx or src/PriceFundingTracker.tsx
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react"; // Added useMemo
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
-import LiquidationHeatmap from "../components/LiquidationHeatmap"; // <--- NEW: Import LiquidationHeatmap
-import { SymbolData, SymbolTradeSignal } from "../types";
-import { analyzeSentiment, MarketStats } from "../utils/sentimentAnalyzer";
+import LiquidationHeatmap from "../components/LiquidationHeatmap";
+import {
+  SymbolData,
+  SymbolTradeSignal,
+  MarketStats,
+  LiquidationEvent,
+  AggregatedLiquidationData,
+  MarketAnalysisResults // Import MarketAnalysisResults
+} from "../types"; // ALL TYPES FROM HERE!
+import { analyzeSentiment } from "../utils/sentimentAnalyzer";
+import axios from 'axios'; // Import axios for cleaner HTTP requests
 
 const BINANCE_API = "https://fapi.binance.com";
-// Removed BINANCE_API_V2 as it was causing confusion for the OI endpoint
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
@@ -18,7 +25,7 @@ const formatVolume = (num: number): string => {
     notation: "compact",
     compactDisplay: "short",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 1, // Adjust as needed for precision
+    maximumFractionDigits: 1,
   });
   return formatter.format(num);
 };
@@ -34,8 +41,12 @@ export default function PriceFundingTracker() {
   const volumeThreshold = 50_000_000; // 50 million USD volume for higher confidence
   // --- END threshold definitions ---
 
+  const [loading, setLoading] = useState(true); // NEW: Loading state
+  const [error, setError] = useState<string | null>(null); // NEW: Error state
+
   const [data, setData] = useState<SymbolData[]>([]);
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
+  // Individual counts for display, though `marketAnalysis` now holds derived sentiments
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
   const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
@@ -60,12 +71,18 @@ export default function PriceFundingTracker() {
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
+  // --- NEW: Liquidation States ---
+  const [recentLiquidationEvents, setRecentLiquidationEvents] = useState<LiquidationEvent[]>([]);
+  const [aggregatedLiquidationForSentiment, setAggregatedLiquidationForSentiment] = useState<
+    AggregatedLiquidationData | undefined
+  >(undefined);
+  // --- END NEW LIQUIDATION STATES ---
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('favorites', JSON.stringify(favorites));
     }
   }, [favorites]);
-
 
   const [fundingImbalanceData, setFundingImbalanceData] = useState({
     priceUpShortsPaying: 0,
@@ -77,53 +94,17 @@ export default function PriceFundingTracker() {
   });
 
   // --- STATE FOR MARKET ANALYSIS ---
-  const [marketAnalysis, setMarketAnalysis] = useState({
-    generalBias: {
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
-    fundingImbalance: {
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
-    shortSqueezeCandidates: {
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
-    longTrapCandidates: {
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
-    volumeSentiment: {
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
-    speculativeInterest: { // NEW: Add Speculative Interest (OI)
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
-    liquidationHeatmap: { // NEW: Add Liquidation Heatmap (Placeholder for now)
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
-    momentumImbalance: { // NEW: Add Momentum Imbalance (RSI)
-      rating: "",
-      interpretation: "",
-      score: 0,
-    },
+  const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysisResults>({ // Use the imported type
+    generalBias: { rating: "", interpretation: "", score: 0 },
+    fundingImbalance: { rating: "", interpretation: "", score: 0 },
+    shortSqueezeCandidates: { rating: "", interpretation: "", score: 0 },
+    longTrapCandidates: { rating: "", interpretation: "", score: 0 },
+    volumeSentiment: { rating: "", interpretation: "", score: 0 },
+    speculativeInterest: { rating: "", interpretation: "", score: 0 },
+    liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
+    momentumImbalance: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
-    overallMarketOutlook: {
-      score: 0,
-      tone: "",
-      strategySuggestion: "",
-    },
+    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
@@ -188,76 +169,82 @@ export default function PriceFundingTracker() {
   }, [marketAnalysis.overallMarketOutlook.score]);
 
 
+  // --- NEW: Function to aggregate liquidation events (memoized) ---
+  const aggregateLiquidationEvents = useCallback((events: LiquidationEvent[]): AggregatedLiquidationData => {
+    let totalLongLiquidationsUSD = 0;
+    let totalShortLiquidationsUSD = 0;
+    let longLiquidationCount = 0;
+    let shortLiquidationCount = 0;
+
+    // Consider a time window for aggregation, e.g., last 5 minutes (300,000 ms)
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const recentEvents = events.filter(e => e.timestamp > fiveMinutesAgo);
+
+    recentEvents.forEach((event) => {
+      const volumeUSD = event.price * event.quantity;
+      if (event.side === "SELL") {
+        // SELL liquidations are long positions closing
+        totalLongLiquidationsUSD += volumeUSD;
+        longLiquidationCount++;
+      } else {
+        // BUY liquidations are short positions closing
+        totalShortLiquidationsUSD += volumeUSD;
+        shortLiquidationCount++;
+      }
+    });
+
+    return {
+      totalLongLiquidationsUSD,
+      totalShortLiquidationsUSD,
+      longLiquidationCount,
+      shortLiquidationCount,
+    };
+  }, []); // No dependencies, as it operates on the passed events
+
+
+  // --- Main Data Fetching and WebSocket Logic (Combined useEffect) ---
   useEffect(() => {
-    const fetchAll = async () => {
+    let liquidationWs: WebSocket | null = null; // Declare WebSocket variable
+
+    const fetchAllData = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const infoRes = await fetch(`${BINANCE_API}/fapi/v1/exchangeInfo`);
-        if (!infoRes.ok) throw new Error(`Binance exchangeInfo API error: ${infoRes.status}`);
-        const infoData = await infoRes.json();
-        const usdtPairs = infoData.symbols
+        const infoRes = await axios.get(`${BINANCE_API}/fapi/v1/exchangeInfo`);
+        const usdtPairs = infoRes.data.symbols
           .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: any) => s.symbol);
 
-        // --- Fetch Ticker and Funding Data ---
-        // These can be fetched in parallel as they support fetching all symbols or are distinct endpoints
         const [tickerRes, fundingRes] = await Promise.all([
-          fetch(`${BINANCE_API}/fapi/v1/ticker/24hr`),
-          fetch(`${BINANCE_API}/fapi/v1/premiumIndex`),
+          axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
+          axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
         ]);
 
-        if (!tickerRes.ok) console.error("Error fetching ticker data:", await tickerRes.text());
-        if (!fundingRes.ok) console.error("Error fetching funding data:", await fundingRes.text());
+        const tickerData = tickerRes.data;
+        const fundingData = fundingRes.data;
 
-        const tickerData = await tickerRes.json();
-        const fundingData = await fundingRes.json();
-
-        // --- Fetch Open Interest History for each symbol individually ---
-        // This endpoint requires a separate request for each symbol.
         const openInterestPromises = usdtPairs.map(async (symbol: string) => {
-            try {
-                // Corrected endpoint path: /fapi/v1/openInterestHist
-                // Correct usage: Pass 'symbol' parameter for individual symbol
-                const oiUrl = `${BINANCE_API}/fapi/v1/openInterestHist?symbol=${symbol}&period=5m&limit=1`;
-                const oiRes = await fetch(oiUrl);
-
-                if (!oiRes.ok) {
-                    // Log a warning for individual symbol failures but don't halt the whole process
-                    console.warn(`Failed to fetch Open Interest for ${symbol}: ${oiRes.status} ${oiRes.statusText}`);
-                    return { symbol, openInterest: 0 }; // Return default value for this symbol
-                }
-                const oiData = await oiRes.json();
-
-                // Binance's openInterestHist returns an array, the latest data is usually the first element.
-                // We're interested in 'sumOpenInterestValue' for USD value.
-                if (oiData.length > 0) {
-                    return { symbol, openInterest: parseFloat(oiData[0].sumOpenInterestValue || "0") };
-                } else {
-                    return { symbol, openInterest: 0 }; // No data found for this symbol
-                }
-            } catch (oiError) {
-                console.error(`Error fetching Open Interest for ${symbol}:`, oiError);
-                return { symbol, openInterest: 0 }; // Return default on network/parsing error
+          try {
+            const oiRes = await axios.get(`${BINANCE_API}/fapi/v1/openInterestHist?symbol=${symbol}&period=5m&limit=1`);
+            if (oiRes.data.length > 0) {
+              return { symbol, openInterest: parseFloat(oiRes.data[0].sumOpenInterestValue || "0") };
+            } else {
+              return { symbol, openInterest: 0 };
             }
+          } catch (oiError) {
+            console.warn(`Failed to fetch Open Interest for ${symbol}:`, oiError);
+            return { symbol, openInterest: 0 };
+          }
         });
-
-        // Wait for all individual Open Interest fetches to complete
         const allOpenInterestResults = await Promise.all(openInterestPromises);
-        const oiMap = new Map<string, number>();
-        allOpenInterestResults.forEach(item => {
-            if (item) { // Ensure the item is not null/undefined from a failed fetch
-                oiMap.set(item.symbol, item.openInterest);
-            }
-        });
+        const oiMap = new Map<string, number>(allOpenInterestResults.map(item => [item.symbol, item.openInterest]));
 
-        // 4. Combine all fetched data
         const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          const openInterest = oiMap.get(symbol) || 0; // Get OI from map, default to 0 if not found
-
-          // Placeholder for RSI - In a real app, you'd fetch klines and calculate RSI
+          const openInterest = oiMap.get(symbol) || 0;
           const dummyRsi = (Math.random() * 60) + 20; // RSI between 20 and 80 for demo
 
           return {
@@ -266,13 +253,12 @@ export default function PriceFundingTracker() {
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
             volume: volume,
-            openInterest: openInterest, // Include Open Interest
-            rsi: dummyRsi, // Include RSI (dummy for now)
-            // marketCap: <fetch_or_calculate_market_cap_here>,
-            // liquidationVolume: <fetch_liquidation_data_here>,
+            openInterest: openInterest,
+            rsi: dummyRsi,
           };
-        }).filter((d: SymbolData) => d.volume > 0); // Filter out symbols with no volume (likely inactive)
+        }).filter((d: SymbolData) => d.volume > 0);
 
+        setData(combinedData);
 
         // Update counts for stats
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
@@ -300,7 +286,6 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        // Calculate funding imbalance data
         const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
         const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
         const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
@@ -328,6 +313,7 @@ export default function PriceFundingTracker() {
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
 
+        // Sorting logic (can be memoized or kept here)
         const sorted = [...combinedData].sort((a, b) => {
           const { key, direction } = sortConfig;
           if (!key) return 0;
@@ -358,113 +344,139 @@ export default function PriceFundingTracker() {
 
         setData(sorted);
 
-        // --- PREPARE DATA FOR SENTIMENT ANALYZER ---
-        const marketStatsForAnalysis: MarketStats = {
-          green: green,
-          red: red,
-          fundingStats: {
-            greenFundingPositive: gPos,
-            greenFundingNegative: gNeg,
-            redFundingPositive: rPos,
-            redFundingNegative: rNeg,
-          },
-          volumeData: combinedData.map(d => ({
-            symbol: d.symbol,
-            volume: d.volume,
-            priceChange: d.priceChangePercent,
-            fundingRate: d.fundingRate,
-            rsi: d.rsi, // Pass RSI
-            openInterest: d.openInterest, // Pass Open Interest
-            // marketCap: d.marketCap,
-            // liquidationVolume: d.liquidationVolume,
-          })),
-        };
-
-        const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
-
-
-        // --- Update Market Analysis State with results from sentiment analyzer ---
-        const generalBiasScore = sentimentResults.generalBias.score;
-        const fundingImbalanceScore = sentimentResults.fundingImbalance.score;
-        const shortSqueezeScore = sentimentResults.shortSqueeze.score;
-        const longTrapScore = sentimentResults.longTrap.score;
-        const volumeSentimentScore = sentimentResults.volumeSentiment.score;
-        const speculativeInterestScore = sentimentResults.speculativeInterest.score;
-        const momentumImbalanceScore = sentimentResults.momentumImbalance.score;
-        // const liquidationHeatmapScore = sentimentResults.liquidationHeatmap.score;
-        // const breakoutVolumeScore = sentimentResults.breakoutVolume.score;
-
-
-        // Adjusted Final Market Outlook Score Logic - INCLUDE NEW SCORES
-        const totalScores = [
-            generalBiasScore,
-            fundingImbalanceScore,
-            shortSqueezeScore,
-            longTrapScore,
-            volumeSentimentScore,
-            speculativeInterestScore,
-            momentumImbalanceScore
-            // Add other new scores here as they are implemented
-        ].filter(score => typeof score === 'number' && !isNaN(score)); // Filter out any non-numeric scores
-
-        const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
-
-        let finalOutlookTone = "";
-        let strategySuggestion = "";
-
-        if (averageScore >= 8.0) {
-            finalOutlookTone = "🟢 Strongly Bullish — The market shows clear bullish momentum and strong setups.";
-            strategySuggestion = "Aggressively seek **long opportunities**, especially on strong short squeeze candidates.";
-        } else if (averageScore >= 7.0) {
-            finalOutlookTone = "🟡 Mixed leaning Bullish — Some bullish momentum exists, but caution is advised due to underlying risks.";
-            strategySuggestion = "Look for **long opportunities** on high-conviction setups, but be prepared for volatility and consider tighter stop losses.";
-        } else if (averageScore >= 5.0) {
-            finalOutlookTone = "↔️ Mixed/Neutral — The market lacks a clear direction, with both bullish and bearish elements.";
-            strategySuggestion = "Focus on **scalping** or **range trading** specific high-volume symbols. Avoid strong directional bets until clarity emerges.";
-        } else {
-            finalOutlookTone = "🔻 Bearish — The market is under heavy selling pressure. Longs are trapped, and few bullish setups exist.";
-            strategySuggestion = "Consider **shorting opportunities** on long trap candidates, or **staying on the sidelines**. Exercise extreme caution with long positions.";
-        }
-
-        setMarketAnalysis({
-            generalBias: sentimentResults.generalBias,
-            fundingImbalance: sentimentResults.fundingImbalance,
-            shortSqueezeCandidates: sentimentResults.shortSqueeze,
-            longTrapCandidates: sentimentResults.longTrap,
-            volumeSentiment: sentimentResults.volumeSentiment,
-            speculativeInterest: sentimentResults.speculativeInterest,
-            liquidationHeatmap: sentimentResults.liquidationHeatmap,
-            momentumImbalance: sentimentResults.momentumImbalance,
-            overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
-            overallMarketOutlook: {
-                score: parseFloat(averageScore.toFixed(1)),
-                tone: finalOutlookTone,
-                strategySuggestion: strategySuggestion,
-            },
-        });
-
-
       } catch (err: any) {
-        console.error("General error fetching Binance data:", err);
+        console.error("Error fetching initial market data:", err);
+        setError("Failed to fetch initial market data.");
+      } finally {
+        setLoading(false);
       }
-      // Removed the finally block because there was no loading state managed in this component.
-      // If you add a loading state, add `setLoading(false);` in a finally block.
     };
 
-    fetchAll();
-    const interval = setInterval(fetchAll, 10000);
-    return () => clearInterval(interval);
+    // WebSocket for Liquidations
+    liquidationWs = new WebSocket("wss://fstream.binance.com/ws/!forceOrder@arr");
+    liquidationWs.onopen = () => console.log("Liquidation WS connected");
+
+    liquidationWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (Array.isArray(data)) {
+          const newEvts: LiquidationEvent[] = data.map((o: any) => ({
+            symbol: o.o.s as string,
+            side: o.o.S as "BUY" | "SELL",
+            price: parseFloat(o.o.p),
+            quantity: parseFloat(o.o.q),
+            timestamp: o.E as number,
+          }));
+
+          setRecentLiquidationEvents((prev) => {
+            const updatedEvents = [...newEvts, ...prev].slice(0, 500); // Keep last 500 events
+            // Aggregate *all* recent events for sentiment analysis
+            const aggregated = aggregateLiquidationEvents(updatedEvents);
+            setAggregatedLiquidationForSentiment(aggregated);
+            return updatedEvents;
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse liquidation WS message:", e);
+      }
+    };
+
+    liquidationWs.onclose = () => console.log("Liquidation WS closed");
+    liquidationWs.onerror = (err) => console.error("Liquidation WS error:", err);
+
+    // Initial fetch and then set interval for periodic refresh of REST data
+    fetchAllData();
+    const interval = setInterval(fetchAllData, 10000); // Refresh every 10 seconds
+
+    // Cleanup function for WebSockets and Interval
+    return () => {
+      clearInterval(interval);
+      liquidationWs?.close();
+    };
+  }, [sortConfig, generateTradeSignals, aggregateLiquidationEvents]); // Added aggregateLiquidationEvents to dependencies
+
+  // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
+  useEffect(() => {
+    // Only run analysis if we have initial data
+    if (data.length === 0 && !aggregatedLiquidationForSentiment) return;
+
+    // Prepare data for sentiment analyzer
+    const marketStatsForAnalysis: MarketStats = {
+      green: greenCount,
+      red: redCount,
+      fundingStats: {
+        greenFundingPositive: greenPositiveFunding,
+        greenNegativeFunding: greenNegativeFunding,
+        redPositiveFunding: redPositiveFunding,
+        redNegativeFunding: redNegativeFunding,
+      },
+      volumeData: data.map(d => ({
+        symbol: d.symbol,
+        volume: d.volume,
+        priceChange: d.priceChangePercent,
+        fundingRate: d.fundingRate,
+        rsi: d.rsi,
+        openInterest: d.openInterest,
+      })),
+      liquidationData: aggregatedLiquidationForSentiment, // Pass the aggregated liquidation data here
+    };
+
+    const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
+
+    // Adjusted Final Market Outlook Score Logic - INCLUDE NEW SCORES
+    const totalScores = [
+      sentimentResults.generalBias.score,
+      sentimentResults.fundingImbalance.score,
+      sentimentResults.shortSqueezeCandidates.score,
+      sentimentResults.longTrapCandidates.score,
+      sentimentResults.volumeSentiment.score,
+      sentimentResults.speculativeInterest.score,
+      sentimentResults.momentumImbalance.score,
+      sentimentResults.liquidationHeatmap.score, // NEW: Include liquidation heatmap score
+    ].filter(score => typeof score === 'number' && !isNaN(score));
+
+    const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
+
+    let finalOutlookTone = "";
+    let strategySuggestion = "";
+
+    if (averageScore >= 8.0) {
+      finalOutlookTone = "🟢 Strongly Bullish — The market shows clear bullish momentum and strong setups.";
+      strategySuggestion = "Aggressively seek **long opportunities**, especially on strong short squeeze candidates.";
+    } else if (averageScore >= 7.0) {
+      finalOutlookTone = "🟡 Mixed leaning Bullish — Some bullish momentum exists, but caution is advised due to underlying risks.";
+      strategySuggestion = "Look for **long opportunities** on high-conviction setups, but be prepared for volatility and consider tighter stop losses.";
+    } else if (averageScore >= 5.0) {
+      finalOutlookTone = "↔️ Mixed/Neutral — The market lacks a clear direction, with both bullish and bearish elements.";
+      strategySuggestion = "Focus on **scalping** or **range trading** specific high-volume symbols. Avoid strong directional bets until clarity emerges.";
+    } else {
+      finalOutlookTone = "🔻 Bearish — The market is under heavy selling pressure. Longs are trapped, and few bullish setups exist.";
+      strategySuggestion = "Consider **shorting opportunities** on long trap candidates, or **staying on the sidelines**. Exercise extreme caution with long positions.";
+    }
+
+    setMarketAnalysis({
+      generalBias: sentimentResults.generalBias,
+      fundingImbalance: sentimentResults.fundingImbalance,
+      shortSqueezeCandidates: sentimentResults.shortSqueezeCandidates, // Use correct key
+      longTrapCandidates: sentimentResults.longTrapCandidates,         // Use correct key
+      volumeSentiment: sentimentResults.volumeSentiment,
+      speculativeInterest: sentimentResults.speculativeInterest,
+      liquidationHeatmap: sentimentResults.liquidationHeatmap,
+      momentumImbalance: sentimentResults.momentumImbalance,
+      overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
+      overallMarketOutlook: {
+        score: parseFloat(averageScore.toFixed(1)),
+        tone: finalOutlookTone,
+        strategySuggestion: strategySuggestion,
+      },
+    });
+
   }, [
-    sortConfig,
-    generateTradeSignals,
-    // The following dependencies are probably not necessary for useEffect
-    // if their values are only used inside fetchAllData, which is re-created
-    // if these change. However, however, keep them if they are truly used outside fetchAll.
-    // greenCount, redCount, priceUpFundingNegativeCount, priceDownFundingPositiveCount,
-    // greenNegativeFunding, redPositiveFunding, priceChangeThreshold, fundingRateThreshold,
-    // highPriceChangeThreshold, highFundingRateThreshold, mediumPriceChangeThreshold,
-    // mediumFundingRateThreshold, volumeThreshold, getSentimentClue,
+    data, // Data updated from REST API fetch
+    aggregatedLiquidationForSentiment, // NEW: Liquidation data from WS
+    greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding
   ]);
+
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
@@ -485,17 +497,36 @@ export default function PriceFundingTracker() {
     });
   };
 
-  const filteredData = data.filter((item) => {
+  const filteredData = useMemo(() => { // Memoize filtered data for performance
+    return data.filter((item) => {
+      return (
+        (!searchTerm || item.symbol.includes(searchTerm)) &&
+        (!showFavoritesOnly || favorites.includes(item.symbol))
+      );
+    });
+  }, [data, searchTerm, showFavoritesOnly, favorites]);
+
+
+  if (loading) {
     return (
-      (!searchTerm || item.symbol.includes(searchTerm)) &&
-      (!showFavoritesOnly || favorites.includes(item.symbol))
+      <div className="flex justify-center items-center min-h-screen text-white text-lg bg-gray-900">
+        Loading market data...
+      </div>
     );
-  });
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen text-red-500 text-lg bg-gray-900">
+        Error: {error}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">📈 Binance USDT Perpetual Tracker</h1>
+        <h1 className="text-3xl font-bold mb-6 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
 
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
           <h2 className="text-lg font-bold text-white mb-3">
@@ -605,7 +636,7 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* --- USE THE NEW MarketAnalysisDisplay COMPONENT HERE --- */}
+        {/* --- MarketAnalysisDisplay COMPONENT --- */}
         <MarketAnalysisDisplay
           marketAnalysis={marketAnalysis}
           fundingImbalanceData={fundingImbalanceData}
@@ -616,7 +647,7 @@ export default function PriceFundingTracker() {
           redPositiveFunding={redPositiveFunding}
           redNegativeFunding={redNegativeFunding}
         />
-        {/* --- END NEW COMPONENT USAGE --- */}
+        {/* --- END MarketAnalysisDisplay COMPONENT --- */}
 
         <FundingSentimentChart
           greenPositiveFunding={greenPositiveFunding}
@@ -633,7 +664,9 @@ export default function PriceFundingTracker() {
 
         {/* NEW: Liquidation Heatmap component integration */}
         <div className="mb-8">
-          <LiquidationHeatmap />
+          <LiquidationHeatmap
+            liquidationEvents={recentLiquidationEvents} // Pass recent events to heatmap
+          />
         </div>
         {/* END NEW COMPONENT INTEGRATION */}
 
