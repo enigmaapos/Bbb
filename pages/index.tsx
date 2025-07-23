@@ -426,7 +426,7 @@ export default function PriceFundingTracker() {
       green: greenCount,
       red: redCount,
       fundingStats: { // Still provide this structure even if individual properties aren't used by new fundingImbalance logic
-        greenFundingPositive: greenPositiveFunding,
+        greenPositiveFunding: greenPositiveFunding,
         greenNegativeFunding: greenNegativeFunding,
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
