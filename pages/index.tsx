@@ -58,7 +58,7 @@ export default function PriceFundingTracker() {
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
   const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
-  const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
+  const [greenNegativeFunding, setGreenNegativeFunding] = useState(0); // This now matches the type definition
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
@@ -449,7 +449,7 @@ export default function PriceFundingTracker() {
       red: redCount,
       fundingStats: {
         greenFundingPositive: greenPositiveFunding,
-        greenNegativeFunding: greenNegativeFunding,
+        greenNegativeFunding: greenNegativeFunding, // This now correctly matches the interface
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
