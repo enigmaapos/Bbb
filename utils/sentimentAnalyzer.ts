@@ -64,11 +64,11 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
 
   // Define thresholds based on your custom formula
-  const BULLISH_PUN_THRESHOLD = 13; // Price Up Negative Funding (shorts paying) is small
-  const BULLISH_PDP_THRESHOLD = 250; // Price Down Positive Funding (longs paying) is large
+  const BULLISH_PUN_THRESHOLD = 30; // Price Up Negative Funding (shorts paying) is small
+  const BULLISH_PDP_THRESHOLD = 230; // Price Down Positive Funding (longs paying) is large
 
-  const BEARISH_PUN_THRESHOLD = 250; // Price Up Negative Funding (shorts paying) is large
-  const BEARISH_PDP_THRESHOLD = 13; // Price Down Positive Funding (longs paying) is small
+  const BEARISH_PUN_THRESHOLD = 230; // Price Up Negative Funding (shorts paying) is large
+  const BEARISH_PDP_THRESHOLD = 30; // Price Down Positive Funding (longs paying) is small
 
   if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
     results.fundingImbalance = {
