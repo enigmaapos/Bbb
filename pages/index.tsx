@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
-import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
+import LeverageProfitCalculator from "../components/LeverageProfitCalculator"; // Corrected import path for LeverageProfitCalculator
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
 import {
   SymbolData,
@@ -22,8 +22,8 @@ import {
   BinanceOpenInterestHistory,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import axios from 'axios';
-import pLimit from 'p-limit'; // <--- NEW IMPORT
+import axios, { isAxiosError } from 'axios'; // <--- UPDATED: Import isAxiosError as a named export
+import pLimit from 'p-limit';
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -236,7 +236,7 @@ export default function PriceFundingTracker() {
             } catch (oiError: any) { // Ensure oiError is typed for better error access
               // Log detailed error to console
               console.error(`Failed to fetch Open Interest for ${symbol}:`, oiError.message || oiError);
-              if (axios.isAxiosError(oiError) && oiError.response) {
+              if (isAxiosError(oiError) && oiError.response) { // <--- UPDATED: Using isAxiosError directly
                 console.error(`Status: ${oiError.response.status}, Data:`, oiError.response.data);
                 // Important: If it's a 429, you should consider a longer backoff
                 if (oiError.response.status === 429 || oiError.response.status === 418) {
@@ -470,8 +470,8 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.speculativeInterest.score,
-      sentimentResults.momentumImbalance.score,
       sentimentResults.liquidationHeatmap.score,
+      sentimentResults.momentumImbalance.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
     const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
@@ -847,4 +847,3 @@ export default function PriceFundingTracker() {
     </div>
   );
 }
-
