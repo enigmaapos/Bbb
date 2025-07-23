@@ -672,25 +672,6 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        <p className="text-white text-sm font-bold mb-2">
-          🌐 Overall Sentiment:{" "}
-          <span
-            className={
-              getSentimentClue().includes("🟢")
-                ? "text-green-400"
-                : getSentimentClue().includes("🔴")
-                ? "text-red-400"
-                : getSentimentClue().includes("🟡")
-                ? "text-yellow-300"
-                : getSentimentClue().includes("↔️")
-                ? "text-blue-400"
-                : "text-gray-400"
-            }
-          >
-            {getSentimentClue()}
-          </span>
-        </p>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
@@ -728,6 +709,25 @@ export default function PriceFundingTracker() {
             )}
           </div>
         </div>
+
+        <p className="text-white text-sm font-bold mb-2">
+          🌐 Overall Sentiment:{" "}
+          <span
+            className={
+              getSentimentClue().includes("🟢")
+                ? "text-green-400"
+                : getSentimentClue().includes("🔴")
+                ? "text-red-400"
+                : getSentimentClue().includes("🟡")
+                ? "text-yellow-300"
+                : getSentimentClue().includes("↔️")
+                ? "text-blue-400"
+                : "text-gray-400"
+            }
+          >
+            {getSentimentClue()}
+          </span>
+        </p>
 
         <MarketAnalysisDisplay
           marketAnalysis={marketAnalysis}
