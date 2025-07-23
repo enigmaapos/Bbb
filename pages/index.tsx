@@ -718,17 +718,19 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
+<div className="mb-8">
+          <LiquidationHeatmap
+            liquidationEvents={recentLiquidationEvents}
+          />
+        </div>
+        
         <div className="my-8 h-px bg-gray-700" />
 
         <div className="mb-8">
           <LeverageProfitCalculator />
         </div>
 
-        <div className="mb-8">
-          <LiquidationHeatmap
-            liquidationEvents={recentLiquidationEvents}
-          />
-        </div>
+        
 
         <div className="my-8 h-px bg-gray-700" />
 
