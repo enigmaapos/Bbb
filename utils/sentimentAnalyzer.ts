@@ -84,7 +84,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   } else {
     // Existing logic for funding imbalance or refined neutral
-    const totalPositiveFunding = fundingStats.greenPositiveFunding + fundingStats.redPositiveFunding;
+    const totalPositiveFunding = fundingStats.greenFundingPositive + fundingStats.redPositiveFunding;
     const totalNegativeFunding = fundingStats.greenNegativeFunding + fundingStats.redNegativeFunding;
 
     if (totalPositiveFunding > totalNegativeFunding * 1.5) {
