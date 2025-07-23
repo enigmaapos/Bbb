@@ -3,7 +3,7 @@
 /**
  * Interface for a single symbol object within the Binance exchangeInfo response.
  */
-export interface BinanceSymbol { // <-- Added export
+export interface BinanceSymbol {
   symbol: string;
   status: string;
   maintMarginPercent: string;
@@ -26,7 +26,7 @@ export interface BinanceSymbol { // <-- Added export
 /**
  * Interface for the overall Binance exchangeInfo API response.
  */
-export interface BinanceExchangeInfoResponse { // <-- Added export
+export interface BinanceExchangeInfoResponse {
   timezone: string;
   serverTime: number;
   rateLimits: any[]; // You can define a more specific interface for rate limits if needed
@@ -37,7 +37,7 @@ export interface BinanceExchangeInfoResponse { // <-- Added export
 /**
  * Interface for Binance 24hr Ticker response for a single symbol.
  */
-export interface BinanceTicker24hr { // <-- Added export
+export interface BinanceTicker24hr {
   symbol: string;
   priceChange: string;
   priceChangePercent: string;
@@ -59,7 +59,7 @@ export interface BinanceTicker24hr { // <-- Added export
 /**
  * Interface for Binance Premium Index / Funding Rate response for a single symbol.
  */
-export interface BinancePremiumIndex { // <-- Added export
+export interface BinancePremiumIndex {
   symbol: string;
   markPrice: string;
   indexPrice: string;
@@ -73,7 +73,7 @@ export interface BinancePremiumIndex { // <-- Added export
 /**
  * Interface for Binance Open Interest History response for a single entry.
  */
-export interface BinanceOpenInterestHistory { // <-- Added export
+export interface BinanceOpenInterestHistory {
   symbol: string;
   sumOpenInterest: string;
   sumOpenInterestValue: string; // This is the USD value you're looking for
