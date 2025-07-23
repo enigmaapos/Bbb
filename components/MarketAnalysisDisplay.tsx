@@ -1,6 +1,6 @@
 // src/components/MarketAnalysisDisplay.tsx
 import React from 'react';
-import { MarketAnalysisResults, AggregatedLiquidationData } from '../types'; // Ensure AggregatedLiquidationData is imported
+import { MarketAnalysisResults, AggregatedLiquidationData } from '../types';
 import { SymbolData } from '../types'; // Ensure SymbolData is imported if needed for top lists
 
 interface MarketAnalysisDisplayProps {
@@ -13,13 +13,25 @@ interface MarketAnalysisDisplayProps {
     topShortSqueeze: SymbolData[];
     topLongTrap: SymbolData[];
   };
-  greenCount: number; // Still needed for general market bias context
-  redCount: number;   // Still needed for general market bias context
-  greenPositiveFunding: number; // Still needed for context
-  greenNegativeFunding: number; // Still needed for context
-  redPositiveFunding: number;   // Still needed for context
-  redNegativeFunding: number;   // Still needed for context
+  greenCount: number;
+  redCount: number;
+  greenPositiveFunding: number;
+  greenNegativeFunding: number;
+  redPositiveFunding: number;
+  redNegativeFunding: number;
 }
+
+// Helper function to format large numbers with M, B, T suffixes (Duplicate from index.tsx)
+const formatVolume = (num: number): string => {
+  if (num === 0) return "0";
+  const formatter = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    compactDisplay: "short",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+  return formatter.format(num);
+};
 
 const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   marketAnalysis,
@@ -100,7 +112,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
               <p className="font-semibold text-green-200">Top Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topShortSqueeze.map((s) => (
-                  <li key={s.symbol}>{s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}%)</li>
+                  <li key={s.symbol}>{s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})</li>
                 ))}
               </ul>
             </div>
@@ -120,7 +132,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
               <p className="font-semibold text-red-200">Top Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topLongTrap.map((s) => (
-                  <li key={s.symbol}>{s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}%)</li>
+                  <li key={s.symbol}>{s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})</li>
                 ))}
               </ul>
             </div>
