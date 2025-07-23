@@ -1,3 +1,4 @@
+// src/components/MarketAnalysisDisplay.tsx
 import React from 'react';
 import { MarketAnalysisResults, AggregatedLiquidationData } from '../types'; // Ensure AggregatedLiquidationData is imported
 import { SymbolData } from '../types'; // Ensure SymbolData is imported if needed for top lists
@@ -12,12 +13,12 @@ interface MarketAnalysisDisplayProps {
     topShortSqueeze: SymbolData[];
     topLongTrap: SymbolData[];
   };
-  greenCount: number;
-  redCount: number;
-  greenPositiveFunding: number;
-  greenNegativeFunding: number;
-  redPositiveFunding: number;
-  redNegativeFunding: number;
+  greenCount: number; // Still needed for general market bias context
+  redCount: number;   // Still needed for general market bias context
+  greenPositiveFunding: number; // Still needed for context
+  greenNegativeFunding: number; // Still needed for context
+  redPositiveFunding: number;   // Still needed for context
+  redNegativeFunding: number;   // Still needed for context
 }
 
 const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
