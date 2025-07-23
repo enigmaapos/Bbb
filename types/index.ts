@@ -1,12 +1,20 @@
+// src/types/index.ts
+
+// --- Data Structures ---
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  // openInterest?: number; // REMOVED: No longer fetching this to save API calls
-  rsi?: number; // Kept for dummy data display
-  // Add other properties if you expand SymbolData further (e.g., marketCap, liquidationVolume)
+  // rsi: number | null; // REMOVED: No longer using real RSI
+}
+
+export interface FundingStats {
+  greenPositiveFunding: number;
+  greenNegativeFunding: number;
+  redPositiveFunding: number;
+  redNegativeFunding: number;
 }
 
 export interface SymbolTradeSignal {
@@ -19,13 +27,12 @@ export interface SymbolTradeSignal {
   takeProfit: number | null;
 }
 
-// --- NEW/UPDATED: Liquidation Data Interfaces ---
 export interface LiquidationEvent {
   symbol: string;
-  side: "BUY" | "SELL"; // BUY for short liquidations, SELL for long liquidations
+  side: "BUY" | "SELL"; // BUY for short liquidation, SELL for long liquidation
   price: number;
   quantity: number;
-  timestamp: number; // Unix timestamp
+  timestamp: number;
 }
 
 export interface AggregatedLiquidationData {
@@ -33,57 +40,44 @@ export interface AggregatedLiquidationData {
   totalShortLiquidationsUSD: number;
   longLiquidationCount: number;
   shortLiquidationCount: number;
-  // You can add more complex aggregates if needed, e.g.,
-  // mostRecentLiquidatedPriceLevel?: number;
-}
-// --- END NEW/UPDATED ---
-
-
-// --- MOVED & UPDATED: Interfaces for Sentiment Analysis ---
-export interface SymbolAnalysisData {
-  symbol: string;
-  volume: number;
-  priceChange: number;
-  fundingRate: number;
-  marketCap?: number;
-  rsi?: number;
-  // openInterest?: number; // REMOVED from SymbolAnalysisData as well
-  // Add any other raw data points needed for analysis for a single symbol
 }
 
-export interface MarketStats {
-  green: number;
-  red: number;
-  fundingStats: {
-    greenFundingPositive: number;
-    greenNegativeFunding: number;
-    redPositiveFunding: number;
-    redNegativeFunding: number;
-  };
-  volumeData: SymbolAnalysisData[]; // Individual symbol data for volume, RSI, etc.
-  liquidationData?: AggregatedLiquidationData; // NEW: Aggregated liquidation data
-}
+// --- Sentiment Analysis Structures ---
 
-export interface SentimentResult {
+export interface SentimentRating {
   rating: string;
   interpretation: string;
   score: number;
 }
 
-export interface MarketAnalysisResults {
-  generalBias: SentimentResult;
-  fundingImbalance: SentimentResult;
-  shortSqueezeCandidates: SentimentResult; // Renamed for consistency
-  longTrapCandidates: SentimentResult;     // Renamed for consistency
-  volumeSentiment: SentimentResult;
-  // speculativeInterest: SentimentResult; // REMOVED: No longer analyzing this
-  liquidationHeatmap: SentimentResult;    // NEW: Placeholder updated in sentimentAnalyzer
-  momentumImbalance: SentimentResult;     // NEW
-  overallSentimentAccuracy: string;
-  overallMarketOutlook: {
-    score: number;
-    tone: string;
-    strategySuggestion: string;
-  };
+export interface OverallMarketOutlook {
+  score: number;
+  tone: string;
+  strategySuggestion: string;
 }
-// --- END MOVED & UPDATED ---
+
+export interface MarketStats {
+  green: number;
+  red: number;
+  fundingStats: FundingStats;
+  volumeData: Array<{
+    symbol: string;
+    volume: number;
+    priceChange: number;
+    fundingRate: number;
+    // rsi?: number | null; // REMOVED: No longer using real RSI
+  }>;
+  liquidationData?: AggregatedLiquidationData; // Optional, as it might be loading
+}
+
+export interface MarketAnalysisResults {
+  generalBias: SentimentRating;
+  fundingImbalance: SentimentRating;
+  shortSqueezeCandidates: SentimentRating;
+  longTrapCandidates: SentimentRating;
+  volumeSentiment: SentimentRating;
+  liquidationHeatmap: SentimentRating;
+  // momentumImbalance: SentimentRating; // REMOVED: No longer using real RSI
+  overallSentimentAccuracy: string; // Consider if still needed, might simplify to interpretation directly
+  overallMarketOutlook: OverallMarketOutlook;
+}
