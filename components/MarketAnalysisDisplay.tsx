@@ -149,7 +149,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
         </div>
 
-        {/* Liquidation Heatmap Sentiment (New) */}
+        {/* Liquidation Heatmap Sentiment */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-pink-300 mb-1">Liquidation Sentiment</h3>
           <p className="text-gray-300">{marketAnalysis.liquidationHeatmap.rating}</p>
@@ -159,7 +159,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
         </div>
 
-        {/* Momentum Imbalance (New) */}
+        {/* Removed Momentum Imbalance (RSI) section */}
+        {/*
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-cyan-300 mb-1">Momentum Imbalance (RSI)</h3>
           <p className="text-gray-300">{marketAnalysis.momentumImbalance.rating}</p>
@@ -168,6 +169,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             Score: {marketAnalysis.momentumImbalance.score.toFixed(1)}
           </p>
         </div>
+        */}
 
       </div>
     </div>
