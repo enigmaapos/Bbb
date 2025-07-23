@@ -672,13 +672,15 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
        <FundingSentimentChart
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
           redPositiveFunding={redPositiveFunding}
           redNegativeFunding={redNegativeFunding}
         /> 
-
+			</div>
+          
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
@@ -728,6 +730,7 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">    
 <p className="text-white text-sm font-bold mb-2">
           🌐 Overall Sentiment:{" "}
           <span
@@ -746,7 +749,7 @@ export default function PriceFundingTracker() {
             {getSentimentClue()}
           </span>
         </p>
-
+</div>
 
 <div className="mb-8">
           <LiquidationHeatmap
