@@ -8,7 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "axios": "^1.10.0",
+    "axios": "^1.10.0",  <-- Axios itself provides its types for 1.x.x
     "next": "latest",
     "p-limit": "^6.2.0",
     "react": "latest",
@@ -16,12 +16,12 @@
     "recharts": "^3.1.0"
   },
   "devDependencies": {
-    "@types/axios": "^1.0.0",
-    "@types/node": "^20.8.10",
-    "@types/react": "^18.2.0",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.5",
     "tailwindcss": "^3.0.7",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@types/node": "^20.8.10",
+    "@types/react": "^18.2.0"
+    // REMOVE THIS LINE: "@types/axios": "^1.0.0",
   }
 }
