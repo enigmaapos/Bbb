@@ -58,11 +58,13 @@ export interface MarketStats {
   red: number;
   fundingStats: {
     greenFundingPositive: number;
-    greenFundingNegative: number;
-    redFundingPositive: number;
-    redFundingNegative: number;
+    // --- FIX APPLIED HERE ---
+    greenNegativeFunding: number; // Changed from greenFundingNegative to match component
+    // -------------------------
+    redPositiveFunding: number;
+    redNegativeFunding: number;
   };
-  volumeData: SymbolAnalysisData[]; // Individual symbol data for volume, RSI, OI etc.
+  volumeData: SymbolAnalysisData[]; // Individual symbol data for volume, RSI, etc.
   liquidationData?: AggregatedLiquidationData; // NEW: Aggregated liquidation data
 }
 
