@@ -58,9 +58,7 @@ export interface MarketStats {
   red: number;
   fundingStats: {
     greenFundingPositive: number;
-    // --- FIX APPLIED HERE ---
-    greenNegativeFunding: number; // Changed from greenFundingNegative to match component
-    // -------------------------
+    greenNegativeFunding: number; // Corrected to match component state variable
     redPositiveFunding: number;
     redNegativeFunding: number;
   };
