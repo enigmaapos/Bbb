@@ -13,7 +13,7 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults, // Import MarketAnalysisResults
-} from "../types"; // ALL TYPES FROM HERE!
+} from "../types/index"; // ALL TYPES FROM HERE!
 import {
   BinanceExchangeInfoResponse,
   BinanceSymbol,
