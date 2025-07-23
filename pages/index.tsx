@@ -1,5 +1,3 @@
-// pages/index.tsx (or src/PriceFundingTracker.tsx)
-
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
@@ -22,8 +20,18 @@ import {
   BinanceOpenInterestHistory,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import axios, { isAxiosError } from 'axios'; // Import isAxiosError
+import axios from 'axios'; // No longer importing isAxiosError directly
 import pLimit from 'p-limit'; // NEW: Import p-limit
+
+// Custom type guard for AxiosError
+function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'isAxiosError' in error &&
+    error.isAxiosError === true
+  );
+}
 
 const BINANCE_API = "https://fapi.binance.com";
 
@@ -238,10 +246,10 @@ export default function PriceFundingTracker() {
               } else {
                 return { symbol, openInterest: 0 };
               }
-            } catch (oiError: any) { // Ensure oiError is typed for better error access
+            } catch (oiError: any) { // Keep the error typed as any for catch
               // Log detailed error to console
               console.error(`Failed to fetch Open Interest for ${symbol}:`, oiError.message || oiError);
-              if (isAxiosError(oiError) && oiError.response) {
+              if (isAxiosErrorTypeGuard(oiError) && oiError.response) { // <--- USING CUSTOM TYPE GUARD HERE
                 console.error(`Status: ${oiError.response.status}, Data:`
                  , oiError.response.data);
                 // Important: If it's a 429, you should consider a longer backoff
@@ -336,7 +344,11 @@ export default function PriceFundingTracker() {
 
       } catch (err: any) {
         console.error("Error fetching initial market data:", err);
-        setError("Failed to fetch initial market data.");
+        if (isAxiosErrorTypeGuard(err) && err.response) { // <--- USING CUSTOM TYPE GUARD HERE
+          setError(`Failed to fetch initial market data: ${err.response.status}`);
+        } else {
+          setError("Failed to fetch initial market data. Unknown error.");
+        }
       } finally {
         setLoading(false);
       }
