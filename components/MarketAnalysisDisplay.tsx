@@ -1,16 +1,32 @@
 // src/components/MarketAnalysisDisplay.tsx
 
 import React from 'react';
-import {
-  SymbolData,
-  SentimentResult,
-  MarketAnalysisResults,
-  MarketStats // Import MarketStats if needed for fundingImbalanceData directly
-} from '../types'; // ALL TYPES FROM HERE!
+import { SymbolData } from '../types';
 
-// Use the consolidated MarketAnalysisResults from types/index.ts
+// Define the types for the props that MarketAnalysisDisplay will receive
+interface SentimentResult {
+  rating: string;
+  interpretation: string;
+  score: number;
+}
+
 interface MarketAnalysisProps {
-  marketAnalysis: MarketAnalysisResults; // Changed to use the consolidated type
+  marketAnalysis: {
+    generalBias: SentimentResult;
+    fundingImbalance: SentimentResult;
+    shortSqueezeCandidates: SentimentResult;
+    longTrapCandidates: SentimentResult;
+    volumeSentiment: SentimentResult;
+    speculativeInterest: SentimentResult; // NEW
+    liquidationHeatmap: SentimentResult; // NEW
+    momentumImbalance: SentimentResult; // NEW
+    overallSentimentAccuracy: string;
+    overallMarketOutlook: {
+      score: number;
+      tone: string;
+      strategySuggestion: string;
+    };
+  };
   fundingImbalanceData: {
     priceUpShortsPaying: number;
     priceUpLongsPaying: number;
@@ -64,8 +80,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
     if (rating.includes('🔴')) return 'text-red-400';
     if (rating.includes('🟡')) return 'text-yellow-300';
     if (rating.includes('↔️')) return 'text-blue-400'; // For neutral/mixed
-    if (rating.includes('📈') || rating.includes('📉')) return 'text-purple-400'; // For OI
-    if (rating.includes('💥')) return 'text-pink-400'; // For Liquidation
     return 'text-gray-400';
   };
 
@@ -128,10 +142,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
         <p className="text-xs italic text-gray-400">{marketAnalysis.momentumImbalance.interpretation}</p>
       </div>
 
-      {/* NEW: Liquidation Heatmap */}
+      {/* NEW: Liquidation Heatmap (Placeholder) */}
       <div className="mb-4">
         <h3 className="text-pink-500 font-semibold mb-1">💥 Liquidation Heatmap</h3>
-        {/* The color mapping needs to be updated in getSentimentColor to recognize the new emoji */}
         <p className={`text-sm ${getSentimentColor(marketAnalysis.liquidationHeatmap.rating)}`}>
           {marketAnalysis.liquidationHeatmap.rating} <span className="font-bold">({marketAnalysis.liquidationHeatmap.score.toFixed(1)}/10)</span>
         </p>
@@ -181,7 +194,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
       {/* Overall Sentiment Accuracy */}
       <div className="mb-4">
         <h3 className="text-cyan-300 font-semibold mb-1">🌐 Overall Sentiment Accuracy</h3>
-        <p className={`text-sm ${marketAnalysis.overallSentimentAccuracy.includes('✅') ? 'text-green-400' : marketAnalysis.overallSentimentAccuracy.includes('🟡') ? 'text-yellow-300' : 'text-gray-400'}`}>
+        <p className={`text-sm ${marketAnalysis.overallSentimentAccuracy.includes('✅') ? 'text-green-400' : 'text-yellow-300'}`}>
           {marketAnalysis.overallSentimentAccuracy}
         </p>
       </div>
