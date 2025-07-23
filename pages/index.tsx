@@ -58,7 +58,7 @@ export default function PriceFundingTracker() {
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
   const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
-  const [greenNegativeFunding, setGreenNegativeFunding] = useState(0); // This now matches the type definition
+  const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
@@ -449,7 +449,7 @@ export default function PriceFundingTracker() {
       red: redCount,
       fundingStats: {
         greenFundingPositive: greenPositiveFunding,
-        greenNegativeFunding: greenNegativeFunding, // This now correctly matches the interface
+        greenNegativeFunding: greenNegativeFunding,
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
@@ -753,7 +753,7 @@ export default function PriceFundingTracker() {
               onClick={() => {
                 setSearchTerm("");
                 setShowFavoritesOnly(false);
-              }}
+              })}
               className="bg-red-600 px-3 py-2 rounded-md text-sm text-white"
             >
               ❌ Clear
