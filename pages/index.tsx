@@ -753,7 +753,7 @@ export default function PriceFundingTracker() {
               onClick={() => {
                 setSearchTerm("");
                 setShowFavoritesOnly(false);
-              })}
+              }}
               className="bg-red-600 px-3 py-2 rounded-md text-sm text-white"
             >
               ❌ Clear
