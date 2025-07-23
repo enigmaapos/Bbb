@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react"; // Added useRef
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
@@ -17,12 +17,9 @@ import {
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
-  // BinanceOpenInterestHistory, // REMOVED: No longer needed
-} from "../types/binance";
+} from "../types/binance"; // Corrected type import to binance.ts
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import axios, { AxiosError } from 'axios';
-
-// import pLimit from 'p-limit'; // REMOVED: No longer needed for OI fetch
 
 // Custom type guard for AxiosError
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
@@ -35,6 +32,7 @@ function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError 
 }
 
 const BINANCE_API = "https://fapi.binance.com";
+const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr"; // All market liquidation stream
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
@@ -86,10 +84,20 @@ export default function PriceFundingTracker() {
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
+  // Liquidation data states
+  const liquidationEventsRef = useRef<LiquidationEvent[]>([]); // Store raw events
+  // This state is for the component to render recent events
   const [recentLiquidationEvents, setRecentLiquidationEvents] = useState<LiquidationEvent[]>([]);
+  // This state is for passing aggregated data to sentiment analysis
   const [aggregatedLiquidationForSentiment, setAggregatedLiquidationForSentiment] = useState<
     AggregatedLiquidationData | undefined
   >(undefined);
+
+  // WebSocket specific refs for persistent instances
+  const liquidationWsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wsPingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const aggregationTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce for aggregation
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -112,7 +120,6 @@ export default function PriceFundingTracker() {
     shortSqueezeCandidates: { rating: "", interpretation: "", score: 0 },
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
-    // speculativeInterest: { rating: "Data Not Available", interpretation: "Open Interest data is currently not being tracked to reduce API load.", score: 5.0 }, // REMOVED THIS LINE
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     momentumImbalance: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
@@ -187,14 +194,15 @@ export default function PriceFundingTracker() {
     let shortLiquidationCount = 0;
 
     const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    // Filter events older than 5 minutes for aggregation
     const recentEvents = events.filter(e => e.timestamp > fiveMinutesAgo);
 
     recentEvents.forEach((event) => {
       const volumeUSD = event.price * event.quantity;
-      if (event.side === "SELL") {
+      if (event.side === "SELL") { // SELL means long position liquidated
         totalLongLiquidationsUSD += volumeUSD;
         longLiquidationCount++;
-      } else {
+      } else { // BUY means short position liquidated
         totalShortLiquidationsUSD += volumeUSD;
         shortLiquidationCount++;
       }
@@ -209,12 +217,114 @@ export default function PriceFundingTracker() {
   }, []);
 
 
-  // --- Main Data Fetching and WebSocket Logic (Combined useEffect) ---
-  useEffect(() => {
-    let liquidationWs: WebSocket | null = null; // Declare WebSocket variable
+  // --- WebSocket Connection Function (useCallback for stability) ---
+  const connectLiquidationWs = useCallback(() => {
+    // If a WebSocket is already open or connecting, do not create a new one.
+    if (liquidationWsRef.current && (liquidationWsRef.current.readyState === WebSocket.OPEN || liquidationWsRef.current.readyState === WebSocket.CONNECTING)) {
+      console.log('Liquidation WS already open or connecting. Skipping new connection attempt.');
+      return;
+    }
 
+    console.log('Attempting to connect to Liquidation WS...');
+    const ws = new WebSocket(BINANCE_WS_URL);
+
+    ws.onopen = () => {
+      console.log('Liquidation WS connected');
+      // Clear any pending reconnect timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      // Start sending pings to keep the connection alive
+      wsPingIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            method: "PING"
+          })); // Binance WebSocket expects a PING message for some streams, or an empty string for others.
+          // For !forceOrder@arr, a simple ws.ping() (browser native) is usually fine.
+          // If you face issues, try ws.send('{"method":"PING"}') or an empty string based on specific docs.
+          // For this public stream, a native ping() is more likely to be ignored or handled implicitly by the underlying TCP.
+          // But it is still good practice to send some data to keep the connection active for network intermediates.
+          console.log('Liquidation WS: Sent Ping frame/message.');
+        }
+      }, 3 * 60 * 1000); // Send ping every 3 minutes (180,000 ms)
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.e === 'forceOrder') { // Check if it's a single forceOrder event
+          const liquidationEvent: LiquidationEvent = {
+            symbol: data.o.s,
+            side: data.o.S as "BUY" | "SELL",
+            price: parseFloat(data.o.ap),
+            quantity: parseFloat(data.o.q),
+            timestamp: data.o.T, // Use the correct timestamp field 'T'
+          };
+
+          // Update recent events for display (e.g., last 10)
+          setRecentLiquidationEvents(prev => {
+            const updated = [liquidationEvent, ...prev].slice(0, 10);
+            return updated;
+          });
+
+          // Store for aggregation
+          liquidationEventsRef.current.push(liquidationEvent);
+
+          // Limit history to prevent memory issues (e.g., last 1000 events)
+          if (liquidationEventsRef.current.length > 1000) {
+            liquidationEventsRef.current = liquidationEventsRef.current.slice(liquidationEventsRef.current.length - 1000);
+          }
+
+          // Debounce aggregation for performance
+          if (aggregationTimeoutRef.current) {
+            clearTimeout(aggregationTimeoutRef.current);
+          }
+          aggregationTimeoutRef.current = setTimeout(() => {
+            const aggregated = aggregateLiquidationEvents(liquidationEventsRef.current);
+            setAggregatedLiquidationForSentiment(aggregated);
+          }, 500); // Aggregate every 500ms for sentiment analysis
+        }
+        // If it's an array of events (e.g., snapshot or different stream), handle differently if needed
+        // The !forceOrder@arr stream sends individual forceOrder objects.
+      } catch (e) {
+        console.error('Error parsing WS message or processing liquidation event:', e);
+      }
+    };
+
+    ws.onclose = (event) => {
+      console.warn('Liquidation WS closed:', event.code, event.reason);
+      // Clear existing ping interval
+      if (wsPingIntervalRef.current) {
+        clearInterval(wsPingIntervalRef.current);
+        wsPingIntervalRef.current = null;
+      }
+
+      // Attempt to reconnect after a delay, but only if not explicitly closed (1000: Normal, 1001: Going Away)
+      if (event.code !== 1000 && event.code !== 1001) {
+        if (!reconnectTimeoutRef.current) { // Only set a new timeout if one isn't already pending
+          reconnectTimeoutRef.current = setTimeout(() => {
+            console.log('Reconnecting Liquidation WS...');
+            connectLiquidationWs(); // Call the reconnect function
+          }, 5000); // Try to reconnect after 5 seconds
+        }
+      } else {
+        console.log('Liquidation WS closed normally or intentionally.');
+      }
+    };
+
+    ws.onerror = (errorEvent) => {
+      console.error('Liquidation WS error:', errorEvent);
+      // This will trigger onclose, which handles reconnection
+      liquidationWsRef.current?.close(); // Use ref to close
+    };
+
+    liquidationWsRef.current = ws; // Store the WebSocket instance in the ref
+  }, [aggregateLiquidationEvents]); // Depend on aggregateLiquidationEvents which is useCallback'd
+
+  // --- Main Data Fetching and WebSocket Management Effect ---
+  useEffect(() => {
     const fetchAllData = async () => {
-      // Only set loading true if it's the very first fetch or a significant error occurred
       if (rawData.length === 0) {
         setLoading(true);
       }
@@ -233,40 +343,11 @@ export default function PriceFundingTracker() {
         const tickerData = tickerRes.data;
         const fundingData = fundingRes.data;
 
-        // --- Open Interest Fetch with p-limit REMOVED ---
-        // const limit = pLimit(5);
-        // const openInterestPromises = usdtPairs.map((symbol: string) =>
-        //   limit(async () => {
-        //     try {
-        //       const oiRes = await axios.get<BinanceOpenInterestHistory[]>(`${BINANCE_API}/fapi/v1/openInterestHist?symbol=${symbol}&period=5m&limit=1`);
-        //       if (oiRes.data.length > 0) {
-        //         return { symbol, openInterest: parseFloat(oiRes.data[0].sumOpenInterestValue || "0") };
-        //       } else {
-        //         return { symbol, openInterest: 0 };
-        //       }
-        //     } catch (oiError: any) {
-        //       console.error(`Failed to fetch Open Interest for ${symbol}:`, oiError.message || oiError);
-        //       if (isAxiosErrorTypeGuard(oiError) && oiError.response) {
-        //         console.error(`Status: ${oiError.response.status}, Data:`, oiError.response.data);
-        //         if (oiError.response.status === 429 || oiError.response.status === 418) {
-        //             console.warn(`RATE LIMIT HIT for ${symbol}. Consider increasing interval or reducing concurrency.`);
-        //         }
-        //       }
-        //       return { symbol, openInterest: 0 };
-        //     }
-        //   })
-        // );
-        // const allOpenInterestResults = await Promise.all(openInterestPromises);
-        // const oiMap = new Map<string, number>(allOpenInterestResults.map(item => [item.symbol, item.openInterest]));
-        // --- End of Open Interest Fetch Removal ---
-
-
         const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
           const ticker = tickerData.find((t) => t.symbol === symbol);
           const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          // const openInterest = oiMap.get(symbol) || 0; // REMOVED: No longer using OI
           const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
 
           return {
@@ -275,14 +356,12 @@ export default function PriceFundingTracker() {
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
             volume: volume,
-            // openInterest: openInterest, // REMOVED
             rsi: dummyRsi,
           };
         }).filter((d: SymbolData) => d.volume > 0);
 
         setRawData(combinedData); // Set rawData here
 
-        // Update counts for stats
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
@@ -347,83 +426,35 @@ export default function PriceFundingTracker() {
       }
     };
 
-    // WebSocket for Liquidations
-    let reconnectTimeout: NodeJS.Timeout | null = null;
-    const connectLiquidationWs = () => {
-      if (liquidationWs) {
-        liquidationWs.close(); // Close existing connection before trying to reconnect
-      }
-
-      liquidationWs = new WebSocket("wss://fstream.binance.com/ws/!forceOrder@arr");
-      console.log("Attempting to connect to Liquidation WS...");
-
-      liquidationWs.onopen = () => {
-        console.log("Liquidation WS connected");
-        if (reconnectTimeout) {
-          clearTimeout(reconnectTimeout);
-          reconnectTimeout = null;
-        }
-      };
-
-      liquidationWs.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (Array.isArray(data)) {
-            const newEvts: LiquidationEvent[] = data.map((o: any) => ({
-              symbol: o.o.s as string,
-              side: o.o.S as "BUY" | "SELL",
-              price: parseFloat(o.o.p),
-              quantity: parseFloat(o.o.q),
-              timestamp: o.E as number,
-            }));
-
-            setRecentLiquidationEvents((prev) => {
-              const updatedEvents = [...newEvts, ...prev].slice(0, 500); // Keep last 500 events for heatmap
-              // Aggregate *all* recent events within the time window for sentiment analysis
-              const aggregated = aggregateLiquidationEvents(updatedEvents);
-              setAggregatedLiquidationForSentiment(aggregated);
-              return updatedEvents;
-            });
-          }
-        } catch (e) {
-          console.error("Failed to parse liquidation WS message:", e);
-        }
-      };
-
-      liquidationWs.onclose = (event) => {
-        console.warn("Liquidation WS closed:", event.code, event.reason);
-        // Attempt to reconnect after a delay
-        if (!reconnectTimeout) {
-          reconnectTimeout = setTimeout(() => {
-            console.log("Reconnecting Liquidation WS...");
-            connectLiquidationWs();
-          }, 5000); // Try to reconnect after 5 seconds
-        }
-      };
-
-      liquidationWs.onerror = (err) => {
-        console.error("Liquidation WS error:", err);
-        liquidationWs?.close(); // Force close to trigger onclose and reconnection attempt
-      };
-    };
-
-    connectLiquidationWs(); // Initial connection
-
     // Initial fetch and then set interval for periodic refresh of REST data
     fetchAllData();
     const interval = setInterval(fetchAllData, 15000); // Increased to 15 seconds for more leniency
 
-    // Cleanup function for WebSockets and Interval
+    // Connect to WebSocket here after REST data fetch, or independently if preferred
+    connectLiquidationWs();
+
+    // Cleanup function for REST API interval and WebSockets
     return () => {
+      console.log('Cleaning up effects...');
       clearInterval(interval);
-      if (liquidationWs) {
-        liquidationWs.close();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
+      if (wsPingIntervalRef.current) {
+        clearInterval(wsPingIntervalRef.current);
+        wsPingIntervalRef.current = null;
+      }
+      if (liquidationWsRef.current) {
+        liquidationWsRef.current.close(1000, 'Component Unmounted'); // Close normally
+        liquidationWsRef.current = null;
+      }
+      if (aggregationTimeoutRef.current) {
+        clearTimeout(aggregationTimeoutRef.current);
+        aggregationTimeoutRef.current = null;
       }
     };
-  }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length]); // rawData.length as a simple trigger for initial load
+  }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
 
   // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
   useEffect(() => {
@@ -446,7 +477,6 @@ export default function PriceFundingTracker() {
         priceChange: d.priceChangePercent,
         fundingRate: d.fundingRate,
         rsi: d.rsi,
-        // openInterest: d.openInterest, // REMOVED
       })),
       liquidationData: aggregatedLiquidationForSentiment, // Pass the aggregated liquidation data here
     };
@@ -459,7 +489,6 @@ export default function PriceFundingTracker() {
       sentimentResults.shortSqueezeCandidates.score,
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
-      // sentimentResults.speculativeInterest.score, // REMOVED from average
       sentimentResults.liquidationHeatmap.score,
       sentimentResults.momentumImbalance.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
@@ -489,7 +518,6 @@ export default function PriceFundingTracker() {
       shortSqueezeCandidates: sentimentResults.shortSqueezeCandidates,
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
-      // speculativeInterest: sentimentResults.speculativeInterest, // REMOVED THIS LINE
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
       momentumImbalance: sentimentResults.momentumImbalance,
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
@@ -501,8 +529,8 @@ export default function PriceFundingTracker() {
     });
 
   }, [
-    rawData, // Data updated from REST API fetch
-    aggregatedLiquidationForSentiment, // NEW: Liquidation data from WS
+    rawData,
+    aggregatedLiquidationForSentiment,
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding
   ]);
 
@@ -526,7 +554,7 @@ export default function PriceFundingTracker() {
   };
 
   const sortedData = useMemo(() => {
-    const sortableData = [...rawData]; // Use rawData for sorting
+    const sortableData = [...rawData];
     if (!sortConfig.key) return sortableData;
 
     return sortableData.sort((a, b) => {
@@ -553,7 +581,7 @@ export default function PriceFundingTracker() {
       }
       return 0;
     });
-  }, [rawData, sortConfig, tradeSignals]); // Dependencies for sortedData
+  }, [rawData, sortConfig, tradeSignals]);
 
   const filteredAndSortedData = useMemo(() => {
     return sortedData.filter((item) => {
@@ -718,19 +746,17 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-<div className="mb-8">
-          <LiquidationHeatmap
-            liquidationEvents={recentLiquidationEvents}
-          />
-        </div>
-        
         <div className="my-8 h-px bg-gray-700" />
 
         <div className="mb-8">
           <LeverageProfitCalculator />
         </div>
 
-        
+        <div className="mb-8">
+          <LiquidationHeatmap
+            liquidationEvents={recentLiquidationEvents}
+          />
+        </div>
 
         <div className="my-8 h-px bg-gray-700" />
 
@@ -793,7 +819,7 @@ export default function PriceFundingTracker() {
                 >
                   Funding {sortConfig.key === "fundingRate" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th className="p-2">RSI (Dummy)</th> {/* Changed from OI Value */}
+                <th className="p-2">RSI (Dummy)</th>
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("signal")}
@@ -825,7 +851,6 @@ export default function PriceFundingTracker() {
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
 
-                      {/* REMOVED OI VALUE COLUMN - Now displays dummy RSI here */}
                       <td className="p-2">
                         {item.rsi ? item.rsi.toFixed(2) : 'N/A'}
                       </td>
