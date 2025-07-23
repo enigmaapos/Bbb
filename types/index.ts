@@ -1,12 +1,10 @@
-// src/types/index.ts
-
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  openInterest?: number;
+  // openInterest?: number; // REMOVED: No longer fetching this to save API calls
   rsi?: number;
   // Add other properties if you expand SymbolData further (e.g., marketCap, liquidationVolume)
 }
@@ -49,7 +47,7 @@ export interface SymbolAnalysisData {
   fundingRate: number;
   marketCap?: number;
   rsi?: number;
-  openInterest?: number; // USD value of OI
+  // openInterest?: number; // REMOVED from SymbolAnalysisData as well
   // Add any other raw data points needed for analysis for a single symbol
 }
 
@@ -58,11 +56,11 @@ export interface MarketStats {
   red: number;
   fundingStats: {
     greenFundingPositive: number;
-    greenFundingNegative: number;
-    redFundingPositive: number;
-    redFundingNegative: number;
+    greenNegativeFunding: number; // Corrected to match component state variable
+    redPositiveFunding: number;
+    redNegativeFunding: number;
   };
-  volumeData: SymbolAnalysisData[]; // Individual symbol data for volume, RSI, OI etc.
+  volumeData: SymbolAnalysisData[]; // Individual symbol data for volume, RSI, etc.
   liquidationData?: AggregatedLiquidationData; // NEW: Aggregated liquidation data
 }
 
@@ -78,7 +76,7 @@ export interface MarketAnalysisResults {
   shortSqueezeCandidates: SentimentResult; // Renamed for consistency
   longTrapCandidates: SentimentResult;     // Renamed for consistency
   volumeSentiment: SentimentResult;
-  speculativeInterest: SentimentResult;
+  // speculativeInterest: SentimentResult; // REMOVED: No longer analyzing this
   liquidationHeatmap: SentimentResult;    // NEW: Placeholder updated in sentimentAnalyzer
   momentumImbalance: SentimentResult;     // NEW
   overallSentimentAccuracy: string;
