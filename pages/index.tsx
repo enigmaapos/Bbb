@@ -20,7 +20,8 @@ import {
   BinanceOpenInterestHistory,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import axios from 'axios'; // No longer importing isAxiosError directly
+import axios, { AxiosError } from 'axios';
+
 import pLimit from 'p-limit'; // NEW: Import p-limit
 
 // Custom type guard for AxiosError
