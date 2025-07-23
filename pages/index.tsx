@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react"; // Added useRef
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
-// 🚨 FIX HERE: Changed to default import as suggested by the build error
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
 import {
   SymbolData,
@@ -18,7 +17,7 @@ import {
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
-} from "../types/binance";
+} from "../types/binance"; // Corrected type import to binance.ts
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import axios, { AxiosError } from 'axios';
 
@@ -59,7 +58,7 @@ export default function PriceFundingTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [rawData, setRawData] = useState<SymbolData[]>([]);
+  const [rawData, setRawData] = useState<SymbolData[]>([]); // Store raw data, separated from sorted
   const [tradeSignals, setTradeSignals] = useState<SymbolTradeSignal[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
@@ -86,8 +85,10 @@ export default function PriceFundingTracker() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   // Liquidation data states
-  const liquidationEventsRef = useRef<LiquidationEvent[]>([]);
+  const liquidationEventsRef = useRef<LiquidationEvent[]>([]); // Store raw events
+  // This state is for the component to render recent events
   const [recentLiquidationEvents, setRecentLiquidationEvents] = useState<LiquidationEvent[]>([]);
+  // This state is for passing aggregated data to sentiment analysis
   const [aggregatedLiquidationForSentiment, setAggregatedLiquidationForSentiment] = useState<
     AggregatedLiquidationData | undefined
   >(undefined);
@@ -96,7 +97,7 @@ export default function PriceFundingTracker() {
   const liquidationWsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsPingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const aggregationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const aggregationTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce for aggregation
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -239,7 +240,11 @@ export default function PriceFundingTracker() {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             method: "PING"
-          }));
+          })); // Binance WebSocket expects a PING message for some streams, or an empty string for others.
+          // For !forceOrder@arr, a simple ws.ping() (browser native) is usually fine.
+          // If you face issues, try ws.send('{"method":"PING"}') or an empty string based on specific docs.
+          // For this public stream, a native ping() is more likely to be ignored or handled implicitly by the underlying TCP.
+          // But it is still good practice to send some data to keep the connection active for network intermediates.
           console.log('Liquidation WS: Sent Ping frame/message.');
         }
       }, 3 * 60 * 1000); // Send ping every 3 minutes (180,000 ms)
@@ -280,6 +285,8 @@ export default function PriceFundingTracker() {
             setAggregatedLiquidationForSentiment(aggregated);
           }, 500); // Aggregate every 500ms for sentiment analysis
         }
+        // If it's an array of events (e.g., snapshot or different stream), handle differently if needed
+        // The !forceOrder@arr stream sends individual forceOrder objects.
       } catch (e) {
         console.error('Error parsing WS message or processing liquidation event:', e);
       }
@@ -309,11 +316,11 @@ export default function PriceFundingTracker() {
     ws.onerror = (errorEvent) => {
       console.error('Liquidation WS error:', errorEvent);
       // This will trigger onclose, which handles reconnection
-      liquidationWsRef.current?.close();
+      liquidationWsRef.current?.close(); // Use ref to close
     };
 
-    liquidationWsRef.current = ws;
-  }, [aggregateLiquidationEvents]);
+    liquidationWsRef.current = ws; // Store the WebSocket instance in the ref
+  }, [aggregateLiquidationEvents]); // Depend on aggregateLiquidationEvents which is useCallback'd
 
   // --- Main Data Fetching and WebSocket Management Effect ---
   useEffect(() => {
@@ -341,7 +348,7 @@ export default function PriceFundingTracker() {
           const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2));
+          const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
 
           return {
             symbol,
@@ -353,7 +360,7 @@ export default function PriceFundingTracker() {
           };
         }).filter((d: SymbolData) => d.volume > 0);
 
-        setRawData(combinedData);
+        setRawData(combinedData); // Set rawData here
 
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
@@ -421,8 +428,8 @@ export default function PriceFundingTracker() {
 
     // Initial fetch and then set interval for periodic refresh of REST data
     fetchAllData();
-    // Setting REST API data refresh to 10 seconds. This is well within Binance's public API rate limits.
-    const interval = setInterval(fetchAllData, 10000); // Changed interval to 10 seconds (10000 ms)
+    // Reverted interval to 10 seconds. This is well within Binance's public API rate limits.
+    const interval = setInterval(fetchAllData, 10000);
 
     // Connect to WebSocket here after REST data fetch, or independently if preferred
     connectLiquidationWs();
@@ -440,7 +447,7 @@ export default function PriceFundingTracker() {
         wsPingIntervalRef.current = null;
       }
       if (liquidationWsRef.current) {
-        liquidationWsRef.current.close(1000, 'Component Unmounted');
+        liquidationWsRef.current.close(1000, 'Component Unmounted'); // Close normally
         liquidationWsRef.current = null;
       }
       if (aggregationTimeoutRef.current) {
@@ -465,14 +472,14 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      volumeData: rawData.map(d => ({
+      volumeData: rawData.map(d => ({ // Use rawData here
         symbol: d.symbol,
         volume: d.volume,
         priceChange: d.priceChangePercent,
         fundingRate: d.fundingRate,
         rsi: d.rsi,
       })),
-      liquidationData: aggregatedLiquidationForSentiment,
+      liquidationData: aggregatedLiquidationForSentiment, // Pass the aggregated liquidation data here
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
@@ -740,9 +747,10 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-        <div className="mb-8">
-          {/* As per previous LiquidationHeatmap.js code, it manages its own data and doesn't need props here. */}
-          <LiquidationHeatmap />
+<div className="mb-8">
+          <LiquidationHeatmap
+            liquidationEvents={recentLiquidationEvents}
+          />
         </div>
         
         <div className="my-8 h-px bg-gray-700" />
