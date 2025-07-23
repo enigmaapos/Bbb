@@ -1,7 +1,18 @@
-import { MarketStats, MarketAnalysisResults, SentimentResult } from '../types';
+// Assuming other necessary imports and types are here
+import {
+  MarketStats,
+  MarketAnalysisResults,
+  AggregatedLiquidationData, // Make sure this is imported if not already
+} from "../types";
 
-export const analyzeSentiment = (marketStats: MarketStats): MarketAnalysisResults => {
-  const { green, red, fundingStats, volumeData, liquidationData } = marketStats;
+export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
+  const {
+    green,
+    red,
+    fundingStats,
+    volumeData,
+    liquidationData, // Now receiving liquidationData
+  } = data;
 
   const results: MarketAnalysisResults = {
     generalBias: { rating: "", interpretation: "", score: 0 },
@@ -9,146 +20,164 @@ export const analyzeSentiment = (marketStats: MarketStats): MarketAnalysisResult
     shortSqueezeCandidates: { rating: "", interpretation: "", score: 0 },
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
-    // speculativeInterest: { rating: "", interpretation: "", score: 0 }, // REMOVED - not part of the type anymore
-    liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    momentumImbalance: { rating: "", interpretation: "", score: 0 },
-    overallSentimentAccuracy: "High", // Default, can be dynamic later
-    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
+    liquidationHeatmap: { rating: "", interpretation: "", score: 0 }, // Initialize here
+    momentumImbalance: { rating: "", interpretation: "", score: 0 }, // Initialize here
+    overallSentimentAccuracy: "",
+    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" }, // This will be calculated in PriceFundingTracker
   };
 
-  // --- 1. General Market Bias ---
+  // --- 1. General Bias ---
   if (green > red * 1.5) {
-    results.generalBias = { rating: "Strongly Bullish", interpretation: "Significantly more assets are in positive territory.", score: 8.5 };
-  } else if (green > red * 1.1) {
-    results.generalBias = { rating: "Moderately Bullish", interpretation: "More assets are showing positive price action.", score: 7.0 };
+    results.generalBias = {
+      rating: "Strongly Bullish",
+      interpretation: "Significantly more pairs are showing positive 24h price change.",
+      score: 8.5,
+    };
   } else if (red > green * 1.5) {
-    results.generalBias = { rating: "Strongly Bearish", interpretation: "A significant majority of assets are declining.", score: 3.0 };
-  } else if (red > green * 1.1) {
-    results.generalBias = { rating: "Moderately Bearish", interpretation: "More assets are showing negative price action.", score: 4.5 };
+    results.generalBias = {
+      rating: "Strongly Bearish",
+      interpretation: "Significantly more pairs are showing negative 24h price change.",
+      score: 2.5,
+    };
+  } else if (green > red) {
+    results.generalBias = {
+      rating: "Slightly Bullish",
+      interpretation: "More pairs are showing positive 24h price change.",
+      score: 6.5,
+    };
+  } else if (red > green) {
+    results.generalBias = {
+      rating: "Slightly Bearish",
+      interpretation: "More pairs are showing negative 24h price change.",
+      score: 4.5,
+    };
   } else {
-    results.generalBias = { rating: "Neutral/Mixed", interpretation: "Market is balanced between gains and losses.", score: 5.5 };
+    results.generalBias = {
+      rating: "Neutral",
+      interpretation: "Even split between positive and negative price changes.",
+      score: 5,
+    };
   }
 
+  // --- 2. Funding Imbalance (using your new logic) ---
+  const priceUpFundingNegative = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0).length;
+  const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
 
-  // --- 2. Funding Sentiment Imbalance ---
-  // We want to identify when shorts are paying (greenNegativeFunding)
-  // or when longs are paying while price drops (redPositiveFunding).
-  const { greenNegativeFunding, redPositiveFunding, greenFundingPositive, redNegativeFunding } = fundingStats; // Corrected destructuring
+  // Define thresholds based on your custom formula
+  const BULLISH_PUN_THRESHOLD = 13; // Price Up Negative Funding
+  const BULLISH_PDP_THRESHOLD = 250; // Price Down Positive Funding
 
-  const totalRelevantFunding = greenNegativeFunding + redPositiveFunding;
-  // const totalFundingMarkets = greenFundingPositive + greenNegativeFunding + redPositiveFunding + redNegativeFunding; // No longer used
+  const BEARISH_PUN_THRESHOLD = 250;
+  const BEARISH_PDP_THRESHOLD = 13;
 
-  if (totalRelevantFunding > 0) { // Avoid division by zero
-    const shortSqueezePotentialRatio = greenNegativeFunding / totalRelevantFunding;
-    const longTrapPotentialRatio = redPositiveFunding / totalRelevantFunding;
+  if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
+    results.fundingImbalance = {
+      rating: "📈 Bullish Trap Squeeze",
+      interpretation: `Many longs are trapped (${priceDownFundingPositive} pairs) while very few shorts are paying for rising prices (${priceUpFundingNegative} pairs). This suggests strong buying pressure and potential for a squeeze.`,
+      score: 9.0,
+    };
+  } else if (priceUpFundingNegative >= BEARISH_PUN_THRESHOLD && priceDownFundingPositive <= BEARISH_PDP_THRESHOLD) {
+    results.fundingImbalance = {
+      rating: "📉 Bearish Trap Squeeze",
+      interpretation: `Many shorts are trapped (${priceUpFundingNegative} pairs) while very few longs are paying for falling prices (${priceDownFundingPositive} pairs). This suggests a potential bearish reversal or capitulation.`,
+      score: 1.0, // A low score for bearish
+    };
+  } else {
+    // Existing logic for funding imbalance or refined neutral
+    const totalPositiveFunding = fundingStats.greenPositiveFunding + fundingStats.redPositiveFunding;
+    const totalNegativeFunding = fundingStats.greenNegativeFunding + fundingStats.redNegativeFunding;
 
-    if (shortSqueezePotentialRatio > 0.6) {
+    if (totalPositiveFunding > totalNegativeFunding * 1.5) {
       results.fundingImbalance = {
-        rating: "Bullish Skew (Short Squeeze)",
-        interpretation: "A large number of tokens with positive price action have negative funding rates (shorts paying). This indicates potential short squeezes.",
-        score: 8.0
+        rating: "Strongly Bearish (Longs Paying)",
+        interpretation: "Overall funding rates are strongly positive, indicating longs are eagerly paying shorts.",
+        score: 3,
       };
-    } else if (longTrapPotentialRatio > 0.6) {
+    } else if (totalNegativeFunding > totalPositiveFunding * 1.5) {
       results.fundingImbalance = {
-        rating: "Bearish Skew (Long Trap)",
-        interpretation: "Many tokens with negative price action have positive funding rates (longs paying). This suggests longs are trapped, potentially leading to cascading liquidations.",
-        score: 3.0
-      };
-    } else if (shortSqueezePotentialRatio > 0.45) {
-      results.fundingImbalance = {
-        rating: "Slightly Bullish Skew",
-        interpretation: "More tokens show shorts paying, contributing to a mild bullish tilt.",
-        score: 6.5
-      };
-    } else if (longTrapPotentialRatio > 0.45) {
-      results.fundingImbalance = {
-        rating: "Slightly Bearish Skew",
-        interpretation: "More tokens show longs paying during downtrends, indicating some trapped longs.",
-        score: 4.0
+        rating: "Strongly Bullish (Shorts Paying)",
+        interpretation: "Overall funding rates are strongly negative, indicating shorts are eagerly paying longs.",
+        score: 7,
       };
     } else {
-      results.fundingImbalance = { rating: "Neutral Funding", interpretation: "Funding rates are relatively balanced.", score: 5.5 };
+      results.fundingImbalance = {
+        rating: "Neutral/Mixed Funding",
+        interpretation: "Funding rates are relatively balanced or show no strong bias.",
+        score: 5,
+      };
     }
-  } else {
-    results.fundingImbalance = { rating: "Neutral Funding", interpretation: "Insufficient data or balanced funding rates.", score: 5.0 };
   }
 
 
-  // --- 3. Short Squeeze Candidates (Based on Price Up & Negative Funding) ---
-  const shortSqueezeCandidatesCount = fundingStats.greenNegativeFunding; // Corrected usage
-  if (shortSqueezeCandidatesCount > 15) { // Arbitrary threshold
+  // --- 3. Short Squeeze Candidates ---
+  const shortSqueezeCount = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0 && d.volume > 50_000_000).length;
+  if (shortSqueezeCount > 10) {
     results.shortSqueezeCandidates = {
-      rating: "High Probability of Short Squeeze",
-      interpretation: `A significant number of assets (${shortSqueezeCandidatesCount}) are showing price increases while shorts are paying funding. This indicates strong bullish momentum and potential for further upward movement as shorts get squeezed.`,
-      score: 9.0
+      rating: "High Potential",
+      interpretation: `Many pairs (over ${shortSqueezeCount}) show price appreciation with negative funding, indicating shorts are being squeezed.`,
+      score: 8,
     };
-  } else if (shortSqueezeCandidatesCount > 5) {
+  } else if (shortSqueezeCount > 3) {
     results.shortSqueezeCandidates = {
-      rating: "Moderate Short Squeeze Potential",
-      interpretation: `Some assets (${shortSqueezeCandidatesCount}) show conditions favorable for a short squeeze.`,
-      score: 7.5
+      rating: "Moderate Potential",
+      interpretation: `${shortSqueezeCount} pairs show signs of short squeezes.`,
+      score: 6,
     };
   } else {
     results.shortSqueezeCandidates = {
-      rating: "Low Short Squeeze Potential",
-      interpretation: "Few assets are currently in a short squeeze setup.",
-      score: 5.0
+      rating: "Low Potential",
+      interpretation: "Few short squeeze setups observed.",
+      score: 4,
     };
   }
 
-  // --- 4. Long Trap Candidates (Based on Price Down & Positive Funding) ---
-  const longTrapCandidatesCount = fundingStats.redPositiveFunding;
-  if (longTrapCandidatesCount > 15) { // Arbitrary threshold
+  // --- 4. Long Trap Candidates ---
+  const longTrapCount = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0 && d.volume > 50_000_000).length;
+  if (longTrapCount > 10) {
     results.longTrapCandidates = {
-      rating: "High Probability of Long Trap",
-      interpretation: `A significant number of assets (${longTrapCandidatesCount}) are dropping in price while longs are paying funding. This suggests trapped longs and a high risk of further cascading liquidations.`,
-      score: 2.0
+      rating: "High Risk",
+      interpretation: `Many pairs (over ${longTrapCount}) show price depreciation with positive funding, indicating longs are trapped.`,
+      score: 2,
     };
-  } else if (longTrapCandidatesCount > 5) {
+  } else if (longTrapCount > 3) {
     results.longTrapCandidates = {
-      rating: "Moderate Long Trap Potential",
-      interpretation: `Some assets (${longTrapCandidatesCount}) show conditions where longs might be trapped.`,
-      score: 3.5
+      rating: "Moderate Risk",
+      interpretation: `${longTrapCount} pairs show signs of long traps.`,
+      score: 4,
     };
   } else {
     results.longTrapCandidates = {
-      rating: "Low Long Trap Potential",
-      interpretation: "Few assets are currently in a long trap setup.",
-      score: 5.0
+      rating: "Low Risk",
+      interpretation: "Few long trap setups observed.",
+      score: 6,
     };
   }
 
   // --- 5. Volume Sentiment ---
-  // Analyze volume alongside price change
-  const totalVolume = volumeData.reduce((sum, d) => sum + d.volume, 0);
-  const upVolume = volumeData.filter(d => d.priceChange > 0).reduce((sum, d) => sum + d.volume, 0);
-  const downVolume = volumeData.filter(d => d.priceChange < 0).reduce((sum, d) => sum + d.volume, 0);
+  const bullishVolume = volumeData.filter(d => d.priceChange > 0 && d.volume > 100_000_000).length;
+  const bearishVolume = volumeData.filter(d => d.priceChange < 0 && d.volume > 100_000_000).length;
 
-  if (totalVolume === 0) {
-    results.volumeSentiment = { rating: "Neutral", interpretation: "No significant volume data.", score: 5.0 };
-  } else if (upVolume > downVolume * 1.5) {
-    results.volumeSentiment = { rating: "Bullish Volume", interpretation: "Strong buying volume on up-trending assets.", score: 7.5 };
-  } else if (downVolume > upVolume * 1.5) {
-    results.volumeSentiment = { rating: "Bearish Volume", interpretation: "Strong selling volume on down-trending assets.", score: 3.0 };
+  if (bullishVolume > bearishVolume * 2) {
+    results.volumeSentiment = {
+      rating: "Strong Bullish Volume",
+      interpretation: "Significant volume flowing into rising assets, confirming upward momentum.",
+      score: 7.5,
+    };
+  } else if (bearishVolume > bullishVolume * 2) {
+    results.volumeSentiment = {
+      rating: "Strong Bearish Volume",
+      interpretation: "Significant volume flowing out of falling assets, confirming downward momentum.",
+      score: 3.5,
+    };
   } else {
-    results.volumeSentiment = { rating: "Mixed Volume", interpretation: "Volume is balanced between buying and selling.", score: 5.5 };
+    results.volumeSentiment = {
+      rating: "Mixed Volume",
+      interpretation: "Volume distribution is relatively balanced or not indicative of a strong trend.",
+      score: 5,
+    };
   }
 
-  // --- 6. Speculative Interest (Open Interest) ---
-  // This section is commented out / logic removed because OI data is no longer fetched.
-  // If you wish to re-introduce a 'speculative interest' metric, you'd need
-  // an alternative data source or a different interpretation.
-  // We're intentionally leaving this out to reduce API calls.
-  /*
-  results.speculativeInterest = {
-    rating: "Data Not Available",
-    interpretation: "Open Interest data is currently not being tracked to reduce API load.",
-    score: 5.0 // Neutral score as it's not contributing to bias
-  };
-  */
-
-
-  // --- 7. Liquidation Heatmap Analysis ---
+  // --- 6. Liquidation Heatmap Sentiment (New) ---
   if (liquidationData) {
     const { totalLongLiquidationsUSD, totalShortLiquidationsUSD } = liquidationData;
     const totalLiquidations = totalLongLiquidationsUSD + totalShortLiquidationsUSD;
@@ -157,119 +186,74 @@ export const analyzeSentiment = (marketStats: MarketStats): MarketAnalysisResult
       const longLiquidationRatio = totalLongLiquidationsUSD / totalLiquidations;
       const shortLiquidationRatio = totalShortLiquidationsUSD / totalLiquidations;
 
-      const significantLiquidationVolume = 5_000_000; // Example: 5 million USD in liquidations in the window
-
-      if (totalLiquidations > significantLiquidationVolume) {
-        if (longLiquidationRatio > 0.65) {
-          results.liquidationHeatmap = {
-            rating: "Significant Bearish Pressure (Long Liquidations)",
-            interpretation: `High volume of long liquidations (${(totalLongLiquidationsUSD / 1_000_000).toFixed(2)}M USD) indicates trapped bullish positions, likely to fuel further price drops.`,
-            score: 2.5
-          };
-        } else if (shortLiquidationRatio > 0.65) {
-          results.liquidationHeatmap = {
-            rating: "Significant Bullish Pressure (Short Liquidations)",
-            interpretation: `High volume of short liquidations (${(totalShortLiquidationsUSD / 1_000_000).toFixed(2)}M USD) indicates trapped bearish positions, likely to fuel further price rallies.`,
-            score: 8.5
-          };
-        } else {
-          results.liquidationHeatmap = {
-            rating: "Balanced Liquidation Activity",
-            interpretation: "Liquidation volume is significant but relatively balanced between long and short closures, indicating two-way volatility.",
-            score: 5.5
-          };
-        }
+      if (longLiquidationRatio > 0.7) { // Over 70% long liquidations
+        results.liquidationHeatmap = {
+          rating: "Heavy Long Liquidations",
+          interpretation: `A significant amount of long positions (${(longLiquidationRatio * 100).toFixed(0)}%) are being liquidated, indicating strong downward pressure.`,
+          score: 1.5, // Very bearish
+        };
+      } else if (shortLiquidationRatio > 0.7) { // Over 70% short liquidations
+        results.liquidationHeatmap = {
+          rating: "Heavy Short Liquidations",
+          interpretation: `A significant amount of short positions (${(shortLiquidationRatio * 100).toFixed(0)}%) are being liquidated, indicating strong upward pressure or short squeezes.`,
+          score: 8.5, // Very bullish
+        };
       } else {
         results.liquidationHeatmap = {
-          rating: "Low Liquidation Activity",
-          interpretation: "Current liquidation volume is low, suggesting less immediate forced market movement from liquidations.",
-          score: 6.0
+          rating: "Mixed Liquidations",
+          interpretation: "Liquidation volume is relatively balanced between long and short positions, or overall volume is low.",
+          score: 5,
         };
       }
     } else {
       results.liquidationHeatmap = {
         rating: "No Recent Liquidations",
-        interpretation: "No significant liquidation events detected in the recent window, implying no immediate liquidation-driven moves.",
-        score: 5.0
+        interpretation: "No significant liquidation events observed recently.",
+        score: 5, // Neutral if no liquidations
       };
     }
   } else {
     results.liquidationHeatmap = {
-      rating: "No Liquidation Data",
-      interpretation: "Liquidation data is not available or not yet aggregated.",
-      score: 5.0
+      rating: "Data Unavailable",
+      interpretation: "Liquidation data not yet available for sentiment analysis.",
+      score: 5, // Neutral fallback
     };
   }
 
-  // --- 8. Momentum Imbalance (Price Change vs. RSI) ---
-  // This is a simplified example. A real analysis would use more sophisticated RSI divergence/convergence.
-  const overboughtCount = volumeData.filter(d => (d.rsi || 0) > 70 && d.priceChange > 0).length;
-  const oversoldCount = volumeData.filter(d => (d.rsi || 0) < 30 && d.priceChange < 0).length;
-  const bullishDivergenceCount = volumeData.filter(d => (d.rsi || 0) < 50 && d.priceChange < 0 && d.fundingRate < 0).length; // Price down, RSI low, shorts paying (potential hidden bullish)
-  const bearishDivergenceCount = volumeData.filter(d => (d.rsi || 0) > 50 && d.priceChange > 0 && d.fundingRate > 0).length; // Price up, RSI high, longs paying (potential hidden bearish)
 
-  if (overboughtCount > 5 && bearishDivergenceCount > 0) {
+  // --- 7. Momentum Imbalance (New, using RSI as a proxy for now) ---
+  // This is a simple example. A real momentum analysis would be more complex.
+  const overboughtCount = volumeData.filter(d => (d.rsi || 0) >= 70).length;
+  const oversoldCount = volumeData.filter(d => (d.rsi || 0) <= 30).length;
+
+  if (overboughtCount > oversoldCount * 2) {
     results.momentumImbalance = {
-      rating: "Potential Bearish Reversal",
-      interpretation: `Several assets are overbought with positive price changes, and some show bearish divergence (price up, longs paying). Caution is advised for long positions.`,
-      score: 3.0
+      rating: "Potential Overbought",
+      interpretation: `Many assets are showing overbought RSI conditions (${overboughtCount}), suggesting caution for new longs.`,
+      score: 4, // Slightly bearish for new longs
     };
-  } else if (oversoldCount > 5 && bullishDivergenceCount > 0) {
+  } else if (oversoldCount > overboughtCount * 2) {
     results.momentumImbalance = {
-      rating: "Potential Bullish Reversal",
-      interpretation: `Several assets are oversold with negative price changes, and some show bullish divergence (price down, shorts paying). Look for potential reversal opportunities.`,
-      score: 8.0
+      rating: "Potential Oversold",
+      interpretation: `Many assets are showing oversold RSI conditions (${oversoldCount}), suggesting potential for bounces.`,
+      score: 6, // Slightly bullish for new longs
     };
   } else {
     results.momentumImbalance = {
-      rating: "Neutral Momentum",
-      interpretation: "Momentum indicators are not showing strong divergence or extremes across the market.",
-      score: 5.5
+      rating: "Balanced Momentum",
+      interpretation: "Momentum indicators are generally balanced across assets.",
+      score: 5,
     };
   }
 
-  // --- Overall Market Outlook Score Calculation ---
-  // A simple average of the individual scores. You can add weights if certain factors are more important.
-  const scoresToAverage = [
-    results.generalBias.score,
-    results.fundingImbalance.score,
-    results.shortSqueezeCandidates.score,
-    results.longTrapCandidates.score,
-    results.volumeSentiment.score,
-    // results.speculativeInterest.score, // REMOVED from average
-    results.liquidationHeatmap.score,
-    results.momentumImbalance.score,
-  ];
 
-  const validScores = scoresToAverage.filter(score => typeof score === 'number' && !isNaN(score));
-  const averageScore = validScores.length > 0 ? validScores.reduce((sum, score) => sum + score, 0) / validScores.length : 0;
+  // Accuracy can be determined by how many clear signals are present, etc.
+  // For simplicity, let's keep it as a placeholder or remove it if not used.
+  results.overallSentimentAccuracy = "Based on multiple indicators.";
 
-  // Determine overall tone and strategy suggestion based on the average score
-  let finalOutlookTone = "";
-  let strategySuggestion = "";
-
-  if (averageScore >= 8.0) {
-    finalOutlookTone = "Strongly Bullish";
-    strategySuggestion = "Aggressively seek long opportunities, especially on strong short squeeze candidates.";
-  } else if (averageScore >= 7.0) {
-    finalOutlookTone = "Mixed leaning Bullish";
-    strategySuggestion = "Look for long opportunities on high-conviction setups, but be prepared for volatility and consider tighter stop losses.";
-  } else if (averageScore >= 5.0) {
-    finalOutlookTone = "Mixed/Neutral";
-    strategySuggestion = "Focus on scalping or range trading specific high-volume symbols. Avoid strong directional bets until clarity emerges.";
-  } else if (averageScore >= 3.0) {
-    finalOutlookTone = "Bearish";
-    strategySuggestion = "Consider shorting opportunities on long trap candidates, or staying on the sidelines. Exercise caution with long positions.";
-  } else {
-    finalOutlookTone = "Strongly Bearish";
-    strategySuggestion = "Prioritize short positions and capital preservation. Avoid longs unless extremely compelling setups emerge.";
-  }
-
-  results.overallMarketOutlook = {
-    score: parseFloat(averageScore.toFixed(1)),
-    tone: finalOutlookTone,
-    strategySuggestion: strategySuggestion,
-  };
+  // Overall market outlook score and tone will be calculated in PriceFundingTracker
+  // and applied to overallMarketOutlook.
 
   return results;
-};
+}
+
