@@ -9,7 +9,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
     red,
-    fundingStats, // This parameter is no longer directly used in the fundingImbalance logic
+    // fundingStats, // This parameter is no longer directly used in the fundingImbalance logic, nor in the general sentiment calcs
     volumeData,
     liquidationData,
   } = data;
@@ -21,7 +21,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    momentumImbalance: { rating: "", interpretation: "", score: 0 },
+    // momentumImbalance: { rating: "", interpretation: "", score: 0 }, // REMOVED
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   };
@@ -64,11 +64,11 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
 
   // Define thresholds based on your custom formula
-  const BULLISH_PUN_THRESHOLD = 30; // Price Up Negative Funding (shorts paying) is small
-  const BULLISH_PDP_THRESHOLD = 230; // Price Down Positive Funding (longs paying) is large
+  const BULLISH_PUN_THRESHOLD = 13; // Price Up Negative Funding (shorts paying) is small
+  const BULLISH_PDP_THRESHOLD = 250; // Price Down Positive Funding (longs paying) is large
 
-  const BEARISH_PUN_THRESHOLD = 230; // Price Up Negative Funding (shorts paying) is large
-  const BEARISH_PDP_THRESHOLD = 30; // Price Down Positive Funding (longs paying) is small
+  const BEARISH_PUN_THRESHOLD = 250; // Price Up Negative Funding (shorts paying) is large
+  const BEARISH_PDP_THRESHOLD = 13; // Price Down Positive Funding (longs paying) is small
 
   if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
     results.fundingImbalance = {
@@ -92,7 +92,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 3. Short Squeeze Candidates ---
-  // Note: These candidates also use volumeData, so ensuring volume is passed is crucial
   const shortSqueezeCount = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0 && d.volume > 50_000_000).length;
   if (shortSqueezeCount > 10) {
     results.shortSqueezeCandidates = {
@@ -115,7 +114,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 4. Long Trap Candidates ---
-  // Note: These candidates also use volumeData, so ensuring volume is passed is crucial
   const longTrapCount = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0 && d.volume > 50_000_000).length;
   if (longTrapCount > 10) {
     results.longTrapCandidates = {
@@ -161,7 +159,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // --- 6. Liquidation Heatmap Sentiment (New) ---
+  // --- 6. Liquidation Heatmap Sentiment ---
   if (liquidationData) {
     const { totalLongLiquidationsUSD, totalShortLiquidationsUSD } = liquidationData;
     const totalLiquidations = totalLongLiquidationsUSD + totalShortLiquidationsUSD;
@@ -204,29 +202,8 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // --- 7. Momentum Imbalance (New, using RSI as a proxy for now) ---
-  const overboughtCount = volumeData.filter(d => (d.rsi || 0) >= 70).length;
-  const oversoldCount = volumeData.filter(d => (d.rsi || 0) <= 30).length;
-
-  if (overboughtCount > oversoldCount * 2) {
-    results.momentumImbalance = {
-      rating: "Potential Overbought",
-      interpretation: `Many assets are showing overbought RSI conditions (${overboughtCount}), suggesting caution for new longs.`,
-      score: 4, // Slightly bearish for new longs
-    };
-  } else if (oversoldCount > overboughtCount * 2) {
-    results.momentumImbalance = {
-      rating: "Potential Oversold",
-      interpretation: `Many assets are showing oversold RSI conditions (${oversoldCount}), suggesting potential for bounces.`,
-      score: 6, // Slightly bullish for new longs
-    };
-  } else {
-    results.momentumImbalance = {
-      rating: "Balanced Momentum",
-      interpretation: "Momentum indicators are generally balanced across assets.",
-      score: 5,
-    };
-  }
+  // --- Momentum Imbalance (Removed as per user request for real data only) ---
+  // The 'Momentum Imbalance' section using RSI has been completely removed.
 
   results.overallSentimentAccuracy = "Based on multiple indicators.";
 
