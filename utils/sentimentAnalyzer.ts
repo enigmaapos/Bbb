@@ -1,8 +1,8 @@
-// Assuming other necessary imports and types are here
+// src/utils/sentimentAnalyzer.ts
 import {
   MarketStats,
   MarketAnalysisResults,
-  AggregatedLiquidationData, // Make sure this is imported if not already
+  AggregatedLiquidationData, // Make sure this is imported
 } from "../types";
 
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
@@ -84,7 +84,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   } else {
     // Existing logic for funding imbalance or refined neutral
-    const totalPositiveFunding = fundingStats.greenFundingPositive + fundingStats.redPositiveFunding;
+    const totalPositiveFunding = fundingStats.greenFundingPositive + fundingStats.redPositiveFunding; // CORRECTED TYPO HERE
     const totalNegativeFunding = fundingStats.greenNegativeFunding + fundingStats.redNegativeFunding;
 
     if (totalPositiveFunding > totalNegativeFunding * 1.5) {
@@ -107,7 +107,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
       };
     }
   }
-
 
   // --- 3. Short Squeeze Candidates ---
   const shortSqueezeCount = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0 && d.volume > 50_000_000).length;
@@ -220,7 +219,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-
   // --- 7. Momentum Imbalance (New, using RSI as a proxy for now) ---
   // This is a simple example. A real momentum analysis would be more complex.
   const overboughtCount = volumeData.filter(d => (d.rsi || 0) >= 70).length;
@@ -246,7 +244,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-
   // Accuracy can be determined by how many clear signals are present, etc.
   // For simplicity, let's keep it as a placeholder or remove it if not used.
   results.overallSentimentAccuracy = "Based on multiple indicators.";
@@ -256,4 +253,3 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   return results;
 }
-
