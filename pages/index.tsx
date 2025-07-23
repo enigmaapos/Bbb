@@ -1,3 +1,4 @@
+// pages/index.tsx (or src/pages/index.tsx)
 import { useEffect, useState, useCallback, useMemo, useRef } from "react"; // Added useRef
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
@@ -169,22 +170,8 @@ export default function PriceFundingTracker() {
     volumeThreshold,
   ]);
 
-  const getSentimentClue = useCallback(() => {
-    if (marketAnalysis.overallMarketOutlook.score >= 8.0) {
-      return "🟢 Bullish Momentum: Look for dips or short squeezes";
-    }
-    if (marketAnalysis.overallMarketOutlook.score >= 7.0 && marketAnalysis.overallMarketOutlook.score < 8.0) {
-      return "🟡 Mixed leaning Bullish: Exercise caution";
-    }
-    if (marketAnalysis.overallMarketOutlook.score >= 5.0 && marketAnalysis.overallMarketOutlook.score < 7.0) {
-      return "↔️ Mixed/Neutral: Focus on scalping";
-    }
-    if (marketAnalysis.overallMarketOutlook.score < 5.0) {
-      return "🔴 Bearish Risk: Caution, longs are trapped";
-    }
-
-    return "⚪ Neutral: No clear edge, stay cautious";
-  }, [marketAnalysis.overallMarketOutlook.score]);
+  // getSentimentClue is now moved inside MarketAnalysisDisplay for overall outlook.
+  // const getSentimentClue = useCallback(() => { ... }, [marketAnalysis.overallMarketOutlook.score]);
 
 
   const aggregateLiquidationEvents = useCallback((events: LiquidationEvent[]): AggregatedLiquidationData => {
@@ -678,9 +665,9 @@ export default function PriceFundingTracker() {
           greenNegativeFunding={greenNegativeFunding}
           redPositiveFunding={redPositiveFunding}
           redNegativeFunding={redNegativeFunding}
-        /> 
+        />
 			</div>
-          
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
@@ -730,33 +717,15 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">    
-<p className="text-white text-sm font-bold mb-2">
-          🌐 Overall Sentiment:{" "}
-          <span
-            className={
-              getSentimentClue().includes("🟢")
-                ? "text-green-400"
-                : getSentimentClue().includes("🔴")
-                ? "text-red-400"
-                : getSentimentClue().includes("🟡")
-                ? "text-yellow-300"
-                : getSentimentClue().includes("↔️")
-                ? "text-blue-400"
-                : "text-gray-400"
-            }
-          >
-            {getSentimentClue()}
-          </span>
-        </p>
-</div>
+        {/* The overall sentiment text is now handled inside MarketAnalysisDisplay component */}
+        {/* Removed redundant overall sentiment display here */}
 
-<div className="mb-8">
+        <div className="mb-8">
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
           />
         </div>
-        
+
         <div className="my-8 h-px bg-gray-700" />
 
         <div className="mb-8">
