@@ -9,7 +9,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
     red,
-    fundingStats,
+    fundingStats, // This parameter is no longer directly used in the fundingImbalance logic
     volumeData,
     liquidationData,
   } = data;
@@ -59,16 +59,16 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // --- 2. Funding Imbalance (ONLY CUSTOM TRAP SQUEEZE LOGIC) ---
+  // --- 2. Funding Imbalance (ONLY Custom Sentiment Formula) ---
   const priceUpFundingNegative = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0).length;
   const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
 
   // Define thresholds based on your custom formula
-  const BULLISH_PUN_THRESHOLD = 30; // Price Up Negative Funding (changed from 13 as per your example: "≤ 30")
-  const BULLISH_PDP_THRESHOLD = 230; // Price Down Positive Funding (as per your example: "≥ 230")
+  const BULLISH_PUN_THRESHOLD = 30; // Price Up Negative Funding (shorts paying) is small
+  const BULLISH_PDP_THRESHOLD = 230; // Price Down Positive Funding (longs paying) is large
 
-  const BEARISH_PUN_THRESHOLD = 230; // Price Up Negative Funding (as per your example: "≥ 230")
-  const BEARISH_PDP_THRESHOLD = 30; // Price Down Positive Funding (changed from 13 as per your example: "≤ 30")
+  const BEARISH_PUN_THRESHOLD = 230; // Price Up Negative Funding (shorts paying) is large
+  const BEARISH_PDP_THRESHOLD = 30; // Price Down Positive Funding (longs paying) is small
 
   if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
     results.fundingImbalance = {
@@ -92,6 +92,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 3. Short Squeeze Candidates ---
+  // Note: These candidates also use volumeData, so ensuring volume is passed is crucial
   const shortSqueezeCount = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0 && d.volume > 50_000_000).length;
   if (shortSqueezeCount > 10) {
     results.shortSqueezeCandidates = {
@@ -114,6 +115,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 4. Long Trap Candidates ---
+  // Note: These candidates also use volumeData, so ensuring volume is passed is crucial
   const longTrapCount = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0 && d.volume > 50_000_000).length;
   if (longTrapCount > 10) {
     results.longTrapCandidates = {
