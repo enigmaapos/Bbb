@@ -170,10 +170,6 @@ export default function PriceFundingTracker() {
     volumeThreshold,
   ]);
 
-  // getSentimentClue is now moved inside MarketAnalysisDisplay for overall outlook.
-  // const getSentimentClue = useCallback(() => { ... }, [marketAnalysis.overallMarketOutlook.score]);
-
-
   const aggregateLiquidationEvents = useCallback((events: LiquidationEvent[]): AggregatedLiquidationData => {
     let totalLongLiquidationsUSD = 0;
     let totalShortLiquidationsUSD = 0;
@@ -227,11 +223,7 @@ export default function PriceFundingTracker() {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             method: "PING"
-          })); // Binance WebSocket expects a PING message for some streams, or an empty string for others.
-          // For !forceOrder@arr, a simple ws.ping() (browser native) is usually fine.
-          // If you face issues, try ws.send('{"method":"PING"}') or an empty string based on specific docs.
-          // For this public stream, a native ping() is more likely to be ignored or handled implicitly by the underlying TCP.
-          // But it is still good practice to send some data to keep the connection active for network intermediates.
+          }));
           console.log('Liquidation WS: Sent Ping frame/message.');
         }
       }, 3 * 60 * 1000); // Send ping every 3 minutes (180,000 ms)
@@ -272,8 +264,6 @@ export default function PriceFundingTracker() {
             setAggregatedLiquidationForSentiment(aggregated);
           }, 500); // Aggregate every 500ms for sentiment analysis
         }
-        // If it's an array of events (e.g., snapshot or different stream), handle differently if needed
-        // The !forceOrder@arr stream sends individual forceOrder objects.
       } catch (e) {
         console.error('Error parsing WS message or processing liquidation event:', e);
       }
@@ -307,7 +297,7 @@ export default function PriceFundingTracker() {
     };
 
     liquidationWsRef.current = ws; // Store the WebSocket instance in the ref
-  }, [aggregateLiquidationEvents]); // Depend on aggregateLiquidationEvents which is useCallback'd
+  }, [aggregateLiquidationEvents]);
 
   // --- Main Data Fetching and WebSocket Management Effect ---
   useEffect(() => {
@@ -354,6 +344,7 @@ export default function PriceFundingTracker() {
         setGreenCount(green);
         setRedCount(red);
 
+        // These counts are for display in Market Summary, not directly used by the new sentiment formula
         const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
         const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
         const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
@@ -381,12 +372,12 @@ export default function PriceFundingTracker() {
 
         const topShortSqueeze = combinedData
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
-          .sort((a, b) => a.fundingRate - b.fundingRate)
+          .sort((a, b) => a.fundingRate - b.fundingRate) // Sort by most negative funding rate
           .slice(0, 5);
 
         const topLongTrap = combinedData
           .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
-          .sort((a, b) => b.fundingRate - a.fundingRate)
+          .sort((a, b) => b.fundingRate - a.fundingRate) // Sort by most positive funding rate
           .slice(0, 5);
 
         setFundingImbalanceData({
@@ -415,10 +406,9 @@ export default function PriceFundingTracker() {
 
     // Initial fetch and then set interval for periodic refresh of REST data
     fetchAllData();
-    // Reverted interval to 10 seconds. This is well within Binance's public API rate limits.
-    const interval = setInterval(fetchAllData, 10000);
+    const interval = setInterval(fetchAllData, 10000); // Refresh every 10 seconds
 
-    // Connect to WebSocket here after REST data fetch, or independently if preferred
+    // Connect to WebSocket here
     connectLiquidationWs();
 
     // Cleanup function for REST API interval and WebSockets
@@ -442,7 +432,7 @@ export default function PriceFundingTracker() {
         aggregationTimeoutRef.current = null;
       }
     };
-  }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
+  }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]); // Added rawData.length for initial load condition
 
   // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
   useEffect(() => {
@@ -453,20 +443,23 @@ export default function PriceFundingTracker() {
     const marketStatsForAnalysis: MarketStats = {
       green: greenCount,
       red: redCount,
+      // fundingStats is still part of MarketStats type, but its internal properties
+      // are not directly used by the *new* fundingImbalance logic in sentimentAnalyzer.ts
+      // However, it's good to pass complete data structure if other parts might use it.
       fundingStats: {
         greenFundingPositive: greenPositiveFunding,
         greenNegativeFunding: greenNegativeFunding,
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      volumeData: rawData.map(d => ({ // Use rawData here
+      volumeData: rawData.map(d => ({ // IMPORTANT: Ensure volume and rsi are mapped here
         symbol: d.symbol,
         volume: d.volume,
         priceChange: d.priceChangePercent,
         fundingRate: d.fundingRate,
         rsi: d.rsi,
       })),
-      liquidationData: aggregatedLiquidationForSentiment, // Pass the aggregated liquidation data here
+      liquidationData: aggregatedLiquidationForSentiment,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
@@ -716,9 +709,6 @@ export default function PriceFundingTracker() {
           redPositiveFunding={redPositiveFunding}
           redNegativeFunding={redNegativeFunding}
         />
-
-        {/* The overall sentiment text is now handled inside MarketAnalysisDisplay component */}
-        {/* Removed redundant overall sentiment display here */}
 
         <div className="mb-8">
           <LiquidationHeatmap
