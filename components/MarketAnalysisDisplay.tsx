@@ -100,9 +100,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
         </div>
 
-        {/* Short Squeeze */}
+        {/* Potential Short Squeeze Setup */}
         <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-green-300 mb-1">Short Squeeze Potential</h3>
+          <h3 className="font-semibold text-green-300 mb-1">🕵️ Potential Short Squeeze Setup</h3>
           <p className="text-green-300">{marketAnalysis.shortSqueezeCandidates.rating}</p>
           <p className="text-green-200 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.shortSqueezeCandidates.score)}`}>
@@ -110,7 +110,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
           {fundingImbalanceData.topShortSqueeze.length > 0 && (
             <div className="mt-2 text-xs">
-              <p className="font-semibold text-green-200">Top Candidates:</p>
+              <p className="font-semibold text-green-200">Watchlist Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topShortSqueeze.map((s) => (
                   <li key={s.symbol}>
@@ -122,9 +122,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           )}
         </div>
 
-        {/* Long Trap */}
+        {/* Potential Long Trap Setup */}
         <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-red-300 mb-1">Long Trap Risk</h3>
+          <h3 className="font-semibold text-red-300 mb-1">🕵️ Potential Long Trap Setup</h3>
           <p className="text-red-300">{marketAnalysis.longTrapCandidates.rating}</p>
           <p className="text-red-200 text-xs mt-1">{marketAnalysis.longTrapCandidates.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.longTrapCandidates.score)}`}>
@@ -132,7 +132,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
           {fundingImbalanceData.topLongTrap.length > 0 && (
             <div className="mt-2 text-xs">
-              <p className="font-semibold text-red-200">Top Candidates:</p>
+              <p className="font-semibold text-red-200">Watchlist Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topLongTrap.map((s) => (
                   <li key={s.symbol}>
