@@ -2,14 +2,14 @@
 import {
   MarketStats,
   MarketAnalysisResults,
-  AggregatedLiquidationData,
-} from "../types";
+  // AggregatedLiquidationData, // Not directly used in analyzeSentiment arguments
+  SentimentArticle, // Import the new type
+} from "../types"; // Make sure to update your types.ts file as well
 
-export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
+export function analyzeSentiment(data: MarketStats, news: SentimentArticle[] = []): MarketAnalysisResults {
   const {
     green,
     red,
-    // fundingStats, // This parameter is no longer directly used in the fundingImbalance logic, nor in the general sentiment calcs
     volumeData,
     liquidationData,
   } = data;
@@ -21,7 +21,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    // momentumImbalance: { rating: "", interpretation: "", score: 0 }, // REMOVED
+    newsSentiment: { rating: "", interpretation: "", score: 0 }, // NEW: News Sentiment
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   };
@@ -202,8 +202,82 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // --- Momentum Imbalance (Removed as per user request for real data only) ---
-  // The 'Momentum Imbalance' section using RSI has been completely removed.
+  // --- 7. News Sentiment (NEW) ---
+  if (news && news.length > 0) {
+    let bullishNewsCount = 0;
+    let bearishNewsCount = 0;
+    let neutralNewsCount = 0;
+
+    news.forEach(article => {
+      // Simple keyword-based sentiment detection for headlines
+      const lowerTitle = article.title.toLowerCase();
+      if (
+        lowerTitle.includes("etf inflow") ||
+        lowerTitle.includes("etf surge") ||
+        lowerTitle.includes("institutional adoption") ||
+        lowerTitle.includes("record high") ||
+        lowerTitle.includes("breakout") ||
+        lowerTitle.includes("rally") ||
+        lowerTitle.includes("bullish") ||
+        lowerTitle.includes("positive outlook") ||
+        lowerTitle.includes("legislative momentum") ||
+        lowerTitle.includes("schwab") || // Specific to your example news
+        lowerTitle.includes("$4t") // Specific to your example news
+      ) {
+        bullishNewsCount++;
+      } else if (
+        lowerTitle.includes("profit-taking") ||
+        lowerTitle.includes("bearish") ||
+        lowerTitle.includes("sell-off") ||
+        lowerTitle.includes("decline") ||
+        lowerTitle.includes("regulatory chill") ||
+        lowerTitle.includes("concerns") ||
+        lowerTitle.includes("fears")
+      ) {
+        bearishNewsCount++;
+      } else {
+        neutralNewsCount++;
+      }
+    });
+
+    if (bullishNewsCount > bearishNewsCount * 1.5) {
+      results.newsSentiment = {
+        rating: "Strongly Bullish News Flow",
+        interpretation: `Predominantly positive headlines (${bullishNewsCount} bullish, ${bearishNewsCount} bearish) supporting a strong market.`,
+        score: 9.0,
+      };
+    } else if (bearishNewsCount > bullishNewsCount * 1.5) {
+      results.newsSentiment = {
+        rating: "Strongly Bearish News Flow",
+        interpretation: `Predominantly negative headlines (${bearishNewsCount} bearish, ${bullishNewsCount} bullish) indicating headwinds.`,
+        score: 1.0,
+      };
+    } else if (bullishNewsCount > bearishNewsCount) {
+      results.newsSentiment = {
+        rating: "Slightly Bullish News",
+        interpretation: `More positive news than negative news (${bullishNewsCount} bullish, ${bearishNewsCount} bearish).`,
+        score: 7.0,
+      };
+    } else if (bearishNewsCount > bullishNewsCount) {
+      results.newsSentiment = {
+        rating: "Slightly Bearish News",
+        interpretation: `More negative news than positive news (${bearishNewsCount} bearish, ${bullishNewsCount} bullish).`,
+        score: 3.0,
+      };
+    } else {
+      results.newsSentiment = {
+        rating: "Neutral News Flow",
+        interpretation: `Balanced or few significant bullish/bearish news items (${bullishNewsCount} bullish, ${bearishNewsCount} bearish, ${neutralNewsCount} neutral).`,
+        score: 5.0,
+      };
+    }
+  } else {
+    results.newsSentiment = {
+      rating: "No Recent News",
+      interpretation: "No recent news articles to analyze for sentiment.",
+      score: 5.0, // Neutral if no news available
+    };
+  }
 
   results.overallSentimentAccuracy = "Based on multiple indicators.";
 
