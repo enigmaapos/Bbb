@@ -132,6 +132,22 @@ export default function PriceFundingTracker() {
     newsSentiment: { rating: "", interpretation: "", score: 0 }, // NEW: Initialize news sentiment
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
+    // Initialize MarketData and NewsData here as empty or default values
+    marketData: {
+      greenCount: 0,
+      redCount: 0,
+      greenPositiveFunding: 0,
+      greenNegativeFunding: 0,
+      redPositiveFunding: 0,
+      redNegativeFunding: 0,
+      priceUpFundingNegativeCount: 0,
+      priceDownFundingPositiveCount: 0,
+      topShortSqueeze: [],
+      topLongTrap: [],
+      totalLongLiquidationsUSD: 0,
+      totalShortLiquidationsUSD: 0,
+    },
+    newsData: [],
   });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
@@ -312,7 +328,7 @@ export default function PriceFundingTracker() {
 
         const allFetchedNews: SentimentArticle[] = [
           ...btcNews.map(article => ({ ...article, source: article.source.name })), // Flatten source object
-          ...ethNews.map(article => ({ ...article.source.name, ...article })),
+          ...ethNews.map(article => ({ ...article, source: article.source.name })), // Flatten source object
         ];
         setCryptoNews(allFetchedNews); // Store news in state
 
@@ -512,6 +528,21 @@ export default function PriceFundingTracker() {
         tone: finalOutlookTone,
         strategySuggestion: strategySuggestion,
       },
+      marketData: {
+        greenCount: greenCount,
+        redCount: redCount,
+        greenPositiveFunding: greenPositiveFunding,
+        greenNegativeFunding: greenNegativeFunding,
+        redPositiveFunding: redPositiveFunding,
+        redNegativeFunding: redNegativeFunding,
+        priceUpFundingNegativeCount: priceUpFundingNegativeCount,
+        priceDownFundingPositiveCount: priceDownFundingPositiveCount,
+        topShortSqueeze: fundingImbalanceData.topShortSqueeze,
+        topLongTrap: fundingImbalanceData.topLongTrap,
+        totalLongLiquidationsUSD: aggregatedLiquidationForSentiment?.totalLongLiquidationsUSD || 0,
+        totalShortLiquidationsUSD: aggregatedLiquidationForSentiment?.totalShortLiquidationsUSD || 0,
+      },
+      newsData: cryptoNews,
     });
 
   }, [
@@ -519,6 +550,7 @@ export default function PriceFundingTracker() {
     aggregatedLiquidationForSentiment,
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
     cryptoNews, // NEW: Add cryptoNews as a dependency
+    priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
   ]);
 
 
