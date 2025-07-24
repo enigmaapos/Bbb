@@ -118,6 +118,7 @@ export default function PriceFundingTracker() {
     topLongTrap: [] as SymbolData[],
   });
 
+  // CORRECTED: Ensure all properties of MarketAnalysisResults are initialized
   const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysisResults>({
     generalBias: { rating: "", interpretation: "", score: 0 },
     fundingImbalance: { rating: "", interpretation: "", score: 0 },
@@ -125,8 +126,7 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    // THIS WAS THE MISSING LINE IN THE PREVIOUS UPDATE:
-    highQualityBreakout: { rating: "", interpretation: "", score: 0 },
+    highQualityBreakout: { rating: "", interpretation: "", score: 0 }, // <--- This line must be present and match the interface
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   });
