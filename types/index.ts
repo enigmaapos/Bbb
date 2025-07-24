@@ -48,6 +48,26 @@ export interface SentimentArticle {
   publishedAt: string;
 }
 
+// NEW: Interface for MarketData to be passed to MarketAnalysisDisplay
+export interface MarketData {
+  greenCount: number;
+  redCount: number;
+  greenPositiveFunding: number;
+  greenNegativeFunding: number;
+  redPositiveFunding: number;
+  redNegativeFunding: number;
+  priceUpFundingNegativeCount: number;
+  priceDownFundingPositiveCount: number;
+  topShortSqueeze: SymbolData[];
+  topLongTrap: SymbolData[];
+  totalLongLiquidationsUSD: number;
+  totalShortLiquidationsUSD: number;
+}
+
+// NEW: Interface for NewsData to be passed to MarketAnalysisDisplay
+export interface NewsData extends Array<SentimentArticle> {}
+
+
 export interface MarketAnalysisResults {
   generalBias: MarketAnalysisResultDetail;
   fundingImbalance: MarketAnalysisResultDetail;
@@ -62,6 +82,8 @@ export interface MarketAnalysisResults {
     tone: string;
     strategySuggestion: string;
   };
+  marketData: MarketData; // ADDED: Market data for detailed display
+  newsData: NewsData;     // ADDED: News data for detailed display
 }
 
 export interface MarketStats {
