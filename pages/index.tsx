@@ -5,6 +5,8 @@ import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
+
+// CORRECTED: Import ALL custom types from a single src/types.ts file
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -14,13 +16,13 @@ import {
   MarketAnalysisResults,
   SentimentSignal,
   SentimentArticle,
-} from "../types";
-import {
-  BinanceExchangeInfoResponse,
-  BinanceSymbol,
-  BinanceTicker24hr,
-  BinancePremiumIndex,
-} from "../types/binance";
+  BinanceExchangeInfoResponse, // Now imported from ../types
+  BinanceSymbol, // Now imported from ../types
+  BinanceTicker24hr, // Now imported from ../types
+  BinancePremiumIndex, // Now imported from ../types
+} from "../types"; // <-- All types are here now
+
+// Corrected imports for utils from the 'src/utils' directory
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import { detectSentimentSignals } from "../utils/signalDetector";
 import { fetchCryptoNews } from "../utils/newsFetcher";
@@ -91,7 +93,7 @@ export default function PriceFundingTracker() {
 
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
-  // NEW: State for news data
+  // State for news data
   const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
   // Liquidation data states
@@ -129,7 +131,7 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    newsSentiment: { rating: "", interpretation: "", score: 0 },
+    newsSentiment: { rating: "", interpretation: "", score: 0 }, // Initialize newsSentiment
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
     marketData: {
@@ -146,7 +148,7 @@ export default function PriceFundingTracker() {
       totalLongLiquidationsUSD: 0,
       totalShortLiquidationsUSD: 0,
     },
-    newsData: [],
+    newsData: [], // Initialize newsData
   });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
@@ -329,7 +331,8 @@ export default function PriceFundingTracker() {
           ...btcNews,
           ...ethNews,
         ];
-        setCryptoNews(allFetchedNews); // Store news in state
+        // Set cryptoNews state here
+        setCryptoNews(allFetchedNews);
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
@@ -465,7 +468,10 @@ export default function PriceFundingTracker() {
   // --- Effect to run Sentiment Analysis when market data or liquidation data or news data changes ---
   useEffect(() => {
     // Only run sentiment analysis if we have rawData, liquidation data, or news
-    if (rawData.length === 0 && !aggregatedLiquidationForSentiment && cryptoNews.length === 0) return;
+    if (rawData.length === 0 && !aggregatedLiquidationForSentiment && cryptoNews.length === 0) {
+      console.log("Skipping sentiment analysis: no data yet.");
+      return;
+    }
 
     const marketStatsForAnalysis: MarketStats = {
       green: greenCount,
@@ -476,10 +482,10 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      // FIX: Pass rawData directly, as it is already SymbolData[]
+      // Pass rawData directly, as it is already SymbolData[]
       volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
-      // FIX: Pass newsArticles from cryptoNews state
+      // CORRECTED: Pass newsArticles from cryptoNews state
       newsArticles: cryptoNews,
     };
 
@@ -493,6 +499,7 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
+      // CORRECTED: Ensure newsSentiment score is included in average calculation
       sentimentResults.newsSentiment.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
@@ -522,7 +529,7 @@ export default function PriceFundingTracker() {
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
-      newsSentiment: sentimentResults.newsSentiment,
+      newsSentiment: sentimentResults.newsSentiment, // Ensure newsSentiment is passed
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
       overallMarketOutlook: {
         score: parseFloat(averageScore.toFixed(1)),
@@ -543,14 +550,14 @@ export default function PriceFundingTracker() {
         totalLongLiquidationsUSD: aggregatedLiquidationForSentiment?.totalLongLiquidationsUSD || 0,
         totalShortLiquidationsUSD: aggregatedLiquidationForSentiment?.totalShortLiquidationsUSD || 0,
       },
-      newsData: cryptoNews,
+      newsData: cryptoNews, // Ensure newsData is passed
     });
 
   }, [
     rawData,
     aggregatedLiquidationForSentiment,
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
-    cryptoNews,
+    cryptoNews, // Add cryptoNews to the dependency array
     priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
   ]);
 
@@ -743,6 +750,7 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
+        {/* Pass the entire marketAnalysis object to MarketAnalysisDisplay */}
         <MarketAnalysisDisplay
           marketAnalysis={marketAnalysis}
           fundingImbalanceData={fundingImbalanceData}
@@ -758,9 +766,10 @@ export default function PriceFundingTracker() {
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
           />
-        </div>   
+        </div>
 
-	 {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
+	 {/* --- SECTION FOR CRYPTO MACRO NEWS (Displaying fetched news) --- */}
+        {/* Only render this section if there's news data available */}
         {cryptoNews.length > 0 && (
           <section className="mt-6 p-4 bg-gray-800 rounded-lg text-sm border border-gray-700 shadow-md">
             <h3 className="text-white font-semibold mb-3 flex items-center">
@@ -784,7 +793,7 @@ export default function PriceFundingTracker() {
             </ul>
           </section>
         )}
-        {/* --- END NEW SECTION --- */}     
+        {/* --- END CRYPTO MACRO NEWS SECTION --- */}
 
         {(bullishActionableSignals.length > 0 || bearishActionableSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
