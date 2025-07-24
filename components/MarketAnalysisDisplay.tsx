@@ -1,7 +1,7 @@
 // src/components/MarketAnalysisDisplay.tsx
 import React from 'react';
 import { MarketAnalysisResults, AggregatedLiquidationData } from '../types';
-import { SymbolData } from '../types'; // Ensure SymbolData is imported if needed for top lists
+import { SymbolData } from '../types';
 
 interface MarketAnalysisDisplayProps {
   marketAnalysis: MarketAnalysisResults;
@@ -21,7 +21,6 @@ interface MarketAnalysisDisplayProps {
   redNegativeFunding: number;
 }
 
-// Helper function to format large numbers with M, B, T suffixes (Duplicate from index.tsx)
 const formatVolume = (num: number): string => {
   if (num === 0) return "0";
   const formatter = new Intl.NumberFormat("en-US", {
@@ -51,7 +50,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   };
 
   const scoreToStars = (score: number) => {
-    const numStars = Math.round(score / 2); // Scale 0-10 to 0-5 stars
+    const numStars = Math.round(score / 2);
     return "⭐".repeat(numStars) + "☆".repeat(5 - numStars);
   };
 
@@ -74,7 +73,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           {scoreToStars(marketAnalysis.overallMarketOutlook.score)}
         </span>
         <br />
-        <span className="text-gray-400 italic text-xs ml-4">Strategy Suggestion: {marketAnalysis.overallMarketOutlook.strategySuggestion}</span>
+        <span className="text-gray-400 italic text-xs ml-4">
+          Strategy Suggestion: {marketAnalysis.overallMarketOutlook.strategySuggestion}
+        </span>
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
@@ -82,28 +83,28 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* General Bias */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-blue-300 mb-1">General Bias</h3>
-          <p className="text-gray-300">{marketAnalysis.generalBias.rating}</p>
-          <p className="text-gray-400 text-xs mt-1">{marketAnalysis.generalBias.interpretation}</p>
+          <p className="text-blue-300">{marketAnalysis.generalBias.rating}</p>
+          <p className="text-blue-200 text-xs mt-1">{marketAnalysis.generalBias.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.generalBias.score)}`}>
             Score: {marketAnalysis.generalBias.score.toFixed(1)}
           </p>
         </div>
 
-        {/* Funding Imbalance (Updated) */}
+        {/* Funding Imbalance */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-yellow-300 mb-1">Funding Imbalance</h3>
-          <p className="text-gray-300">{marketAnalysis.fundingImbalance.rating}</p>
-          <p className="text-gray-400 text-xs mt-1">{marketAnalysis.fundingImbalance.interpretation}</p>
+          <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
+          <p className="text-yellow-100 text-xs mt-1">{marketAnalysis.fundingImbalance.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.fundingImbalance.score)}`}>
             Score: {marketAnalysis.fundingImbalance.score.toFixed(1)}
           </p>
         </div>
 
-        {/* Short Squeeze Candidates */}
+        {/* Short Squeeze */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-green-300 mb-1">Short Squeeze Potential</h3>
-          <p className="text-gray-300">{marketAnalysis.shortSqueezeCandidates.rating}</p>
-          <p className="text-gray-400 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
+          <p className="text-green-300">{marketAnalysis.shortSqueezeCandidates.rating}</p>
+          <p className="text-green-200 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.shortSqueezeCandidates.score)}`}>
             Score: {marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}
           </p>
@@ -112,18 +113,20 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
               <p className="font-semibold text-green-200">Top Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topShortSqueeze.map((s) => (
-                  <li key={s.symbol}>{s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})</li>
+                  <li key={s.symbol}>
+                    {s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})
+                  </li>
                 ))}
               </ul>
             </div>
           )}
         </div>
 
-        {/* Long Trap Candidates */}
+        {/* Long Trap */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-red-300 mb-1">Long Trap Risk</h3>
-          <p className="text-gray-300">{marketAnalysis.longTrapCandidates.rating}</p>
-          <p className="text-gray-400 text-xs mt-1">{marketAnalysis.longTrapCandidates.interpretation}</p>
+          <p className="text-red-300">{marketAnalysis.longTrapCandidates.rating}</p>
+          <p className="text-red-200 text-xs mt-1">{marketAnalysis.longTrapCandidates.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.longTrapCandidates.score)}`}>
             Score: {marketAnalysis.longTrapCandidates.score.toFixed(1)}
           </p>
@@ -132,7 +135,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
               <p className="font-semibold text-red-200">Top Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topLongTrap.map((s) => (
-                  <li key={s.symbol}>{s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})</li>
+                  <li key={s.symbol}>
+                    {s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})
+                  </li>
                 ))}
               </ul>
             </div>
@@ -142,34 +147,22 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* Volume Sentiment */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-purple-300 mb-1">Volume Sentiment</h3>
-          <p className="text-gray-300">{marketAnalysis.volumeSentiment.rating}</p>
-          <p className="text-gray-400 text-xs mt-1">{marketAnalysis.volumeSentiment.interpretation}</p>
+          <p className="text-purple-300">{marketAnalysis.volumeSentiment.rating}</p>
+          <p className="text-purple-200 text-xs mt-1">{marketAnalysis.volumeSentiment.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.volumeSentiment.score)}`}>
             Score: {marketAnalysis.volumeSentiment.score.toFixed(1)}
           </p>
         </div>
 
-        {/* Liquidation Heatmap Sentiment */}
+        {/* Liquidation Heatmap */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-pink-300 mb-1">Liquidation Sentiment</h3>
-          <p className="text-gray-300">{marketAnalysis.liquidationHeatmap.rating}</p>
-          <p className="text-gray-400 text-xs mt-1">{marketAnalysis.liquidationHeatmap.interpretation}</p>
+          <p className="text-pink-300">{marketAnalysis.liquidationHeatmap.rating}</p>
+          <p className="text-pink-200 text-xs mt-1">{marketAnalysis.liquidationHeatmap.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.liquidationHeatmap.score)}`}>
             Score: {marketAnalysis.liquidationHeatmap.score.toFixed(1)}
           </p>
         </div>
-
-        {/* Removed Momentum Imbalance (RSI) section */}
-        {/*
-        <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-cyan-300 mb-1">Momentum Imbalance (RSI)</h3>
-          <p className="text-gray-300">{marketAnalysis.momentumImbalance.rating}</p>
-          <p className="text-gray-400 text-xs mt-1">{marketAnalysis.momentumImbalance.interpretation}</p>
-          <p className={`text-right font-bold ${getScoreColor(marketAnalysis.momentumImbalance.score)}`}>
-            Score: {marketAnalysis.momentumImbalance.score.toFixed(1)}
-          </p>
-        </div>
-        */}
 
       </div>
     </div>
