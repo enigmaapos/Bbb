@@ -58,8 +58,8 @@ export interface MarketData {
   redNegativeFunding: number;
   priceUpFundingNegativeCount: number;
   priceDownFundingPositiveCount: number;
-  topShortSqueeze: SymbolData[];
-  topLongTrap: SymbolData[];
+  topShortSqueeze: SymbolData[]; // This now correctly expects SymbolData[]
+  topLongTrap: SymbolData[];     // This now correctly expects SymbolData[]
   totalLongLiquidationsUSD: number;
   totalShortLiquidationsUSD: number;
 }
@@ -95,14 +95,11 @@ export interface MarketStats {
     redPositiveFunding: number;
     redNegativeFunding: number;
   };
-  volumeData: {
-    symbol: string;
-    volume: number;
-    priceChange: number;
-    fundingRate: number;
-  }[];
+  // *** CRITICAL CHANGE HERE ***
+  // volumeData MUST be of type SymbolData[] when passed into analyzeSentiment
+  volumeData: SymbolData[];
   liquidationData: AggregatedLiquidationData | undefined;
-  // newsData?: SentimentArticle[]; // Optional: Could be added here if you prefer passing news this way
+  newsArticles: SentimentArticle[]; // Assuming news is passed as part of MarketStats now
 }
 
 export interface SentimentSignal {
@@ -113,11 +110,11 @@ export interface SentimentSignal {
 
 export interface BinanceTicker24hr {
   symbol: string;
-  priceChange: string;
-  priceChangePercent: string;
+  priceChange: string; // Absolute change
+  priceChangePercent: string; // Percentage change (used for SymbolData)
   weightedAvgPrice: string;
   prevClosePrice: string;
-  lastPrice: string;
+  lastPrice: string; // Used for SymbolData
   lastQty: string;
   bidPrice: string;
   bidQty: string;
@@ -126,7 +123,7 @@ export interface BinanceTicker24hr {
   openPrice: string;
   highPrice: string;
   lowPrice: string;
-  volume: string; // Base asset volume
+  volume: string; // Base asset volume (used for SymbolData)
   quoteVolume: string; // Quote asset volume (e.g., USDT volume)
   openTime: number;
   closeTime: number;
