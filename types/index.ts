@@ -1,19 +1,12 @@
 // src/types/index.ts
 
-// --- Data Structures ---
+// Existing interfaces/types
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
   volume: number;
-}
-
-export interface FundingStats {
-  greenPositiveFunding: number;
-  greenNegativeFunding: number;
-  redPositiveFunding: number;
-  redNegativeFunding: number;
 }
 
 export interface SymbolTradeSignal {
@@ -28,7 +21,7 @@ export interface SymbolTradeSignal {
 
 export interface LiquidationEvent {
   symbol: string;
-  side: "BUY" | "SELL"; // BUY for short liquidation, SELL for long liquidation
+  side: "BUY" | "SELL";
   price: number;
   quantity: number;
   timestamp: number;
@@ -41,33 +34,14 @@ export interface AggregatedLiquidationData {
   shortLiquidationCount: number;
 }
 
-// --- Sentiment Analysis Structures ---
-
+// Ensure SentimentRating is defined for MarketAnalysisResults
 export interface SentimentRating {
   rating: string;
   interpretation: string;
   score: number;
 }
 
-export interface OverallMarketOutlook {
-  score: number;
-  tone: string;
-  strategySuggestion: string;
-}
-
-export interface MarketStats {
-  green: number;
-  red: number;
-  fundingStats: FundingStats;
-  volumeData: Array<{
-    symbol: string;
-    volume: number;
-    priceChange: number;
-    fundingRate: number;
-  }>;
-  liquidationData?: AggregatedLiquidationData; // Optional, as it might be loading
-}
-
+// Updated MarketAnalysisResults interface
 export interface MarketAnalysisResults {
   generalBias: SentimentRating;
   fundingImbalance: SentimentRating;
@@ -75,12 +49,17 @@ export interface MarketAnalysisResults {
   longTrapCandidates: SentimentRating;
   volumeSentiment: SentimentRating;
   liquidationHeatmap: SentimentRating;
-  // momentumImbalance: SentimentRating; // REMOVED: No longer using real RSI
-  overallSentimentAccuracy: string; // Consider if still needed, might simplify to interpretation directly
-  overallMarketOutlook: OverallMarketOutlook;
+  // THIS IS THE KEY ADDITION/CONFIRMATION FOR THE BUILD ERROR
+  highQualityBreakout: SentimentRating;
+  overallSentimentAccuracy: string;
+  overallMarketOutlook: {
+    score: number;
+    tone: string;
+    strategySuggestion: string;
+  };
 }
 
-// NEW TYPE ADDED:
+// NEW TYPE: For your checklist script
 export type SentimentSignal = {
   symbol: string;
   signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
@@ -88,3 +67,20 @@ export type SentimentSignal = {
 };
 
 
+export interface MarketStats {
+  green: number;
+  red: number;
+  fundingStats: {
+    greenPositiveFunding: number;
+    greenNegativeFunding: number;
+    redPositiveFunding: number;
+    redNegativeFunding: number;
+  };
+  volumeData: Array<{
+    symbol: string;
+    volume: number;
+    priceChange: number;
+    fundingRate: number;
+  }>;
+  liquidationData?: AggregatedLiquidationData; // Optional, as it might not always be available immediately
+}
