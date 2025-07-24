@@ -1,33 +1,39 @@
 // src/utils/sentimentAnalyzer.ts
+import { SentimentAnalyzer } from 'vader-sentiment';
 import {
   MarketStats,
   MarketAnalysisResults,
-  AggregatedLiquidationData,
-  SymbolData,
-  MarketData,
-  NewsData,
-  SentimentArticle,
+  // Ensure these types are correctly imported if used in analyzeSentiment
+  // SymbolData, AggregatedLiquidationData, NewsData, SentimentArticle
 } from "../types";
 
-// Import VADER sentiment analyzer
-import { SentimentAnalyzer } from 'vader-sentiment';
+// --- START: New/Updated Helper for Individual Article Sentiment ---
+export interface IndividualSentimentResult {
+  compound: number;
+  category: 'positive' | 'negative' | 'neutral';
+}
 
-// Helper function to get sentiment from text using VADER
-function getVaderSentiment(text: string): { compound: number; category: 'positive' | 'negative' | 'neutral' } {
+/**
+ * Analyzes the sentiment of a single piece of text using VADER.
+ * @param text The text content (e.g., article title, description, or content).
+ * @returns An object with a compound score (-1 to +1) and a sentiment category.
+ */
+export function getVaderSentiment(text: string | null | undefined): IndividualSentimentResult {
   if (!text || text.trim() === '') {
     return { compound: 0, category: 'neutral' };
   }
 
   const analyzer = new SentimentAnalyzer();
-  const sentiment = analyzer.get : get.getSentiment(text); // Use getSentiment method
+  // Correct method call for vader-sentiment
+  const sentiment = analyzer.getSentiment(text);
 
-  // VADER's compound score ranges from -1 (most negative) to +1 (most positive)
   const compound = sentiment.compound;
 
   let category: 'positive' | 'negative' | 'neutral';
-  if (compound >= 0.05) { // Common threshold for positive
+  // You can fine-tune these thresholds based on your needs
+  if (compound >= 0.05) {
     category = 'positive';
-  } else if (compound <= -0.05) { // Common threshold for negative
+  } else if (compound <= -0.05) {
     category = 'negative';
   } else {
     category = 'neutral';
@@ -35,17 +41,20 @@ function getVaderSentiment(text: string): { compound: number; category: 'positiv
 
   return { compound, category };
 }
+// --- END: New/Updated Helper ---
 
 
-// The function now takes MarketStats, which includes newsArticles directly
+// --- START: Your main Market Analysis Function (Updated for News Sentiment) ---
+// This function remains largely the same, but its news sentiment part will now
+// use the sentimentScore and sentimentCategory already present on `newsArticles`.
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
     red,
     fundingStats,
-    volumeData,
+    volumeData, // Make sure volumeData has `priceChange` and `fundingRate`
     liquidationData,
-    newsArticles,
+    newsArticles, // These articles should now already have sentimentScore and sentimentCategory
   } = data;
 
   const results: MarketAnalysisResults = {
@@ -72,7 +81,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
         totalLongLiquidationsUSD: liquidationData?.totalLongLiquidationsUSD || 0,
         totalShortLiquidationsUSD: liquidationData?.totalShortLiquidationsUSD || 0,
     },
-    newsData: newsArticles, // Directly use the newsArticles passed in MarketStats
+    newsData: newsArticles,
   };
 
   // --- 1. General Bias (Existing Logic) ---
@@ -109,8 +118,12 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 2. Funding Imbalance (Existing Logic) ---
-  const priceUpFundingNegative = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0).length;
-  const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
+  // IMPORTANT: Ensure `volumeData` in MarketStats contains `priceChange`
+  // Your `SymbolData` interface has `priceChangePercent`, not `priceChange`.
+  // You need to decide whether to use `priceChangePercent` here or
+  // modify `SymbolData` to include `priceChange`. Assuming `priceChangePercent` is intended.
+  const priceUpFundingNegative = volumeData.filter(d => d.priceChangePercent > 0 && d.fundingRate < 0).length;
+  const priceDownFundingPositive = volumeData.filter(d => d.priceChangePercent < 0 && d.fundingRate > 0).length;
 
   results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
   results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
@@ -143,20 +156,20 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   // --- 3. Short Squeeze Candidates (Existing Logic) ---
   const topShortSqueezeCandidates = volumeData
-    .filter(d => d.priceChange > 0 && d.fundingRate < 0)
+    .filter(d => d.priceChangePercent > 0 && d.fundingRate < 0) // Use priceChangePercent
     .sort((a, b) => a.fundingRate - b.fundingRate)
     .slice(0, 5);
-  
+
   results.marketData.topShortSqueeze = topShortSqueezeCandidates;
 
   const shortSqueezeCount = topShortSqueezeCandidates.filter(d => d.volume > 50_000_000).length;
-  if (shortSqueezeCount > 3) { // Adjusted threshold for top 5 candidates
+  if (shortSqueezeCount > 3) {
     results.shortSqueezeCandidates = {
       rating: "High Potential",
       interpretation: `Multiple pairs (${shortSqueezeCount} of top 5) show price appreciation with negative funding, indicating shorts are being squeezed.`,
       score: 8,
     };
-  } else if (shortSqueezeCount > 0) { // If there's at least one
+  } else if (shortSqueezeCount > 0) {
     results.shortSqueezeCandidates = {
       rating: "Moderate Potential",
       interpretation: `Some pairs (${shortSqueezeCount} of top 5) show signs of short squeezes.`,
@@ -172,20 +185,20 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   // --- 4. Long Trap Candidates (Existing Logic) ---
   const topLongTrapCandidates = volumeData
-    .filter(d => d.priceChange < 0 && d.fundingRate > 0)
+    .filter(d => d.priceChangePercent < 0 && d.fundingRate > 0) // Use priceChangePercent
     .sort((a, b) => b.fundingRate - a.fundingRate)
     .slice(0, 5);
 
   results.marketData.topLongTrap = topLongTrapCandidates;
 
   const longTrapCount = topLongTrapCandidates.filter(d => d.volume > 50_000_000).length;
-  if (longTrapCount > 3) { // Adjusted threshold for top 5 candidates
+  if (longTrapCount > 3) {
     results.longTrapCandidates = {
       rating: "High Risk",
       interpretation: `Multiple pairs (${longTrapCount} of top 5) show price depreciation with positive funding, indicating longs are trapped.`,
       score: 2,
     };
-  } else if (longTrapCount > 0) { // If there's at least one
+  } else if (longTrapCount > 0) {
     results.longTrapCandidates = {
       rating: "Moderate Risk",
       interpretation: `Some pairs (${longTrapCount} of top 5) show signs of long traps.`,
@@ -200,8 +213,8 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 5. Volume Sentiment (Existing Logic) ---
-  const bullishVolume = volumeData.filter(d => d.priceChange > 0 && d.volume > 100_000_000).length;
-  const bearishVolume = volumeData.filter(d => d.priceChange < 0 && d.volume > 100_000_000).length;
+  const bullishVolume = volumeData.filter(d => d.priceChangePercent > 0 && d.volume > 100_000_000).length; // Use priceChangePercent
+  const bearishVolume = volumeData.filter(d => d.priceChangePercent < 0 && d.volume > 100_000_000).length; // Use priceChangePercent
 
   if (bullishVolume > bearishVolume * 2) {
     results.volumeSentiment = {
@@ -266,61 +279,45 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // --- 7. Enhanced News Sentiment Analysis using VADER ---
-  let totalNewsCompoundScore = 0;
-  let analyzedArticleCount = 0;
+  // --- 7. Corrected News Sentiment Analysis (Aggregating Pre-analyzed News) ---
+  let totalNewsScore = 0;
+  let validNewsCount = 0;
 
   newsArticles.forEach(article => {
-    // VADER works best on sentences or full text.
-    // NewsAPI 'content' field is often truncated. 'title' is more reliable for VADER for short texts.
-    // Ideally, you'd fetch full article content for best accuracy.
-    const textToAnalyze = article.title; // Fallback to title if content is missing or short
-    if (article.content && article.content.length > 50) { // Prefer content if available and long enough
-      textToAnalyze = article.content;
+    // These articles should already have sentimentScore calculated by the /api/news route
+    if (article.sentimentScore !== undefined && article.sentimentScore !== null) {
+      totalNewsScore += article.sentimentScore;
+      validNewsCount++;
     }
-    
-    const { compound } = getVaderSentiment(textToAnalyze);
-    totalNewsCompoundScore += compound;
-    analyzedArticleCount++;
   });
 
-  let averageNewsCompoundScore = 0;
-  if (analyzedArticleCount > 0) {
-    averageNewsCompoundScore = totalNewsCompoundScore / analyzedArticleCount;
+  let averageNewsSentimentScore = 5; // Default to neutral on a 1-10 scale
+  if (validNewsCount > 0) {
+    averageNewsSentimentScore = totalNewsScore / validNewsCount;
   }
 
-  // Map VADER's -1 to +1 range to your 1-10 score
-  // A simple linear mapping: score = (compound + 1) * 4.5 + 1
-  // This makes -1 become 1, 0 become 5.5, and +1 become 10.
-  const mappedNewsScore = (averageNewsCompoundScore + 1) * 4.5 + 1;
-  newsSentimentScore = parseFloat(mappedNewsScore.toFixed(2));
+  // Classify based on the average 1-10 score
+  let newsSentimentRating = "Neutral News";
+  let newsSentimentInterpretation = `News sentiment is balanced or indecisive (Avg. score: ${averageNewsSentimentScore.toFixed(2)}).`;
 
-  if (averageNewsCompoundScore >= 0.2) { // Adjusted threshold for VADER's compound score
+  if (averageNewsSentimentScore >= 8) {
     newsSentimentRating = "Strongly Bullish News";
-    newsSentimentInterpretation = `Recent news is predominantly positive (Avg. sentiment: ${averageNewsCompoundScore.toFixed(2)}), highly likely supporting upward price action.`;
-    newsSentimentScore = Math.min(10, Math.max(1, Math.round(newsSentimentScore * 10 / 9 + 1))); // Scale to 1-10
-  } else if (averageNewsCompoundScore >= 0.05) {
+    newsSentimentInterpretation = `Recent news is predominantly positive (Avg. score: ${averageNewsSentimentScore.toFixed(2)}), highly likely supporting upward price action.`;
+  } else if (averageNewsSentimentScore >= 6) {
     newsSentimentRating = "Slightly Bullish News";
-    newsSentimentInterpretation = `News sentiment leans positive (Avg. sentiment: ${averageNewsCompoundScore.toFixed(2)}), suggesting a mild positive sentiment from headlines.`;
-    newsSentimentScore = Math.min(10, Math.max(1, Math.round(newsSentimentScore * 10 / 9 + 1)));
-  } else if (averageNewsCompoundScore <= -0.2) {
+    newsSentimentInterpretation = `News sentiment leans positive (Avg. score: ${averageNewsSentimentScore.toFixed(2)}), suggesting a mild positive sentiment from headlines.`;
+  } else if (averageNewsSentimentScore <= 3) {
     newsSentimentRating = "Strongly Bearish News";
-    newsSentimentInterpretation = `Recent news is predominantly negative (Avg. sentiment: ${averageNewsCompoundScore.toFixed(2)}), highly likely contributing to downward price action.`;
-    newsSentimentScore = Math.min(10, Math.max(1, Math.round(newsSentimentScore * 10 / 9 + 1)));
-  } else if (averageNewsCompoundScore <= -0.05) {
+    newsSentimentInterpretation = `Recent news is predominantly negative (Avg. score: ${averageNewsSentimentScore.toFixed(2)}), highly likely contributing to downward price action.`;
+  } else if (averageNewsSentimentScore <= 4) {
     newsSentimentRating = "Slightly Bearish News";
-    newsSentimentInterpretation = `News sentiment leans negative (Avg. sentiment: ${averageNewsCompoundScore.toFixed(2)}), suggesting a mild negative sentiment from headlines.`;
-    newsSentimentScore = Math.min(10, Math.max(1, Math.round(newsSentimentScore * 10 / 9 + 1)));
-  } else {
-    newsSentimentRating = "Neutral News";
-    newsSentimentInterpretation = `News sentiment is balanced or indecisive (Avg. sentiment: ${averageNewsCompoundScore.toFixed(2)}).`;
-    newsSentimentScore = Math.min(10, Math.max(1, Math.round(newsSentimentScore * 10 / 9 + 1)));
+    newsSentimentInterpretation = `News sentiment leans negative (Avg. score: ${averageNewsSentimentScore.toFixed(2)}), suggesting a mild negative sentiment from headlines.`;
   }
 
   results.newsSentiment = {
     rating: newsSentimentRating,
     interpretation: newsSentimentInterpretation,
-    score: newsSentimentScore
+    score: parseFloat(averageNewsSentimentScore.toFixed(2)) // Keep as float for precision
   };
 
   results.overallSentimentAccuracy = "Based on multiple indicators.";
@@ -336,21 +333,21 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     results.newsSentiment.score;
 
   const numberOfScores = 7;
-  const averageScore = totalScore / numberOfScores;
+  const averageOverallScore = totalScore / numberOfScores;
 
   let overallTone = "";
   let strategySuggestion = "";
 
-  if (averageScore >= 7.5) {
+  if (averageOverallScore >= 7.5) {
     overallTone = "Strongly Bullish";
     strategySuggestion = "Consider aggressive long positions with tight risk management. Focus on strong fundamental projects.";
-  } else if (averageScore >= 6) {
+  } else if (averageOverallScore >= 6) {
     overallTone = "Moderately Bullish";
     strategySuggestion = "Cautiously seek long opportunities, consider consolidating positions. Monitor key resistance levels.";
-  } else if (averageScore >= 4.5) {
+  } else if (averageOverallScore >= 4.5) {
     overallTone = "Neutral/Volatile";
     strategySuggestion = "Market is indecisive. Consider range trading or wait for clearer signals. High volatility is possible.";
-  } else if (averageScore >= 3) {
+  } else if (averageOverallScore >= 3) {
     overallTone = "Moderately Bearish";
     strategySuggestion = "Consider shorting opportunities or reducing long exposure. Monitor key support levels carefully.";
   } else {
@@ -359,7 +356,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   results.overallMarketOutlook = {
-    score: parseFloat(averageScore.toFixed(2)),
+    score: parseFloat(averageOverallScore.toFixed(2)),
     tone: overallTone,
     strategySuggestion: strategySuggestion,
   };
