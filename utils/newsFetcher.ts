@@ -7,7 +7,7 @@ import { SentimentArticle } from '../types'; // Import SentimentArticle
 // For demonstration, it's directly here.
 
 const NEWS_API_BASE_URL = "https://newsapi.org/v2/everything";
-const NEWS_API_KEY = "YOUR_NEWS_API_KEY"; // Replace with your actual News API key
+const NEWS_API_KEY = "fe5dac31d1ab4167b910ebb3454d914e"; // Replace with your actual News API key
 
 interface Article {
   title: string;
