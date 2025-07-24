@@ -12,7 +12,8 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults,
-  SentimentSignal, // Import SentimentSignal type
+  SentimentSignal,
+  SentimentArticle, // NEW: Import SentimentArticle type
 } from "../types";
 import {
   BinanceExchangeInfoResponse,
@@ -21,7 +22,8 @@ import {
   BinancePremiumIndex,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import { detectSentimentSignals } from "../utils/signalDetector"; // Import the signal detector
+import { detectSentimentSignals } from "../utils/signalDetector";
+import { fetchCryptoNews } from "../utils/newsFetcher"; // NEW: Import news fetcher
 import axios, { AxiosError } from 'axios';
 
 // Custom type guard for AxiosError
@@ -35,7 +37,7 @@ function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError 
 }
 
 const BINANCE_API = "https://fapi.binance.com";
-const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr"; // All market liquidation stream
+const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr";
 
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
@@ -87,8 +89,10 @@ export default function PriceFundingTracker() {
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  // State for actionable sentiment signals
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
+
+  // NEW: State for news data
+  const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
   // Liquidation data states
   const liquidationEventsRef = useRef<LiquidationEvent[]>([]);
@@ -125,6 +129,7 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
+    newsSentiment: { rating: "", interpretation: "", score: 0 }, // NEW: Initialize news sentiment
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   });
@@ -200,7 +205,6 @@ export default function PriceFundingTracker() {
     };
   }, []);
 
-  // --- WebSocket Connection Function (useCallback for stability) ---
   const connectLiquidationWs = useCallback(() => {
     if (liquidationWsRef.current && (liquidationWsRef.current.readyState === WebSocket.OPEN || liquidationWsRef.current.readyState === WebSocket.CONNECTING)) {
       console.log('Liquidation WS already open or connecting. Skipping new connection attempt.');
@@ -223,7 +227,7 @@ export default function PriceFundingTracker() {
           }));
           console.log('Liquidation WS: Sent Ping frame/message.');
         }
-      }, 3 * 60 * 1000); // Send ping every 3 minutes (180,000 ms)
+      }, 3 * 60 * 1000);
     };
 
     ws.onmessage = (event) => {
@@ -297,15 +301,24 @@ export default function PriceFundingTracker() {
       }
       setError(null);
       try {
-        const infoRes = await axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`);
+        // Fetch news concurrently with market data
+        const [infoRes, tickerRes, fundingRes, btcNews, ethNews] = await Promise.all([
+          axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`),
+          axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
+          axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
+          fetchCryptoNews("bitcoin"), // Fetch Bitcoin news
+          fetchCryptoNews("ethereum"), // Fetch Ethereum news
+        ]);
+
+        const allFetchedNews: SentimentArticle[] = [
+          ...btcNews.map(article => ({ ...article, source: article.source.name })), // Flatten source object
+          ...ethNews.map(article => ({ ...article.source.name, ...article })),
+        ];
+        setCryptoNews(allFetchedNews); // Store news in state
+
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: BinanceSymbol) => s.symbol);
-
-        const [tickerRes, fundingRes] = await Promise.all([
-          axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
-          axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
-        ]);
 
         const tickerData = tickerRes.data;
         const fundingData = fundingRes.data;
@@ -323,9 +336,14 @@ export default function PriceFundingTracker() {
             lastPrice: lastPrice,
             volume: volume,
           };
-        }).filter((d: SymbolData) => d.volume > 0); // Filter out pairs with 0 volume
+        }).filter((d: SymbolData) => d.volume > 0);
 
-        // Calculate topShortSqueeze and topLongTrap first
+        const allSentimentSignals = detectSentimentSignals(combinedData);
+        combinedData = combinedData.map(d => ({
+          ...d,
+          sentimentSignal: allSentimentSignals.find(s => s.symbol === d.symbol)
+        }));
+
         const topShortSqueeze = combinedData
           .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
           .sort((a, b) => a.fundingRate - b.fundingRate)
@@ -336,35 +354,14 @@ export default function PriceFundingTracker() {
           .sort((a, b) => b.fundingRate - a.fundingRate)
           .slice(0, 5);
 
-        // Store topShortSqueeze and topLongTrap in state
-        // This is done here to ensure these values are available for sentiment signal filtering
-        setFundingImbalanceData((prev) => ({
-          ...prev,
-          topShortSqueeze,
-          topLongTrap,
-        }));
-
-        // --- Call detectSentimentSignals and attach to SymbolData ---
-        const allSentimentSignals = detectSentimentSignals(combinedData);
-        combinedData = combinedData.map(d => ({
-          ...d,
-          sentimentSignal: allSentimentSignals.find(s => s.symbol === d.symbol)
-        }));
-
-        // Filter for actionable sentiment signals that are also in topShortSqueeze or topLongTrap
-        const topSqueezeSymbols = new Set(topShortSqueeze.map(s => s.symbol));
-        const topLongTrapSymbols = new Set(topLongTrap.map(s => s.symbol));
-
         const filteredActionableSignals = allSentimentSignals.filter(s =>
-          (s.signal === 'Bullish Opportunity' && topSqueezeSymbols.has(s.symbol)) ||
-          (s.signal === 'Bearish Risk' && topLongTrapSymbols.has(s.symbol))
+          (s.signal === 'Bullish Opportunity' && topShortSqueeze.some(ts => ts.symbol === s.symbol)) ||
+          (s.signal === 'Bearish Risk' && topLongTrap.some(tl => tl.symbol === s.symbol))
         );
         setActionableSentimentSignals(filteredActionableSignals);
-        // --- End SentimentSignal integration ---
 
         setRawData(combinedData);
 
-        // Recalculate and set market summary counts
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
@@ -390,26 +387,25 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        // Define these variables right before using them in the setFundingImbalanceData update
         const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
         const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
         const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
         const priceDownShortsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
-        // Update fundingImbalanceData with the newly calculated counts (preserving top squeeze/trap)
-        setFundingImbalanceData((prev) => ({
-          ...prev, // Keep topShortSqueeze and topLongTrap from the previous update
+        setFundingImbalanceData({
           priceUpShortsPaying,
           priceUpLongsPaying,
           priceDownLongsPaying,
           priceDownShortsPaying,
-        }));
+          topShortSqueeze,
+          topLongTrap,
+        });
 
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
 
       } catch (err: any) {
-        console.error("Error fetching initial market data:", err);
+        console.error("Error fetching initial market data or news:", err);
         if (isAxiosErrorTypeGuard(err) && err.response) {
           setError(`Failed to fetch initial market data: ${err.response.status}`);
         } else {
@@ -421,7 +417,7 @@ export default function PriceFundingTracker() {
     };
 
     fetchAllData();
-    const interval = setInterval(fetchAllData, 10000);
+    const interval = setInterval(fetchAllData, 30000); // Increased interval to 30s as news doesn't need 10s refresh
 
     connectLiquidationWs();
 
@@ -447,10 +443,10 @@ export default function PriceFundingTracker() {
     };
   }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
 
-  // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
+  // --- Effect to run Sentiment Analysis when market data or liquidation data or news data changes ---
   useEffect(() => {
-    // Only run sentiment analysis if we have rawData or liquidation data
-    if (rawData.length === 0 && !aggregatedLiquidationForSentiment) return;
+    // Only run sentiment analysis if we have rawData, liquidation data, or news
+    if (rawData.length === 0 && !aggregatedLiquidationForSentiment && cryptoNews.length === 0) return;
 
     const marketStatsForAnalysis: MarketStats = {
       green: greenCount,
@@ -470,7 +466,8 @@ export default function PriceFundingTracker() {
       liquidationData: aggregatedLiquidationForSentiment,
     };
 
-    const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
+    // Pass news data to analyzeSentiment
+    const sentimentResults = analyzeSentiment(marketStatsForAnalysis, cryptoNews);
 
     const totalScores = [
       sentimentResults.generalBias.score,
@@ -479,6 +476,7 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
+      sentimentResults.newsSentiment.score, // NEW: Include news sentiment score
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
     const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
@@ -507,6 +505,7 @@ export default function PriceFundingTracker() {
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
+      newsSentiment: sentimentResults.newsSentiment, // NEW: Set news sentiment
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
       overallMarketOutlook: {
         score: parseFloat(averageScore.toFixed(1)),
@@ -518,8 +517,10 @@ export default function PriceFundingTracker() {
   }, [
     rawData,
     aggregatedLiquidationForSentiment,
-    greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding
+    greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
+    cryptoNews, // NEW: Add cryptoNews as a dependency
   ]);
+
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
@@ -533,7 +534,7 @@ export default function PriceFundingTracker() {
       } else {
         direction = "desc";
         if (key === "signal") {
-          direction = "desc"; // Default sorting for signal is desc (Strong/Medium signals first)
+          direction = "desc";
         }
       }
       return { key, direction };
@@ -551,7 +552,6 @@ export default function PriceFundingTracker() {
         const signalA = tradeSignals.find((s) => s.symbol === a.symbol);
         const signalB = tradeSignals.find((s) => s.symbol === b.symbol);
 
-        // Custom ranking for signals: long (0) > short (1) > null (2)
         const rank = (s: SymbolTradeSignal | undefined) => {
           if (s?.signal === "long") return 0;
           if (s?.signal === "short") return 1;
@@ -598,7 +598,6 @@ export default function PriceFundingTracker() {
     );
   }
 
-  // Separate bullish and bearish actionable signals for rendering
   const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
 
@@ -722,7 +721,6 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-        {/* --- NEW SECTION FOR ACTIONABLE SENTIMENT SIGNALS --- */}
         {(bullishActionableSignals.length > 0 || bearishActionableSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
             <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
@@ -758,6 +756,32 @@ export default function PriceFundingTracker() {
               </div>
             )}
           </div>
+        )}
+
+
+        {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
+        {cryptoNews.length > 0 && (
+          <section className="mt-6 p-4 bg-gray-800 rounded-lg text-sm border border-gray-700 shadow-md">
+            <h3 className="text-white font-semibold mb-3 flex items-center">
+              📰 Crypto Macro News
+              <span
+                title="Recent headlines for Bitcoin and Ethereum, providing macro market context."
+                className="text-sm text-gray-400 ml-2 cursor-help"
+              >
+                ℹ️
+              </span>
+            </h3>
+            <ul className="list-disc list-inside space-y-2">
+              {cryptoNews.map((article, i) => (
+                <li key={i} className="text-gray-300 leading-tight">
+                  <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                    {article.title}
+                  </a>
+                  <span className="text-gray-500 ml-2 text-xs">({article.source})</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
         {/* --- END NEW SECTION --- */}
 
@@ -896,7 +920,7 @@ export default function PriceFundingTracker() {
           </table>
         </div>
 
-        <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 10 seconds | Powered by Binance API</p>
+        <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 30 seconds | Powered by Binance API & NewsAPI</p>
       </div>
     </div>
   );
