@@ -40,12 +40,17 @@ export interface MarketAnalysisResultDetail {
   score: number; // Score from 0-10
 }
 
+
 export interface SentimentArticle {
   title: string;
   url: string;
   source: string;
   publishedAt: string;
+  content?: string; // You'll need the article content for analysis
+  sentimentScore?: number; // e.g., -1 to 1, or 0 to 100
+  sentimentCategory?: 'positive' | 'negative' | 'neutral';
 }
+
 
 export interface MarketData {
   greenCount: number;
