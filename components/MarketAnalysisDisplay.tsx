@@ -16,12 +16,6 @@ interface MarketAnalysisDisplayProps {
 const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   marketAnalysis,
   fundingImbalanceData,
-  greenCount,
-  redCount,
-  greenPositiveFunding,
-  greenNegativeFunding,
-  redPositiveFunding,
-  redNegativeFunding,
 }) => {
   return (
     <div className="p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md mb-8">
@@ -35,9 +29,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </span>
       </h2>
 
-      {/* ✅ Overall Market Outlook */}
-      <div className="mb-6 p-4 bg-gray-700 rounded-lg">
-        <h3 className="text-xl font-semibold text-white mb-2">🌐 Overall Market Outlook</h3>
+      {/* 🌐 Overall Market Outlook */}
+      <div className="mb-6 p-4 bg-gray-700/50 rounded-md">
+        <h3 className="text-xl font-semibold text-blue-300 mb-1">🌐 Overall Market Outlook</h3>
         <p
           className="text-lg font-bold"
           style={{
@@ -51,8 +45,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
                 : '#EF5350',
           }}
         >
-          {marketAnalysis.overallMarketOutlook.tone} (Score: {marketAnalysis.overallMarketOutlook.score}/10)
-          {' '}
+          {marketAnalysis.overallMarketOutlook.tone} (Score: {marketAnalysis.overallMarketOutlook.score}/10){' '}
           {[...Array(5)].map((_, i) => (
             <span
               key={i}
@@ -67,24 +60,16 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </p>
       </div>
 
-      {/* ✅ Sentiment Categories Grid */}
+      {/* 📊 Sentiment Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {renderCategory("📊 General Bias", marketAnalysis.generalBias)}
-        {renderCategory("💰 Funding Imbalance", marketAnalysis.fundingImbalance)}
-        {renderCategoryWithList(
-          "🚀 Short Squeeze Potential",
-          marketAnalysis.shortSqueezeCandidates,
-          fundingImbalanceData.topShortSqueeze
-        )}
-        {renderCategoryWithList(
-          "⚠️ Long Trap Risk",
-          marketAnalysis.longTrapCandidates,
-          fundingImbalanceData.topLongTrap
-        )}
-        {renderCategory("📈 Volume Sentiment", marketAnalysis.volumeSentiment)}
-        {renderCategory("🔥 Liquidation Sentiment", marketAnalysis.liquidationHeatmap)}
-        {renderCategory("💎 High Quality Breakout", marketAnalysis.highQualityBreakout)}
-        {renderCategory("🚩 Flagged Signal Sentiment", marketAnalysis.flaggedSignalSentiment)}
+        {renderBlock("📊 General Bias", marketAnalysis.generalBias)}
+        {renderBlock("💰 Funding Imbalance", marketAnalysis.fundingImbalance)}
+        {renderBlockWithList("🚀 Short Squeeze Potential", marketAnalysis.shortSqueezeCandidates, fundingImbalanceData.topShortSqueeze)}
+        {renderBlockWithList("⚠️ Long Trap Risk", marketAnalysis.longTrapCandidates, fundingImbalanceData.topLongTrap)}
+        {renderBlock("📈 Volume Sentiment", marketAnalysis.volumeSentiment)}
+        {renderBlock("🔥 Liquidation Sentiment", marketAnalysis.liquidationHeatmap)}
+        {renderBlock("💎 High Quality Breakout", marketAnalysis.highQualityBreakout)}
+        {renderBlock("🚩 Flagged Signal Sentiment", marketAnalysis.flaggedSignalSentiment)}
       </div>
     </div>
   );
@@ -92,18 +77,26 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
 
 export default MarketAnalysisDisplay;
 
+// 🔧 Utilities (included below for single file)
 const formatVolume = (num: number): string => {
   if (num === 0) return "0";
-  const formatter = new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-US", {
     notation: "compact",
     compactDisplay: "short",
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
-  });
-  return formatter.format(num);
+  }).format(num);
 };
 
-const renderCategory = (
+const getScoreColor = (score: number): string => {
+  if (score >= 8) return "text-green-400";
+  if (score >= 6.5) return "text-yellow-300";
+  if (score >= 5) return "text-gray-300";
+  return "text-red-400";
+};
+
+// 🧱 Reusable Block Without List
+const renderBlock = (
   title: string,
   data: {
     rating: string;
@@ -111,24 +104,20 @@ const renderCategory = (
     score: number;
   }
 ) => {
-  const color =
-    data.rating.toLowerCase().includes("bullish")
-      ? "text-green-400"
-      : data.rating.toLowerCase().includes("bearish")
-      ? "text-red-400"
-      : "text-yellow-300";
-
   return (
-    <div className="p-4 bg-gray-700 rounded-lg">
-      <h3 className="text-lg font-semibold text-white">{title}</h3>
-      <p className={`text-md ${color}`}>{data.rating}</p>
-      <p className="text-sm text-gray-400">{data.interpretation}</p>
-      <p className="text-xs text-blue-300">Score: {data.score.toFixed(1)}</p>
+    <div className="p-3 bg-gray-700/50 rounded-md">
+      <h3 className="font-semibold text-blue-300 mb-1">{title}</h3>
+      <p className="text-gray-300">{data.rating}</p>
+      <p className="text-gray-400 text-xs mt-1">{data.interpretation}</p>
+      <p className={`text-right font-bold ${getScoreColor(data.score)}`}>
+        Score: {data.score.toFixed(1)}
+      </p>
     </div>
   );
 };
 
-const renderCategoryWithList = (
+// 🧱 Reusable Block With List (e.g. Top Candidates)
+const renderBlockWithList = (
   title: string,
   data: {
     rating: string;
@@ -142,27 +131,21 @@ const renderCategoryWithList = (
     volume: number;
   }[]
 ) => {
-  const color =
-    data.rating.toLowerCase().includes("bullish")
-      ? "text-green-400"
-      : data.rating.toLowerCase().includes("bearish")
-      ? "text-red-400"
-      : "text-yellow-300";
-
   return (
-    <div className="p-4 bg-gray-700 rounded-lg">
-      <h3 className="text-lg font-semibold text-white">{title}</h3>
-      <p className={`text-md ${color}`}>{data.rating}</p>
-      <p className="text-sm text-gray-400">{data.interpretation}</p>
-      <p className="text-xs text-blue-300">Score: {data.score.toFixed(1)}</p>
+    <div className="p-3 bg-gray-700/50 rounded-md">
+      <h3 className="font-semibold text-blue-300 mb-1">{title}</h3>
+      <p className="text-gray-300">{data.rating}</p>
+      <p className="text-gray-400 text-xs mt-1">{data.interpretation}</p>
+      <p className={`text-right font-bold ${getScoreColor(data.score)}`}>
+        Score: {data.score.toFixed(1)}
+      </p>
       {list.length > 0 && (
         <div className="mt-2 text-xs text-gray-400">
           <p className="font-semibold text-white">Top Candidates:</p>
-          <ul className="list-disc ml-4 space-y-1">
+          <ul className="list-disc ml-4 space-y-1 mt-1">
             {list.map((s) => (
               <li key={s.symbol}>
-                {s.symbol} ({s.priceChangePercent.toFixed(1)}% |{' '}
-                {s.fundingRate.toFixed(4)}% | ${formatVolume(s.volume)})
+                {s.symbol} — {s.priceChangePercent.toFixed(1)}% | {s.fundingRate.toFixed(4)}% | ${formatVolume(s.volume)}
               </li>
             ))}
           </ul>
