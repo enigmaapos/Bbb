@@ -90,16 +90,11 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
         </div>
 
-        {/* Funding Imbalance Potential */}
+        {/* Funding Imbalance */}
         <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-yellow-300 mb-1">
-            Funding Imbalance Potential — Bullish or Bearish Trap
-          </h3>
+          <h3 className="font-semibold text-yellow-300 mb-1">Funding Imbalance</h3>
           <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
-          <p className="text-yellow-100 text-xs mt-1">
-            Market funding is showing early signs of imbalance — potential for a bullish or bearish trap forming.
-            Keep watching for confirmation signals.
-          </p>
+          <p className="text-yellow-100 text-xs mt-1">{marketAnalysis.fundingImbalance.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.fundingImbalance.score)}`}>
             Score: {marketAnalysis.fundingImbalance.score.toFixed(1)}
           </p>
