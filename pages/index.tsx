@@ -336,7 +336,8 @@ export default function PriceFundingTracker() {
           .sort((a, b) => b.fundingRate - a.fundingRate)
           .slice(0, 5);
 
-        // Store them in state
+        // Store topShortSqueeze and topLongTrap in state
+        // This is done here to ensure these values are available for sentiment signal filtering
         setFundingImbalanceData((prev) => ({
           ...prev,
           topShortSqueeze,
@@ -363,6 +364,7 @@ export default function PriceFundingTracker() {
 
         setRawData(combinedData);
 
+        // Recalculate and set market summary counts
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
         setGreenCount(green);
@@ -388,8 +390,15 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
+        // Define these variables right before using them in the setFundingImbalanceData update
+        const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
+        const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
+        const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
+        const priceDownShortsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+
+        // Update fundingImbalanceData with the newly calculated counts (preserving top squeeze/trap)
         setFundingImbalanceData((prev) => ({
-          ...prev, // Keep topShortSqueeze and topLongTrap from previous update
+          ...prev, // Keep topShortSqueeze and topLongTrap from the previous update
           priceUpShortsPaying,
           priceUpLongsPaying,
           priceDownLongsPaying,
@@ -440,6 +449,7 @@ export default function PriceFundingTracker() {
 
   // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
   useEffect(() => {
+    // Only run sentiment analysis if we have rawData or liquidation data
     if (rawData.length === 0 && !aggregatedLiquidationForSentiment) return;
 
     const marketStatsForAnalysis: MarketStats = {
@@ -523,7 +533,7 @@ export default function PriceFundingTracker() {
       } else {
         direction = "desc";
         if (key === "signal") {
-          direction = "desc";
+          direction = "desc"; // Default sorting for signal is desc (Strong/Medium signals first)
         }
       }
       return { key, direction };
@@ -541,6 +551,7 @@ export default function PriceFundingTracker() {
         const signalA = tradeSignals.find((s) => s.symbol === a.symbol);
         const signalB = tradeSignals.find((s) => s.symbol === b.symbol);
 
+        // Custom ranking for signals: long (0) > short (1) > null (2)
         const rank = (s: SymbolTradeSignal | undefined) => {
           if (s?.signal === "long") return 0;
           if (s?.signal === "short") return 1;
