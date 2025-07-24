@@ -9,7 +9,7 @@ import {
   NewsApiArticle,
   NewsApiSuccessResponse, // For type guarding
   NewsApiErrorResponse    // For type guarding
-} from '../../src/types/newsApiTypes'; // Path to the new file
+} from '../../types/newsApiTypes'; // Path to the new file
 
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
