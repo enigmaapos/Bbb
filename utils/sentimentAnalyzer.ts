@@ -1,15 +1,12 @@
 // src/utils/sentimentAnalyzer.ts
-import {
-  MarketStats,
-  MarketAnalysisResults,
-  AggregatedLiquidationData,
-} from "../types";
+
+import { MarketStats, MarketAnalysisResults, SentimentRating } from '../types';
 
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
     red,
-    // fundingStats, // This parameter is no longer directly used in the fundingImbalance logic, nor in the general sentiment calcs
+    fundingStats,
     volumeData,
     liquidationData,
   } = data;
@@ -21,191 +18,247 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    // momentumImbalance: { rating: "", interpretation: "", score: 0 }, // REMOVED
-    overallSentimentAccuracy: "",
-    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
+    // *** THIS IS THE MISSING LINE ***
+    highQualityBreakout: { rating: "", interpretation: "", score: 0 },
+    // *******************************
+    overallSentimentAccuracy: "", // This will be calculated later in index.tsx
+    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" }, // This will be calculated later in index.tsx
   };
 
-  // --- 1. General Bias ---
+  // 1. General Market Bias
   if (green > red * 1.5) {
     results.generalBias = {
       rating: "Strongly Bullish",
-      interpretation: "Significantly more pairs are showing positive 24h price change.",
-      score: 8.5,
+      interpretation: "Significantly more assets are showing positive price action, indicating strong overall buying pressure.",
+      score: 9,
+    };
+  } else if (green > red) {
+    results.generalBias = {
+      rating: "Mildly Bullish",
+      interpretation: "More assets are green than red, suggesting a bullish sentiment, but not overwhelmingly so.",
+      score: 7,
     };
   } else if (red > green * 1.5) {
     results.generalBias = {
       rating: "Strongly Bearish",
-      interpretation: "Significantly more pairs are showing negative 24h price change.",
-      score: 2.5,
-    };
-  } else if (green > red) {
-    results.generalBias = {
-      rating: "Slightly Bullish",
-      interpretation: "More pairs are showing positive 24h price change.",
-      score: 6.5,
+      interpretation: "A large majority of assets are red, pointing to significant selling pressure and bearish sentiment.",
+      score: 2,
     };
   } else if (red > green) {
     results.generalBias = {
-      rating: "Slightly Bearish",
-      interpretation: "More pairs are showing negative 24h price change.",
-      score: 4.5,
+      rating: "Mildly Bearish",
+      interpretation: "More assets are red than green, indicating a bearish lean, but the market isn't collapsing.",
+      score: 4,
     };
   } else {
     results.generalBias = {
-      rating: "Neutral",
-      interpretation: "Even split between positive and negative price changes.",
+      rating: "Neutral/Mixed",
+      interpretation: "An almost equal number of green and red assets, suggesting market indecision or consolidation.",
       score: 5,
     };
   }
 
-  // --- 2. Funding Imbalance (ONLY Custom Sentiment Formula) ---
-  const priceUpFundingNegative = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0).length;
-  const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
+  // 2. Funding Imbalance (Short Squeeze vs. Long Trap Potential)
+  const { greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding } = fundingStats;
 
-  // Define thresholds based on your custom formula
-  const BULLISH_PUN_THRESHOLD = 30; // Price Up Negative Funding (shorts paying) is small
-  const BULLISH_PDP_THRESHOLD = 230; // Price Down Positive Funding (longs paying) is large
+  // Bullish signals from funding
+  const bullishFundingScore = greenNegativeFunding * 2 + redNegativeFunding; // Green price, shorts paying + Red price, shorts paying
+  // Bearish signals from funding
+  const bearishFundingScore = redPositiveFunding * 2 + greenPositiveFunding; // Red price, longs paying + Green price, longs paying
 
-  const BEARISH_PUN_THRESHOLD = 230; // Price Up Negative Funding (shorts paying) is large
-  const BEARISH_PDP_THRESHOLD = 30; // Price Down Positive Funding (longs paying) is small
-
-  if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
+  if (bullishFundingScore > bearishFundingScore * 1.5) {
     results.fundingImbalance = {
-      rating: "📈 Bullish Trap Squeeze",
-      interpretation: `Many longs are trapped (${priceDownFundingPositive} pairs) while very few shorts are paying for rising prices (${priceUpFundingNegative} pairs). This suggests strong buying pressure and potential for a squeeze.`,
-      score: 9.0,
-    };
-  } else if (priceUpFundingNegative >= BEARISH_PUN_THRESHOLD && priceDownFundingPositive <= BEARISH_PDP_THRESHOLD) {
-    results.fundingImbalance = {
-      rating: "📉 Bearish Trap Squeeze",
-      interpretation: `Many shorts are trapped (${priceUpFundingNegative} pairs) while very few longs are paying for falling prices (${priceDownFundingPositive} pairs). This suggests a potential bearish reversal or capitulation.`,
-      score: 1.0, // A low score for bearish
-    };
-  } else {
-    // If neither specific trap squeeze condition is met, it's neutral
-    results.fundingImbalance = {
-      rating: "Neutral/Mixed Funding",
-      interpretation: "Funding rates do not meet specific 'trap squeeze' criteria.",
-      score: 5,
-    };
-  }
-
-  // --- 3. Short Squeeze Candidates ---
-  const shortSqueezeCount = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0 && d.volume > 50_000_000).length;
-  if (shortSqueezeCount > 10) {
-    results.shortSqueezeCandidates = {
-      rating: "High Potential",
-      interpretation: `Many pairs (over ${shortSqueezeCount}) show price appreciation with negative funding, indicating shorts are being squeezed.`,
+      rating: "Bullish Funding Imbalance",
+      interpretation: "Significantly more shorts are paying, especially on rising assets, indicating potential short squeezes.",
       score: 8,
     };
-  } else if (shortSqueezeCount > 3) {
-    results.shortSqueezeCandidates = {
-      rating: "Moderate Potential",
-      interpretation: `${shortSqueezeCount} pairs show signs of short squeezes.`,
+  } else if (bullishFundingScore > bearishFundingScore) {
+    results.fundingImbalance = {
+      rating: "Slight Bullish Funding Imbalance",
+      interpretation: "A lean towards shorts paying, suggesting some underlying bullish pressure from funding.",
       score: 6,
     };
-  } else {
-    results.shortSqueezeCandidates = {
-      rating: "Low Potential",
-      interpretation: "Few short squeeze setups observed.",
+  } else if (bearishFundingScore > bullishFundingScore * 1.5) {
+    results.fundingImbalance = {
+      rating: "Bearish Funding Imbalance",
+      interpretation: "A large number of longs are paying, especially on falling assets, indicating significant long trap potential.",
+      score: 3,
+    };
+  } else if (bearishFundingScore > bullishFundingScore) {
+    results.fundingImbalance = {
+      rating: "Slight Bearish Funding Imbalance",
+      interpretation: "A lean towards longs paying, suggesting some underlying bearish pressure from funding.",
       score: 4,
+    };
+  } else {
+    results.fundingImbalance = {
+      rating: "Balanced Funding",
+      interpretation: "Funding rates are relatively balanced, no strong directional bias from this metric.",
+      score: 5,
     };
   }
 
-  // --- 4. Long Trap Candidates ---
-  const longTrapCount = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0 && d.volume > 50_000_000).length;
-  if (longTrapCount > 10) {
+  // 3. Short Squeeze Candidates (price up, funding negative)
+  const shortSqueezeCandidates = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0);
+  if (shortSqueezeCandidates.length > 20) {
+    results.shortSqueezeCandidates = {
+      rating: "High Squeeze Potential",
+      interpretation: "Many assets are rallying despite negative funding, suggesting shorts are trapped and fueling upside.",
+      score: 9,
+    };
+  } else if (shortSqueezeCandidates.length > 10) {
+    results.shortSqueezeCandidates = {
+      rating: "Moderate Squeeze Potential",
+      interpretation: "A fair number of assets are showing short squeeze setups.",
+      score: 7,
+    };
+  } else {
+    results.shortSqueezeCandidates = {
+      rating: "Low Squeeze Potential",
+      interpretation: "Few assets exhibit strong short squeeze characteristics.",
+      score: 5,
+    };
+  }
+
+  // 4. Long Trap Candidates (price down, funding positive)
+  const longTrapCandidates = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0);
+  if (longTrapCandidates.length > 20) {
     results.longTrapCandidates = {
-      rating: "High Risk",
-      interpretation: `Many pairs (over ${longTrapCount}) show price depreciation with positive funding, indicating longs are trapped.`,
+      rating: "High Long Trap Risk",
+      interpretation: "Many assets are falling with positive funding, indicating trapped longs and potential for cascades.",
       score: 2,
     };
-  } else if (longTrapCount > 3) {
+  } else if (longTrapCandidates.length > 10) {
     results.longTrapCandidates = {
-      rating: "Moderate Risk",
-      interpretation: `${longTrapCount} pairs show signs of long traps.`,
+      rating: "Moderate Long Trap Risk",
+      interpretation: "A fair number of assets are showing long trap setups.",
       score: 4,
     };
   } else {
     results.longTrapCandidates = {
-      rating: "Low Risk",
-      interpretation: "Few long trap setups observed.",
-      score: 6,
+      rating: "Low Long Trap Risk",
+      interpretation: "Few assets exhibit strong long trap characteristics.",
+      score: 6, // Higher score as low risk is good
     };
   }
 
-  // --- 5. Volume Sentiment ---
-  const bullishVolume = volumeData.filter(d => d.priceChange > 0 && d.volume > 100_000_000).length;
-  const bearishVolume = volumeData.filter(d => d.priceChange < 0 && d.volume > 100_000_000).length;
+  // 5. Volume Sentiment
+  const highVolumeGainers = volumeData.filter(d => d.priceChange > 5 && d.volume > 50_000_000);
+  const highVolumeLosers = volumeData.filter(d => d.priceChange < -5 && d.volume > 50_000_000);
 
-  if (bullishVolume > bearishVolume * 2) {
+  if (highVolumeGainers.length > highVolumeLosers.length * 1.5) {
     results.volumeSentiment = {
-      rating: "Strong Bullish Volume",
-      interpretation: "Significant volume flowing into rising assets, confirming upward momentum.",
-      score: 7.5,
+      rating: "Bullish Volume",
+      interpretation: "Significant capital is flowing into rallying assets, confirming uptrends.",
+      score: 8,
     };
-  } else if (bearishVolume > bullishVolume * 2) {
+  } else if (highVolumeLosers.length > highVolumeGainers.length * 1.5) {
     results.volumeSentiment = {
-      rating: "Strong Bearish Volume",
-      interpretation: "Significant volume flowing out of falling assets, confirming downward momentum.",
-      score: 3.5,
+      rating: "Bearish Volume",
+      interpretation: "Heavy selling volume on declining assets, confirming downtrends and capitulation.",
+      score: 3,
     };
   } else {
     results.volumeSentiment = {
       rating: "Mixed Volume",
-      interpretation: "Volume distribution is relatively balanced or not indicative of a strong trend.",
+      interpretation: "Volume is distributed, no clear directional signal from high-volume moves.",
       score: 5,
     };
   }
 
-  // --- 6. Liquidation Heatmap Sentiment ---
+  // 6. Liquidation Heatmap (if data is available)
   if (liquidationData) {
     const { totalLongLiquidationsUSD, totalShortLiquidationsUSD } = liquidationData;
-    const totalLiquidations = totalLongLiquidationsUSD + totalShortLiquidationsUSD;
 
-    if (totalLiquidations > 0) {
-      const longLiquidationRatio = totalLongLiquidationsUSD / totalLiquidations;
-      const shortLiquidationRatio = totalShortLiquidationsUSD / totalLiquidations;
-
-      if (longLiquidationRatio > 0.7) { // Over 70% long liquidations
-        results.liquidationHeatmap = {
-          rating: "Heavy Long Liquidations",
-          interpretation: `A significant amount of long positions (${(longLiquidationRatio * 100).toFixed(0)}%) are being liquidated, indicating strong downward pressure.`,
-          score: 1.5, // Very bearish
-        };
-      } else if (shortLiquidationRatio > 0.7) { // Over 70% short liquidations
-        results.liquidationHeatmap = {
-          rating: "Heavy Short Liquidations",
-          interpretation: `A significant amount of short positions (${(shortLiquidationRatio * 100).toFixed(0)}%) are being liquidated, indicating strong upward pressure or short squeezes.`,
-          score: 8.5, // Very bullish
-        };
-      } else {
-        results.liquidationHeatmap = {
-          rating: "Mixed Liquidations",
-          interpretation: "Liquidation volume is relatively balanced between long and short positions, or overall volume is low.",
-          score: 5,
-        };
-      }
+    if (totalLongLiquidationsUSD > totalShortLiquidationsUSD * 2) {
+      results.liquidationHeatmap = {
+        rating: "Dominant Long Liquidations",
+        interpretation: "Overwhelming long liquidations suggest a strong bearish push or cascading sell-offs.",
+        score: 2,
+      };
+    } else if (totalShortLiquidationsUSD > totalLongLiquidationsUSD * 2) {
+      results.liquidationHeatmap = {
+        rating: "Dominant Short Liquidations",
+        interpretation: "Significant short liquidations indicate strong upward price movements and short squeezes.",
+        score: 9,
+      };
+    } else if (totalLongLiquidationsUSD > totalShortLiquidationsUSD * 1.2) {
+      results.liquidationHeatmap = {
+        rating: "Long Liquidations Present",
+        interpretation: "More long liquidations, contributing to bearish pressure.",
+        score: 4,
+      };
+    } else if (totalShortLiquidationsUSD > totalLongLiquidationsUSD * 1.2) {
+      results.liquidationHeatmap = {
+        rating: "Short Liquidations Present",
+        interpretation: "More short liquidations, contributing to bullish pressure.",
+        score: 7,
+      };
     } else {
       results.liquidationHeatmap = {
-        rating: "No Recent Liquidations",
-        interpretation: "No significant liquidation events observed recently.",
-        score: 5, // Neutral if no liquidations
+        rating: "Balanced Liquidations",
+        interpretation: "Relatively equal long and short liquidations, no strong bias.",
+        score: 6,
       };
     }
   } else {
     results.liquidationHeatmap = {
-      rating: "Data Unavailable",
-      interpretation: "Liquidation data not yet available for sentiment analysis.",
-      score: 5, // Neutral fallback
+      rating: "No Data",
+      interpretation: "Liquidation data is not available to assess heatmap sentiment.",
+      score: 5, // Neutral score if data is missing
     };
   }
 
-  // --- Momentum Imbalance (Removed as per user request for real data only) ---
-  // The 'Momentum Imbalance' section using RSI has been completely removed.
+  // 7. High-Quality Breakout Analysis (Based on Flagged Signals)
+  // This depends on the `detectSentimentSignals` output, which is consumed by `index.tsx`
+  // For `sentimentAnalyzer.ts`, we can infer this based on general market conditions
+  // and the count of strong signals.
 
-  results.overallSentimentAccuracy = "Based on multiple indicators.";
+  const strongBullishSignals = volumeData.filter(d =>
+    d.priceChange >= 10 && d.volume >= 50_000_000 && d.fundingRate <= 0.0001
+  ).length;
+
+  const strongBearishSignals = volumeData.filter(d =>
+    d.priceChange <= -10 && d.volume >= 50_000_000 && d.fundingRate >= 0.0001
+  ).length;
+
+  if (strongBullishSignals > strongBearishSignals * 1.5 && strongBullishSignals > 3) {
+    results.highQualityBreakout = {
+      rating: "High Bullish Breakout Potential",
+      interpretation: "Several assets are showing strong breakout characteristics with high volume and favorable funding, suggesting significant upside.",
+      score: 9,
+    };
+  } else if (strongBullishSignals > strongBearishSignals && strongBullishSignals > 1) {
+    results.highQualityBreakout = {
+      rating: "Moderate Bullish Breakout Potential",
+      interpretation: "A few assets are showing promising bullish breakout setups.",
+      score: 7,
+    };
+  } else if (strongBearishSignals > strongBullishSignals * 1.5 && strongBearishSignals > 3) {
+    results.highQualityBreakout = {
+      rating: "High Bearish Breakout Potential", // "Breakout" here means breaking down
+      interpretation: "Multiple assets are exhibiting strong bearish breakdown signals with high volume and trapped longs, indicating further downside.",
+      score: 2,
+    };
+  } else if (strongBearishSignals > strongBullishSignals && strongBearishSignals > 1) {
+    results.highQualityBreakout = {
+      rating: "Moderate Bearish Breakout Potential",
+      interpretation: "A few assets are showing concerning bearish breakdown setups.",
+      score: 4,
+    };
+  } else {
+    results.highQualityBreakout = {
+      rating: "Mixed/Low Breakout Activity",
+      interpretation: "No clear trend in high-quality breakouts or breakdowns across the market.",
+      score: 5,
+    };
+  }
+
+  // Overall sentiment accuracy (this can be a simple placeholder or more complex if needed)
+  results.overallSentimentAccuracy = "Based on real-time Binance data.";
+
+  // Overall Market Outlook (calculated in index.tsx based on averaged scores)
+  // This function only prepares the individual component scores.
 
   return results;
 }
