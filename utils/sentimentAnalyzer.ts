@@ -3,10 +3,10 @@ import {
   MarketStats,
   MarketAnalysisResults,
   AggregatedLiquidationData,
-  SymbolData, // Ensure SymbolData is imported
-  MarketData, // Ensure MarketData is imported
-  NewsData,   // Ensure NewsData is imported
-  SentimentArticle, // Ensure SentimentArticle is imported
+  SymbolData,
+  MarketData,
+  NewsData,
+  SentimentArticle,
 } from "../types";
 
 // The function now takes MarketStats, which includes newsArticles directly
@@ -14,7 +14,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
     red,
-    fundingStats, // Now correctly used for marketData population
+    fundingStats,
     volumeData,   // This is now guaranteed to be SymbolData[]
     liquidationData,
     newsArticles, // Destructure newsArticles from MarketStats
@@ -27,7 +27,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    newsSentiment: { rating: "", interpretation: "", score: 0 }, // Added newsSentiment back
+    newsSentiment: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
     marketData: { // Initialize with defaults or actual data
@@ -81,8 +81,10 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 2. Funding Imbalance (ONLY Custom Sentiment Formula) ---
-  const priceUpFundingNegative = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0).length;
-  const priceDownFundingPositive = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0).length;
+  // FIX: Changed d.priceChange to d.priceChangePercent
+  const priceUpFundingNegative = volumeData.filter(d => d.priceChangePercent > 0 && d.fundingRate < 0).length;
+  // FIX: Changed d.priceChange to d.priceChangePercent
+  const priceDownFundingPositive = volumeData.filter(d => d.priceChangePercent < 0 && d.fundingRate > 0).length;
 
   // Update marketData counts
   results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
@@ -118,22 +120,23 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   // --- 3. Short Squeeze Candidates ---
   // Filter and sort directly from volumeData which is already SymbolData[]
+  // FIX: Changed d.priceChange to d.priceChangePercent
   const topShortSqueezeCandidates = volumeData
-    .filter(d => d.priceChange > 0 && d.fundingRate < 0)
+    .filter(d => d.priceChangePercent > 0 && d.fundingRate < 0)
     .sort((a, b) => a.fundingRate - b.fundingRate) // Sort by funding rate (most negative first)
-    .slice(0, 5); // Take top 5
-  
+    .slice(0, 5);
+
   // Assign to marketData
   results.marketData.topShortSqueeze = topShortSqueezeCandidates;
 
   const shortSqueezeCount = topShortSqueezeCandidates.filter(d => d.volume > 50_000_000).length;
-  if (shortSqueezeCount > 10) { // This condition might need adjustment if topShortSqueezeCandidates is always max 5
+  if (shortSqueezeCount > 3) { // Adjusted condition to be more realistic for a slice of 5
     results.shortSqueezeCandidates = {
       rating: "High Potential",
-      interpretation: `Many pairs (over ${shortSqueezeCount}) show price appreciation with negative funding, indicating shorts are being squeezed.`,
+      interpretation: `Many pairs (${shortSqueezeCount}) show price appreciation with negative funding, indicating shorts are being squeezed.`,
       score: 8,
     };
-  } else if (shortSqueezeCount > 3) {
+  } else if (shortSqueezeCount > 0) { // If there's at least one candidate
     results.shortSqueezeCandidates = {
       rating: "Moderate Potential",
       interpretation: `${shortSqueezeCount} pairs show signs of short squeezes.`,
@@ -149,8 +152,9 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   // --- 4. Long Trap Candidates ---
   // Filter and sort directly from volumeData which is already SymbolData[]
+  // FIX: Changed d.priceChange to d.priceChangePercent
   const topLongTrapCandidates = volumeData
-    .filter(d => d.priceChange < 0 && d.fundingRate > 0)
+    .filter(d => d.priceChangePercent < 0 && d.fundingRate > 0)
     .sort((a, b) => b.fundingRate - a.fundingRate) // Sort by funding rate (most positive first)
     .slice(0, 5); // Take top 5
 
@@ -158,13 +162,13 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   results.marketData.topLongTrap = topLongTrapCandidates;
 
   const longTrapCount = topLongTrapCandidates.filter(d => d.volume > 50_000_000).length;
-  if (longTrapCount > 10) { // This condition might need adjustment if topLongTrapCandidates is always max 5
+  if (longTrapCount > 3) { // Adjusted condition to be more realistic for a slice of 5
     results.longTrapCandidates = {
       rating: "High Risk",
-      interpretation: `Many pairs (over ${longTrapCount}) show price depreciation with positive funding, indicating longs are trapped.`,
+      interpretation: `Many pairs (${longTrapCount}) show price depreciation with positive funding, indicating longs are trapped.`,
       score: 2,
     };
-  } else if (longTrapCount > 3) {
+  } else if (longTrapCount > 0) { // If there's at least one candidate
     results.longTrapCandidates = {
       rating: "Moderate Risk",
       interpretation: `${longTrapCount} pairs show signs of long traps.`,
@@ -179,8 +183,10 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 5. Volume Sentiment ---
-  const bullishVolume = volumeData.filter(d => d.priceChange > 0 && d.volume > 100_000_000).length;
-  const bearishVolume = volumeData.filter(d => d.priceChange < 0 && d.volume > 100_000_000).length;
+  // FIX: Changed d.priceChange to d.priceChangePercent
+  const bullishVolume = volumeData.filter(d => d.priceChangePercent > 0 && d.volume > 100_000_000).length;
+  // FIX: Changed d.priceChange to d.priceChangePercent
+  const bearishVolume = volumeData.filter(d => d.priceChangePercent < 0 && d.volume > 100_000_000).length;
 
   if (bullishVolume > bearishVolume * 2) {
     results.volumeSentiment = {

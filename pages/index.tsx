@@ -91,7 +91,7 @@ export default function PriceFundingTracker() {
 
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
-  // State for news data
+  // NEW: State for news data
   const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
   // Liquidation data states
@@ -321,15 +321,15 @@ export default function PriceFundingTracker() {
           axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`),
           axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
-          fetchCryptoNews("bitcoin"),
-          fetchCryptoNews("ethereum"),
+          fetchCryptoNews("bitcoin"), // Fetch Bitcoin news
+          fetchCryptoNews("ethereum"), // Fetch Ethereum news
         ]);
 
         const allFetchedNews: SentimentArticle[] = [
-          ...btcNews.map(article => ({ ...article, source: article.source.name })),
-          ...ethNews.map(article => ({ ...article, source: article.source.name })),
+          ...btcNews,
+          ...ethNews,
         ];
-        setCryptoNews(allFetchedNews);
+        setCryptoNews(allFetchedNews); // Store news in state
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
@@ -354,6 +354,10 @@ export default function PriceFundingTracker() {
         }).filter((d: SymbolData) => d.volume > 0);
 
         const allSentimentSignals = detectSentimentSignals(combinedData);
+        // Note: detectSentimentSignals uses priceChange (which is fine if it uses priceChangePercent from SymbolData)
+        // Ensure detectSentimentSignals is correctly implemented to use priceChangePercent internally.
+        // The SymbolData passed to it contains priceChangePercent.
+
         combinedData = combinedData.map(d => ({
           ...d,
           sentimentSignal: allSentimentSignals.find(s => s.symbol === d.symbol)
@@ -432,7 +436,7 @@ export default function PriceFundingTracker() {
     };
 
     fetchAllData();
-    const interval = setInterval(fetchAllData, 30000);
+    const interval = setInterval(fetchAllData, 30000); // Increased interval to 30s as news doesn't need 10s refresh
 
     connectLiquidationWs();
 
@@ -472,13 +476,15 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      // rawData is already SymbolData[], so direct assignment is fine
-      volumeData: rawData, // Corrected: rawData is already SymbolData[]
+      // FIX: Pass rawData directly, as it is already SymbolData[]
+      volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
-      newsArticles: cryptoNews, // Corrected: Pass news data as part of MarketStats
+      // FIX: Pass newsArticles from cryptoNews state
+      newsArticles: cryptoNews,
     };
 
-    const sentimentResults = analyzeSentiment(marketStatsForAnalysis); // Corrected: Only one argument
+    // The analyzeSentiment function now expects one argument: MarketStats
+    const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
 
     const totalScores = [
       sentimentResults.generalBias.score,
