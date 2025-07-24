@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 // IMPORTANT: Correct Import - import the specific helper function for VADER sentiment analysis
-import { getVaderSentiment } from '../../src/utils/sentimentAnalyzer';
+import { getVaderSentiment } from '../utils/sentimentAnalyzer';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const NEWS_API_BASE_URL = "https://newsapi.org/v2/everything";
