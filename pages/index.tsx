@@ -72,7 +72,6 @@ export default function PriceFundingTracker() {
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
 
-  // Removed 'sentimentSignal' from sortConfig key type
   const [sortConfig, setSortConfig] = useState<{
     key: "fundingRate" | "priceChangePercent" | "signal" | null;
     direction: "asc" | "desc" | null;
@@ -88,7 +87,7 @@ export default function PriceFundingTracker() {
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  // NEW state for actionable sentiment signals
+  // State for actionable sentiment signals
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
   // Liquidation data states
@@ -326,6 +325,24 @@ export default function PriceFundingTracker() {
           };
         }).filter((d: SymbolData) => d.volume > 0); // Filter out pairs with 0 volume
 
+        // Calculate topShortSqueeze and topLongTrap first
+        const topShortSqueeze = combinedData
+          .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
+          .sort((a, b) => a.fundingRate - b.fundingRate)
+          .slice(0, 5);
+
+        const topLongTrap = combinedData
+          .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
+          .sort((a, b) => b.fundingRate - a.fundingRate)
+          .slice(0, 5);
+
+        // Store them in state
+        setFundingImbalanceData((prev) => ({
+          ...prev,
+          topShortSqueeze,
+          topLongTrap,
+        }));
+
         // --- Call detectSentimentSignals and attach to SymbolData ---
         const allSentimentSignals = detectSentimentSignals(combinedData);
         combinedData = combinedData.map(d => ({
@@ -333,9 +350,13 @@ export default function PriceFundingTracker() {
           sentimentSignal: allSentimentSignals.find(s => s.symbol === d.symbol)
         }));
 
-        // Filter for actionable sentiment signals
+        // Filter for actionable sentiment signals that are also in topShortSqueeze or topLongTrap
+        const topSqueezeSymbols = new Set(topShortSqueeze.map(s => s.symbol));
+        const topLongTrapSymbols = new Set(topLongTrap.map(s => s.symbol));
+
         const filteredActionableSignals = allSentimentSignals.filter(s =>
-          s.signal === 'Bullish Opportunity' || s.signal === 'Bearish Risk'
+          (s.signal === 'Bullish Opportunity' && topSqueezeSymbols.has(s.symbol)) ||
+          (s.signal === 'Bearish Risk' && topLongTrapSymbols.has(s.symbol))
         );
         setActionableSentimentSignals(filteredActionableSignals);
         // --- End SentimentSignal integration ---
@@ -367,29 +388,13 @@ export default function PriceFundingTracker() {
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
-        const priceUpShortsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0).length;
-        const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
-        const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
-        const priceDownShortsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
-
-        const topShortSqueeze = combinedData
-          .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
-          .sort((a, b) => a.fundingRate - b.fundingRate)
-          .slice(0, 5);
-
-        const topLongTrap = combinedData
-          .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
-          .sort((a, b) => b.fundingRate - a.fundingRate)
-          .slice(0, 5);
-
-        setFundingImbalanceData({
+        setFundingImbalanceData((prev) => ({
+          ...prev, // Keep topShortSqueeze and topLongTrap from previous update
           priceUpShortsPaying,
           priceUpLongsPaying,
           priceDownLongsPaying,
           priceDownShortsPaying,
-          topShortSqueeze,
-          topLongTrap,
-        });
+        }));
 
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
@@ -506,7 +511,6 @@ export default function PriceFundingTracker() {
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding
   ]);
 
-  // Updated handleSort - removed 'sentimentSignal'
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
       let direction: "asc" | "desc" = "desc";
@@ -518,7 +522,7 @@ export default function PriceFundingTracker() {
         }
       } else {
         direction = "desc";
-        if (key === "signal") { // Only for trade signals now
+        if (key === "signal") {
           direction = "desc";
         }
       }
@@ -548,7 +552,6 @@ export default function PriceFundingTracker() {
 
         return (rankA - rankB) * order;
       }
-      // Removed sentimentSignal sorting logic from here
       else if (sortConfig.key === "fundingRate") {
         return (a.fundingRate - b.fundingRate) * order;
       } else if (sortConfig.key === "priceChangePercent") {
@@ -584,7 +587,7 @@ export default function PriceFundingTracker() {
     );
   }
 
-  // Separate bullish and bearish actionable signals
+  // Separate bullish and bearish actionable signals for rendering
   const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
 
@@ -827,7 +830,6 @@ export default function PriceFundingTracker() {
                 >
                   Trade Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                {/* Removed Sentiment Signal Header */}
                 <th className="p-2">★</th>
               </tr>
             </thead>
@@ -836,7 +838,6 @@ export default function PriceFundingTracker() {
               {filteredAndSortedData
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
-                  // sentimentSignal is no longer used here for display in table
 
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
@@ -867,8 +868,6 @@ export default function PriceFundingTracker() {
                           <span className="text-gray-500">-</span>
                         )}
                       </td>
-
-                      {/* Removed Sentiment Signal Display Cell */}
 
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
                         setFavorites((prev) =>
