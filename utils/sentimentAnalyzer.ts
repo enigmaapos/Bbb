@@ -1,7 +1,8 @@
 // src/utils/sentimentAnalyzer.ts
 
-import { MarketStats, MarketAnalysisResults, SentimentRating } from '../types';
+import { MarketStats, MarketAnalysisResults, SentimentRating, SentimentSignal } from '../types';
 
+// Updated function signature to accept flaggedSignals
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
@@ -9,6 +10,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     fundingStats,
     volumeData,
     liquidationData,
+    flaggedSignals, // Destructure the new input
   } = data;
 
   const results: MarketAnalysisResults = {
@@ -18,14 +20,15 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    // *** THIS IS THE MISSING LINE ***
     highQualityBreakout: { rating: "", interpretation: "", score: 0 },
-    // *******************************
-    overallSentimentAccuracy: "", // This will be calculated later in index.tsx
-    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" }, // This will be calculated later in index.tsx
+    // Initialize the new property
+    flaggedSignalSentiment: { rating: "", interpretation: "", score: 0 },
+    overallSentimentAccuracy: "",
+    overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   };
 
   // 1. General Market Bias
+  // ... (No change here, use the same logic as before)
   if (green > red * 1.5) {
     results.generalBias = {
       rating: "Strongly Bullish",
@@ -59,12 +62,11 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // 2. Funding Imbalance (Short Squeeze vs. Long Trap Potential)
+  // ... (No change here, use the same logic as before)
   const { greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding } = fundingStats;
 
-  // Bullish signals from funding
-  const bullishFundingScore = greenNegativeFunding * 2 + redNegativeFunding; // Green price, shorts paying + Red price, shorts paying
-  // Bearish signals from funding
-  const bearishFundingScore = redPositiveFunding * 2 + greenPositiveFunding; // Red price, longs paying + Green price, longs paying
+  const bullishFundingScore = greenNegativeFunding * 2 + redNegativeFunding;
+  const bearishFundingScore = redPositiveFunding * 2 + greenPositiveFunding;
 
   if (bullishFundingScore > bearishFundingScore * 1.5) {
     results.fundingImbalance = {
@@ -99,6 +101,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // 3. Short Squeeze Candidates (price up, funding negative)
+  // ... (No change here, use the same logic as before)
   const shortSqueezeCandidates = volumeData.filter(d => d.priceChange > 0 && d.fundingRate < 0);
   if (shortSqueezeCandidates.length > 20) {
     results.shortSqueezeCandidates = {
@@ -121,6 +124,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // 4. Long Trap Candidates (price down, funding positive)
+  // ... (No change here, use the same logic as before)
   const longTrapCandidates = volumeData.filter(d => d.priceChange < 0 && d.fundingRate > 0);
   if (longTrapCandidates.length > 20) {
     results.longTrapCandidates = {
@@ -138,11 +142,12 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     results.longTrapCandidates = {
       rating: "Low Long Trap Risk",
       interpretation: "Few assets exhibit strong long trap characteristics.",
-      score: 6, // Higher score as low risk is good
+      score: 6,
     };
   }
 
   // 5. Volume Sentiment
+  // ... (No change here, use the same logic as before)
   const highVolumeGainers = volumeData.filter(d => d.priceChange > 5 && d.volume > 50_000_000);
   const highVolumeLosers = volumeData.filter(d => d.priceChange < -5 && d.volume > 50_000_000);
 
@@ -166,7 +171,8 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // 6. Liquidation Heatmap (if data is available)
+  // 6. Liquidation Heatmap
+  // ... (No change here, use the same logic as before)
   if (liquidationData) {
     const { totalLongLiquidationsUSD, totalShortLiquidationsUSD } = liquidationData;
 
@@ -205,42 +211,39 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     results.liquidationHeatmap = {
       rating: "No Data",
       interpretation: "Liquidation data is not available to assess heatmap sentiment.",
-      score: 5, // Neutral score if data is missing
+      score: 5,
     };
   }
 
-  // 7. High-Quality Breakout Analysis (Based on Flagged Signals)
-  // This depends on the `detectSentimentSignals` output, which is consumed by `index.tsx`
-  // For `sentimentAnalyzer.ts`, we can infer this based on general market conditions
-  // and the count of strong signals.
-
-  const strongBullishSignals = volumeData.filter(d =>
+  // 7. High-Quality Breakout Analysis (Based on broad market stats)
+  // This remains a separate, higher-level assessment of potential breakouts.
+  const strongBullishSignalsCount = volumeData.filter(d =>
     d.priceChange >= 10 && d.volume >= 50_000_000 && d.fundingRate <= 0.0001
   ).length;
 
-  const strongBearishSignals = volumeData.filter(d =>
+  const strongBearishSignalsCount = volumeData.filter(d =>
     d.priceChange <= -10 && d.volume >= 50_000_000 && d.fundingRate >= 0.0001
   ).length;
 
-  if (strongBullishSignals > strongBearishSignals * 1.5 && strongBullishSignals > 3) {
+  if (strongBullishSignalsCount > strongBearishSignalsCount * 1.5 && strongBullishSignalsCount > 3) {
     results.highQualityBreakout = {
       rating: "High Bullish Breakout Potential",
       interpretation: "Several assets are showing strong breakout characteristics with high volume and favorable funding, suggesting significant upside.",
       score: 9,
     };
-  } else if (strongBullishSignals > strongBearishSignals && strongBullishSignals > 1) {
+  } else if (strongBullishSignalsCount > strongBearishSignalsCount && strongBullishSignalsCount > 1) {
     results.highQualityBreakout = {
       rating: "Moderate Bullish Breakout Potential",
       interpretation: "A few assets are showing promising bullish breakout setups.",
       score: 7,
     };
-  } else if (strongBearishSignals > strongBullishSignals * 1.5 && strongBearishSignals > 3) {
+  } else if (strongBearishSignalsCount > strongBullishSignalsCount * 1.5 && strongBearishSignalsCount > 3) {
     results.highQualityBreakout = {
-      rating: "High Bearish Breakout Potential", // "Breakout" here means breaking down
+      rating: "High Bearish Breakout Potential",
       interpretation: "Multiple assets are exhibiting strong bearish breakdown signals with high volume and trapped longs, indicating further downside.",
       score: 2,
     };
-  } else if (strongBearishSignals > strongBullishSignals && strongBearishSignals > 1) {
+  } else if (strongBearishSignalsCount > strongBullishSignalsCount && strongBearishSignalsCount > 1) {
     results.highQualityBreakout = {
       rating: "Moderate Bearish Breakout Potential",
       interpretation: "A few assets are showing concerning bearish breakdown setups.",
@@ -254,7 +257,50 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // Overall sentiment accuracy (this can be a simple placeholder or more complex if needed)
+  // 8. NEW: Flagged Signal Sentiment (derived from detectSentimentSignals)
+  const bullishFlaggedCount = flaggedSignals.filter(s => s.signal === 'Bullish Opportunity').length;
+  const bearishFlaggedCount = flaggedSignals.filter(s => s.signal === 'Bearish Risk').length;
+  const totalFlagged = bullishFlaggedCount + bearishFlaggedCount;
+
+  if (totalFlagged === 0) {
+    results.flaggedSignalSentiment = {
+      rating: "No Clear Signals",
+      interpretation: "The automatic checklist detected no strong bullish or bearish patterns.",
+      score: 5,
+    };
+  } else if (bullishFlaggedCount > bearishFlaggedCount * 2) {
+    results.flaggedSignalSentiment = {
+      rating: "Strong Checklist Bullish",
+      interpretation: `A high number of assets (${bullishFlaggedCount}) are flagged as strong bullish opportunities based on specific criteria.`,
+      score: 9,
+    };
+  } else if (bullishFlaggedCount > bearishFlaggedCount) {
+    results.flaggedSignalSentiment = {
+      rating: "Leaning Checklist Bullish",
+      interpretation: `More assets (${bullishFlaggedCount}) are flagged as bullish opportunities than bearish risks.`,
+      score: 7,
+    };
+  } else if (bearishFlaggedCount > bullishFlaggedCount * 2) {
+    results.flaggedSignalSentiment = {
+      rating: "Strong Checklist Bearish",
+      interpretation: `A high number of assets (${bearishFlaggedCount}) are flagged as significant bearish risks based on specific criteria.`,
+      score: 2,
+    };
+  } else if (bearishFlaggedCount > bullishFlaggedCount) {
+    results.flaggedSignalSentiment = {
+      rating: "Leaning Checklist Bearish",
+      interpretation: `More assets (${bearishFlaggedCount}) are flagged as bearish risks than bullish opportunities.`,
+      score: 4,
+    };
+  } else {
+    results.flaggedSignalSentiment = {
+      rating: "Mixed Checklist Signals",
+      interpretation: "An almost equal number of strong bullish and bearish signals detected by the checklist.",
+      score: 5,
+    };
+  }
+
+  // Overall sentiment accuracy
   results.overallSentimentAccuracy = "Based on real-time Binance data.";
 
   // Overall Market Outlook (calculated in index.tsx based on averaged scores)
