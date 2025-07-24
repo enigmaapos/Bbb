@@ -46,6 +46,9 @@ const formatVolume = (num: number): string => {
   return formatter.format(num);
 };
 
+const BINANCE_API = "https://fapi.binance.com";
+const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr";
+
 export default function PriceFundingTracker() {
   const priceChangeThreshold = 2;
   const fundingRateThreshold = 0.0001;
@@ -170,7 +173,6 @@ export default function PriceFundingTracker() {
     volumeThreshold,
   ]);
 
-  // MOVE THIS aggregateLiquidationEvents BEFORE connectLiquidationWs
   const aggregateLiquidationEvents = useCallback((events: LiquidationEvent[]): AggregatedLiquidationData => {
     let totalLongLiquidationsUSD = 0;
     let totalShortLiquidationsUSD = 0;
@@ -199,7 +201,6 @@ export default function PriceFundingTracker() {
     };
   }, []);
 
-  // --- WebSocket Connection Function (useCallback for stability) ---
   const connectLiquidationWs = useCallback(() => {
     if (liquidationWsRef.current && (liquidationWsRef.current.readyState === WebSocket.OPEN || liquidationWsRef.current.readyState === WebSocket.CONNECTING)) {
       console.log('Liquidation WS already open or connecting. Skipping new connection attempt.');
@@ -252,7 +253,6 @@ export default function PriceFundingTracker() {
             clearTimeout(aggregationTimeoutRef.current);
           }
           aggregationTimeoutRef.current = setTimeout(() => {
-            // This call should now correctly find aggregateLiquidationEvents
             const aggregated = aggregateLiquidationEvents(liquidationEventsRef.current);
             setAggregatedLiquidationForSentiment(aggregated);
           }, 500);
@@ -287,9 +287,8 @@ export default function PriceFundingTracker() {
     };
 
     liquidationWsRef.current = ws;
-  }, [aggregateLiquidationEvents]); // IMPORTANT: Keep aggregateLiquidationEvents in the dependency array
+  }, [aggregateLiquidationEvents]);
 
-  // --- Main Data Fetching and WebSocket Management Effect ---
   useEffect(() => {
     const fetchAllData = async () => {
       if (rawData.length === 0) {
@@ -323,11 +322,10 @@ export default function PriceFundingTracker() {
             lastPrice: lastPrice,
             volume: volume,
           };
-        }).filter((d: SymbolData) => d.volume > 0); // Filter out pairs with 0 volume
+        }).filter((d: SymbolData) => d.volume > 0);
 
         setRawData(combinedData);
 
-        // NEW: Call your sentiment signal detector here
         const newFlaggedSignals = detectSentimentSignals(combinedData);
         setFlaggedSignals(newFlaggedSignals);
 
@@ -422,7 +420,6 @@ export default function PriceFundingTracker() {
     };
   }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
 
-  // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
   useEffect(() => {
     if (rawData.length === 0 && !aggregatedLiquidationForSentiment) return;
 
@@ -442,7 +439,7 @@ export default function PriceFundingTracker() {
         fundingRate: d.fundingRate,
       })),
       liquidationData: aggregatedLiquidationForSentiment,
-      flaggedSignals: flaggedSignals, // Pass the new flaggedSignals data
+      flaggedSignals: flaggedSignals,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
@@ -455,7 +452,7 @@ export default function PriceFundingTracker() {
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
       sentimentResults.highQualityBreakout.score,
-      sentimentResults.flaggedSignalSentiment.score, // Include in overall score
+      sentimentResults.flaggedSignalSentiment.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
     const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
