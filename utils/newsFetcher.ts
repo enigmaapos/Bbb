@@ -1,13 +1,10 @@
 // src/utils/newsFetcher.ts
 import axios from 'axios';
-import { SentimentArticle } from '../types'; // Import SentimentArticle
-
-// IMPORTANT: In a real application, you should proxy this API call through
-// your own backend or a Vercel Serverless Function to keep your API key secure.
-// For demonstration, it's directly here.
+import { SentimentArticle } from '../types';
 
 const NEWS_API_BASE_URL = "https://newsapi.org/v2/everything";
-const NEWS_API_KEY = process.env.NEWS_API_KEY!; // Replace with your actual News API key
+// *** IMPORTANT CHANGE HERE ***
+const NEWS_API_KEY = process.env.NEXT_PUBLIC_NEWS_API_KEY!; // Now it correctly accesses the public env variable
 
 interface Article {
   title: string;
@@ -27,9 +24,9 @@ export async function fetchCryptoNews(query: string, sortBy: string = "relevancy
   try {
     const response = await axios.get<NewsApiResponse>(NEWS_API_BASE_URL, {
       params: {
-        q: `${query} crypto OR blockchain`, // Broader search for crypto relevance
+        q: `${query} crypto OR blockchain`,
         language: "en",
-        sortBy: sortBy, // 'relevancy', 'popularity', 'publishedAt'
+        sortBy: sortBy,
         pageSize: pageSize,
         apiKey: NEWS_API_KEY,
       },
@@ -38,7 +35,7 @@ export async function fetchCryptoNews(query: string, sortBy: string = "relevancy
     return response.data.articles.map(article => ({
       title: article.title,
       url: article.url,
-      source: article.source.name, // Flatten source
+      source: article.source.name,
       publishedAt: article.publishedAt
     }));
   } catch (error) {
