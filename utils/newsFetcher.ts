@@ -1,45 +1,28 @@
-// src/utils/newsFetcher.ts
+// src/utils/newsFetcher.ts (updated to use your API route)
 import axios from 'axios';
-import { SentimentArticle } from '../types';
+import { SentimentArticle } from '../types'; // Assuming SentimentArticle matches your desired output
 
-const NEWS_API_BASE_URL = "https://newsapi.org/v2/everything";
-// *** IMPORTANT CHANGE HERE ***
-const NEWS_API_KEY = process.env.NEXT_PUBLIC_NEWS_API_KEY!; // Now it correctly accesses the public env variable
+// Your frontend now calls your OWN Next.js API route
+const LOCAL_NEWS_API_ROUTE = "/api/news"; // Relative path to your API route
 
-interface Article {
-  title: string;
-  url: string;
-  source: {
-    name: string;
-  };
-  publishedAt: string;
-}
-
-interface NewsApiResponse {
-  articles: Article[];
-}
-
-// Return type changed to SentimentArticle[] for consistency
 export async function fetchCryptoNews(query: string, sortBy: string = "relevancy", pageSize: number = 5): Promise<SentimentArticle[]> {
   try {
-    const response = await axios.get<NewsApiResponse>(NEWS_API_BASE_URL, {
+    // Make the request to your local Next.js API route
+    // The query, sortBy, and pageSize parameters are passed through to your API route
+    const response = await axios.get<SentimentArticle[]>(LOCAL_NEWS_API_ROUTE, {
       params: {
-        q: `${query} crypto OR blockchain`,
-        language: "en",
+        q: query,
         sortBy: sortBy,
         pageSize: pageSize,
-        apiKey: NEWS_API_KEY,
       },
     });
-    // Map to SentimentArticle type
-    return response.data.articles.map(article => ({
-      title: article.title,
-      url: article.url,
-      source: article.source.name,
-      publishedAt: article.publishedAt
-    }));
+
+    // Your API route should already return SentimentArticle[], so direct return
+    return response.data;
+
   } catch (error) {
-    console.error(`Error fetching news for ${query}:`, error);
+    console.error(`Error fetching news for ${query} via proxy:`, error);
+    // You might want to provide a more user-friendly error message here
     return [];
   }
 }
