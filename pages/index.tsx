@@ -584,6 +584,10 @@ export default function PriceFundingTracker() {
     );
   }
 
+  // Separate bullish and bearish actionable signals
+  const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
+  const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <Head>
@@ -705,28 +709,40 @@ export default function PriceFundingTracker() {
         />
 
         {/* --- NEW SECTION FOR ACTIONABLE SENTIMENT SIGNALS --- */}
-        {actionableSentimentSignals.length > 0 && (
+        {(bullishActionableSignals.length > 0 || bearishActionableSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
             <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              {actionableSentimentSignals.map((signal, index) => (
-                <div
-                  key={index}
-                  className={`p-3 rounded-md ${
-                    signal.signal === 'Bullish Opportunity'
-                      ? 'bg-green-700/50 border border-green-500'
-                      : 'bg-red-700/50 border border-red-500'
-                  }`}
-                >
-                  <h3 className={`font-bold mb-1 ${
-                    signal.signal === 'Bullish Opportunity' ? 'text-green-300' : 'text-red-300'
-                  }`}>
-                    {signal.signal} ({signal.symbol})
-                  </h3>
-                  <p className="text-gray-200 text-xs">{signal.reason}</p>
+            <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
+              **💡 Strategy Note:** These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal. For **long opportunities**, consider waiting for pullbacks to the **200 EMA zone** on the daily timeframe for better entry. For **short opportunities**, consider waiting for bounces to **resistance or the 200 EMA zone** before entering.
+            </p>
+
+            {bullishActionableSignals.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {bullishActionableSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
+                      <h4 className="font-bold mb-1 text-green-300">{signal.symbol}</h4>
+                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {bearishActionableSignals.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {bearishActionableSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
+                      <h4 className="font-bold mb-1 text-red-300">{signal.symbol}</h4>
+                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {/* --- END NEW SECTION --- */}
