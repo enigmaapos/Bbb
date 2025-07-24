@@ -2,9 +2,9 @@
 
 export interface SymbolData {
   symbol: string;
-  priceChangePercent: number;
+  priceChangePercent: number; // This is crucial
   fundingRate: number;
-  lastPrice: number;
+  lastPrice: number; // This is crucial
   volume: number;
   sentimentSignal?: SentimentSignal; // Optional sentiment signal
 }
@@ -40,7 +40,6 @@ export interface MarketAnalysisResultDetail {
   score: number; // Score from 0-10
 }
 
-// NEW: Interface for news articles used in sentiment analysis
 export interface SentimentArticle {
   title: string;
   url: string;
@@ -48,7 +47,6 @@ export interface SentimentArticle {
   publishedAt: string;
 }
 
-// NEW: Interface for MarketData to be passed to MarketAnalysisDisplay
 export interface MarketData {
   greenCount: number;
   redCount: number;
@@ -58,13 +56,12 @@ export interface MarketData {
   redNegativeFunding: number;
   priceUpFundingNegativeCount: number;
   priceDownFundingPositiveCount: number;
-  topShortSqueeze: SymbolData[]; // This now correctly expects SymbolData[]
-  topLongTrap: SymbolData[];     // This now correctly expects SymbolData[]
+  topShortSqueeze: SymbolData[];
+  topLongTrap: SymbolData[];
   totalLongLiquidationsUSD: number;
   totalShortLiquidationsUSD: number;
 }
 
-// NEW: Interface for NewsData to be passed to MarketAnalysisDisplay
 export interface NewsData extends Array<SentimentArticle> {}
 
 
@@ -75,15 +72,15 @@ export interface MarketAnalysisResults {
   longTrapCandidates: MarketAnalysisResultDetail;
   volumeSentiment: MarketAnalysisResultDetail;
   liquidationHeatmap: MarketAnalysisResultDetail;
-  newsSentiment: MarketAnalysisResultDetail; // NEW: Added news sentiment
+  newsSentiment: MarketAnalysisResultDetail;
   overallSentimentAccuracy: string;
   overallMarketOutlook: {
     score: number;
     tone: string;
     strategySuggestion: string;
   };
-  marketData: MarketData; // ADDED: Market data for detailed display
-  newsData: NewsData;     // ADDED: News data for detailed display
+  marketData: MarketData;
+  newsData: NewsData;
 }
 
 export interface MarketStats {
@@ -95,9 +92,7 @@ export interface MarketStats {
     redPositiveFunding: number;
     redNegativeFunding: number;
   };
-  // *** CRITICAL CHANGE HERE ***
-  // volumeData MUST be of type SymbolData[] when passed into analyzeSentiment
-  volumeData: SymbolData[];
+  volumeData: SymbolData[]; // This is the key: it must be SymbolData[]
   liquidationData: AggregatedLiquidationData | undefined;
   newsArticles: SentimentArticle[]; // Assuming news is passed as part of MarketStats now
 }
@@ -108,13 +103,14 @@ export interface SentimentSignal {
   reason: string;
 }
 
+// These are the raw Binance API response types
 export interface BinanceTicker24hr {
   symbol: string;
   priceChange: string; // Absolute change
-  priceChangePercent: string; // Percentage change (used for SymbolData)
+  priceChangePercent: string; // This is what SymbolData needs
   weightedAvgPrice: string;
   prevClosePrice: string;
-  lastPrice: string; // Used for SymbolData
+  lastPrice: string; // This is what SymbolData needs
   lastQty: string;
   bidPrice: string;
   bidQty: string;
@@ -137,7 +133,7 @@ export interface BinancePremiumIndex {
   markPrice: string;
   indexPrice: string;
   estimatedSettlePrice: string;
-  lastFundingRate: string;
+  lastFundingRate: string; // This is what SymbolData needs
   nextFundingTime: number;
   interestRate: string;
   time: number;
@@ -166,7 +162,7 @@ export interface BinanceSymbol {
   liquidationFee: string;
   marketTakeBound: string;
   maxMoveLimit: string;
-  filters: any[]; // You might want to define more specific filter types
+  filters: any[];
   orderTypes: string[];
   timeInForce: string[];
 }
@@ -174,7 +170,7 @@ export interface BinanceSymbol {
 export interface BinanceExchangeInfoResponse {
   timezone: string;
   serverTime: number;
-  rateLimits: any[]; // Specific type for rate limits could be added
-  exchangeFilters: any[]; // Specific type for exchange filters could be added
+  rateLimits: any[];
+  exchangeFilters: any[];
   symbols: BinanceSymbol[];
 }
