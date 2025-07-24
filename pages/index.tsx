@@ -1,4 +1,4 @@
-// pages/index.tsx
+// pages/index.tsx (or src/pages/index.tsx)
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
@@ -12,7 +12,7 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults,
-  SentimentSignal,
+  // Removed FundingStats here as it's not directly used in overall logic
 } from "../types";
 import {
   BinanceExchangeInfoResponse,
@@ -21,7 +21,6 @@ import {
   BinancePremiumIndex,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import { detectSentimentSignals } from "../utils/signalDetector";
 import axios, { AxiosError } from 'axios';
 
 // Custom type guard for AxiosError
@@ -34,6 +33,9 @@ function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError 
   );
 }
 
+const BINANCE_API = "https://fapi.binance.com";
+const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr"; // All market liquidation stream
+
 // Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
   if (num === 0) return "0";
@@ -45,9 +47,6 @@ const formatVolume = (num: number): string => {
   });
   return formatter.format(num);
 };
-
-const BINANCE_API = "https://fapi.binance.com";
-const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr";
 
 export default function PriceFundingTracker() {
   const priceChangeThreshold = 2;
@@ -72,8 +71,6 @@ export default function PriceFundingTracker() {
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
 
-  const [flaggedSignals, setFlaggedSignals] = useState<SentimentSignal[]>([]);
-
   const [sortConfig, setSortConfig] = useState<{
     key: "fundingRate" | "priceChangePercent" | "signal" | null;
     direction: "asc" | "desc" | null;
@@ -96,7 +93,7 @@ export default function PriceFundingTracker() {
     AggregatedLiquidationData | undefined
   >(undefined);
 
-  // WebSocket specific refs
+  // WebSocket specific refs for persistent instances
   const liquidationWsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsPingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -124,8 +121,7 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    highQualityBreakout: { rating: "", interpretation: "", score: 0 },
-    flaggedSignalSentiment: { rating: "", interpretation: "", score: 0 },
+    // momentumImbalance: { rating: "", interpretation: "", score: 0 }, // REMOVED
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   });
@@ -201,6 +197,7 @@ export default function PriceFundingTracker() {
     };
   }, []);
 
+  // --- WebSocket Connection Function (useCallback for stability) ---
   const connectLiquidationWs = useCallback(() => {
     if (liquidationWsRef.current && (liquidationWsRef.current.readyState === WebSocket.OPEN || liquidationWsRef.current.readyState === WebSocket.CONNECTING)) {
       console.log('Liquidation WS already open or connecting. Skipping new connection attempt.');
@@ -289,6 +286,7 @@ export default function PriceFundingTracker() {
     liquidationWsRef.current = ws;
   }, [aggregateLiquidationEvents]);
 
+  // --- Main Data Fetching and WebSocket Management Effect ---
   useEffect(() => {
     const fetchAllData = async () => {
       if (rawData.length === 0) {
@@ -314,6 +312,8 @@ export default function PriceFundingTracker() {
           const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
+          // RSI removed - no longer generating dummy or real RSI here
+          // const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
 
           return {
             symbol,
@@ -321,13 +321,11 @@ export default function PriceFundingTracker() {
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
             volume: volume,
+            // rsi: dummyRsi, // REMOVED
           };
-        }).filter((d: SymbolData) => d.volume > 0);
+        }).filter((d: SymbolData) => d.volume > 0); // Filter out pairs with 0 volume
 
         setRawData(combinedData);
-
-        const newFlaggedSignals = detectSentimentSignals(combinedData);
-        setFlaggedSignals(newFlaggedSignals);
 
         const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
         const red = combinedData.length - green;
@@ -420,13 +418,14 @@ export default function PriceFundingTracker() {
     };
   }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
 
+  // --- Effect to run Sentiment Analysis when market data or liquidation data changes ---
   useEffect(() => {
     if (rawData.length === 0 && !aggregatedLiquidationForSentiment) return;
 
     const marketStatsForAnalysis: MarketStats = {
       green: greenCount,
       red: redCount,
-      fundingStats: {
+      fundingStats: { // Still provide this structure even if individual properties aren't used by new fundingImbalance logic
         greenPositiveFunding: greenPositiveFunding,
         greenNegativeFunding: greenNegativeFunding,
         redPositiveFunding: redPositiveFunding,
@@ -437,13 +436,14 @@ export default function PriceFundingTracker() {
         volume: d.volume,
         priceChange: d.priceChangePercent,
         fundingRate: d.fundingRate,
+        // rsi: d.rsi, // REMOVED
       })),
       liquidationData: aggregatedLiquidationForSentiment,
-      flaggedSignals: flaggedSignals,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
 
+    // Update totalScores calculation based on remaining sentiment factors
     const totalScores = [
       sentimentResults.generalBias.score,
       sentimentResults.fundingImbalance.score,
@@ -451,8 +451,7 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
-      sentimentResults.highQualityBreakout.score,
-      sentimentResults.flaggedSignalSentiment.score,
+      // sentimentResults.momentumImbalance.score, // REMOVED
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
     const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
@@ -462,7 +461,7 @@ export default function PriceFundingTracker() {
 
     if (averageScore >= 8.0) {
       finalOutlookTone = "🟢 Strongly Bullish — The market shows clear bullish momentum and strong setups.";
-      strategySuggestion = "Aggressively seek **long opportunities**, especially on strong short squeeze candidates and breakout signals.";
+      strategySuggestion = "Aggressively seek **long opportunities**, especially on strong short squeeze candidates.";
     } else if (averageScore >= 7.0) {
       finalOutlookTone = "🟡 Mixed leaning Bullish — Some bullish momentum exists, but caution is advised due to underlying risks.";
       strategySuggestion = "Look for **long opportunities** on high-conviction setups, but be prepared for volatility and consider tighter stop losses.";
@@ -481,8 +480,7 @@ export default function PriceFundingTracker() {
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
-      highQualityBreakout: sentimentResults.highQualityBreakout,
-      flaggedSignalSentiment: sentimentResults.flaggedSignalSentiment,
+      // momentumImbalance: sentimentResults.momentumImbalance, // REMOVED
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
       overallMarketOutlook: {
         score: parseFloat(averageScore.toFixed(1)),
@@ -494,8 +492,7 @@ export default function PriceFundingTracker() {
   }, [
     rawData,
     aggregatedLiquidationForSentiment,
-    greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
-    flaggedSignals
+    greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding
   ]);
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
@@ -693,42 +690,6 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-        <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
-          <h2 className="text-xl font-bold text-white mb-4">
-            🚀 Flagged Assets (Quick Checklist)
-            <span
-              title="Automatically flagged assets based on specific price, volume, and funding criteria for quick assessment."
-              className="text-sm text-gray-400 ml-2 cursor-help"
-            >
-              ℹ️
-            </span>
-          </h2>
-
-          {flaggedSignals.filter(s => s.signal !== 'Neutral').length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-              {flaggedSignals
-                .filter(s => s.signal === 'Bullish Opportunity')
-                .map((s) => (
-                  <div key={s.symbol} className="p-3 bg-green-900/40 border border-green-600 rounded-md">
-                    <h3 className="font-semibold text-green-300 mb-1">✅ {s.symbol} - {s.signal}</h3>
-                    <p className="text-green-100 text-xs">{s.reason}</p>
-                  </div>
-                ))}
-              {flaggedSignals
-                .filter(s => s.signal === 'Bearish Risk')
-                .map((s) => (
-                  <div key={s.symbol} className="p-3 bg-red-900/40 border border-red-600 rounded-md">
-                    <h3 className="font-semibold text-red-300 mb-1">❌ {s.symbol} - {s.signal}</h3>
-                    <p className="text-red-100 text-xs">{s.reason}</p>
-                  </div>
-                ))}
-            </div>
-          ) : (
-            <p className="text-gray-400 text-center py-4">No strong bullish or bearish signals detected right now based on the checklist criteria.</p>
-          )}
-        </div>
-
-
         <div className="mb-8">
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
@@ -802,6 +763,8 @@ export default function PriceFundingTracker() {
                 >
                   Funding {sortConfig.key === "fundingRate" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
+                {/* Removed RSI column header */}
+                {/* <th className="p-2">RSI (Dummy)</th> */}
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("signal")}
@@ -832,6 +795,13 @@ export default function PriceFundingTracker() {
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
+
+                      {/* Removed RSI data cell */}
+                      {/*
+                      <td className="p-2">
+                        {item.rsi ? item.rsi.toFixed(2) : 'N/A'}
+                      </td>
+                      */}
 
                       <td className="p-2 space-y-1 text-xs text-gray-200">
                         {signal && signal.signal ? (
