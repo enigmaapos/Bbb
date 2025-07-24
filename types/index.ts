@@ -1,5 +1,6 @@
-// types/index.ts
+// src/types/index.ts
 
+// --- Data Structures ---
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
@@ -8,33 +9,26 @@ export interface SymbolData {
   volume: number;
 }
 
+export interface FundingStats {
+  greenPositiveFunding: number;
+  greenNegativeFunding: number;
+  redPositiveFunding: number;
+  redNegativeFunding: number;
+}
+
 export interface SymbolTradeSignal {
   symbol: string;
   signal: "long" | "short" | null;
-  strength: "Strong" | "Medium" | "Weak";
-  confidence: "High Confidence" | "Medium Confidence" | "Low Confidence";
+  strength: "Weak" | "Medium" | "Strong";
+  confidence: "Low Confidence" | "Medium Confidence" | "High Confidence";
   entry: number | null;
   stopLoss: number | null;
   takeProfit: number | null;
 }
 
-export interface MarketStats {
-  green: number;
-  red: number;
-  fundingStats: {
-    greenPositiveFunding: number;
-    greenNegativeFunding: number;
-    redPositiveFunding: number;
-    redNegativeFunding: number;
-  };
-  volumeData: { symbol: string; volume: number; priceChange: number; fundingRate: number }[];
-  liquidationData?: AggregatedLiquidationData; // Optional, as it might not always be available
-  flaggedSignals: SentimentSignal[];
-}
-
 export interface LiquidationEvent {
   symbol: string;
-  side: "BUY" | "SELL";
+  side: "BUY" | "SELL"; // BUY for short liquidation, SELL for long liquidation
   price: number;
   quantity: number;
   timestamp: number;
@@ -47,10 +41,31 @@ export interface AggregatedLiquidationData {
   shortLiquidationCount: number;
 }
 
+// --- Sentiment Analysis Structures ---
+
 export interface SentimentRating {
   rating: string;
   interpretation: string;
   score: number;
+}
+
+export interface OverallMarketOutlook {
+  score: number;
+  tone: string;
+  strategySuggestion: string;
+}
+
+export interface MarketStats {
+  green: number;
+  red: number;
+  fundingStats: FundingStats;
+  volumeData: Array<{
+    symbol: string;
+    volume: number;
+    priceChange: number;
+    fundingRate: number;
+  }>;
+  liquidationData?: AggregatedLiquidationData; // Optional, as it might be loading
 }
 
 export interface MarketAnalysisResults {
@@ -60,27 +75,16 @@ export interface MarketAnalysisResults {
   longTrapCandidates: SentimentRating;
   volumeSentiment: SentimentRating;
   liquidationHeatmap: SentimentRating;
-  highQualityBreakout: SentimentRating;
-  flaggedSignalSentiment: SentimentRating;
-  overallSentimentAccuracy: string;
-  overallMarketOutlook: {
-    score: number;
-    tone: string;
-    strategySuggestion: string;
-  };
+  // momentumImbalance: SentimentRating; // REMOVED: No longer using real RSI
+  overallSentimentAccuracy: string; // Consider if still needed, might simplify to interpretation directly
+  overallMarketOutlook: OverallMarketOutlook;
 }
 
-export interface SentimentSignal {
+// NEW TYPE ADDED:
+export type SentimentSignal = {
   symbol: string;
   signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
   reason: string;
-}
+};
 
-export interface FundingImbalanceData {
-  priceUpShortsPaying: number;
-  priceUpLongsPaying: number;
-  priceDownLongsPaying: number;
-  priceDownShortsPaying: number;
-  topShortSqueeze: SymbolData[];
-  topLongTrap: SymbolData[];
-}
+
