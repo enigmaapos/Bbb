@@ -758,7 +758,33 @@ export default function PriceFundingTracker() {
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
           />
-        </div>      
+        </div>   
+
+	 {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
+        {cryptoNews.length > 0 && (
+          <section className="mt-6 p-4 bg-gray-800 rounded-lg text-sm border border-gray-700 shadow-md">
+            <h3 className="text-white font-semibold mb-3 flex items-center">
+              📰 Crypto Macro News
+              <span
+                title="Recent headlines for Bitcoin and Ethereum, providing macro market context."
+                className="text-sm text-gray-400 ml-2 cursor-help"
+              >
+                ℹ️
+              </span>
+            </h3>
+            <ul className="list-disc list-inside space-y-2">
+              {cryptoNews.map((article, i) => (
+                <li key={i} className="text-gray-300 leading-tight">
+                  <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                    {article.title}
+                  </a>
+                  <span className="text-gray-500 ml-2 text-xs">({article.source})</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {/* --- END NEW SECTION --- */}     
 
         {(bullishActionableSignals.length > 0 || bearishActionableSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
@@ -797,32 +823,6 @@ export default function PriceFundingTracker() {
           </div>
         )}
 
-
-        {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
-        {cryptoNews.length > 0 && (
-          <section className="mt-6 p-4 bg-gray-800 rounded-lg text-sm border border-gray-700 shadow-md">
-            <h3 className="text-white font-semibold mb-3 flex items-center">
-              📰 Crypto Macro News
-              <span
-                title="Recent headlines for Bitcoin and Ethereum, providing macro market context."
-                className="text-sm text-gray-400 ml-2 cursor-help"
-              >
-                ℹ️
-              </span>
-            </h3>
-            <ul className="list-disc list-inside space-y-2">
-              {cryptoNews.map((article, i) => (
-                <li key={i} className="text-gray-300 leading-tight">
-                  <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                    {article.title}
-                  </a>
-                  <span className="text-gray-500 ml-2 text-xs">({article.source})</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-        {/* --- END NEW SECTION --- */}
 
         <div className="my-8 h-px bg-gray-700" />
 
