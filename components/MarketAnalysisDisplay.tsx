@@ -90,19 +90,22 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
         </div>
 
-        {/* Funding Imbalance */}
+        {/* Potential Funding Imbalance (updated) */}
         <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-yellow-300 mb-1">Funding Imbalance</h3>
+          <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Potential Funding Imbalance (Watchlist)</h3>
           <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
-          <p className="text-yellow-100 text-xs mt-1">{marketAnalysis.fundingImbalance.interpretation}</p>
+          <p className="text-yellow-100 text-xs mt-1">
+            {marketAnalysis.fundingImbalance.interpretation ||
+              "Funding rates are diverging — potential trap setup forming. Monitor for confirmation before taking action."}
+          </p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.fundingImbalance.score)}`}>
             Score: {marketAnalysis.fundingImbalance.score.toFixed(1)}
           </p>
         </div>
 
-        {/* Potential Short Squeeze Setup */}
+        {/* Short Squeeze */}
         <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-green-300 mb-1">🕵️ Potential Short Squeeze Setup</h3>
+          <h3 className="font-semibold text-green-300 mb-1">Short Squeeze Potential</h3>
           <p className="text-green-300">{marketAnalysis.shortSqueezeCandidates.rating}</p>
           <p className="text-green-200 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.shortSqueezeCandidates.score)}`}>
@@ -110,7 +113,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
           {fundingImbalanceData.topShortSqueeze.length > 0 && (
             <div className="mt-2 text-xs">
-              <p className="font-semibold text-green-200">Watchlist Candidates:</p>
+              <p className="font-semibold text-green-200">Top Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topShortSqueeze.map((s) => (
                   <li key={s.symbol}>
@@ -122,9 +125,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           )}
         </div>
 
-        {/* Potential Long Trap Setup */}
+        {/* Long Trap */}
         <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-red-300 mb-1">🕵️ Potential Long Trap Setup</h3>
+          <h3 className="font-semibold text-red-300 mb-1">Long Trap Risk</h3>
           <p className="text-red-300">{marketAnalysis.longTrapCandidates.rating}</p>
           <p className="text-red-200 text-xs mt-1">{marketAnalysis.longTrapCandidates.interpretation}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.longTrapCandidates.score)}`}>
@@ -132,7 +135,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
           {fundingImbalanceData.topLongTrap.length > 0 && (
             <div className="mt-2 text-xs">
-              <p className="font-semibold text-red-200">Watchlist Candidates:</p>
+              <p className="font-semibold text-red-200">Top Candidates:</p>
               <ul className="list-disc list-inside text-gray-400">
                 {fundingImbalanceData.topLongTrap.map((s) => (
                   <li key={s.symbol}>
