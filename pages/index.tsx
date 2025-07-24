@@ -754,6 +754,12 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
+	<div className="mb-8">
+          <LiquidationHeatmap
+            liquidationEvents={recentLiquidationEvents}
+          />
+        </div>      
+
         {(bullishActionableSignals.length > 0 || bearishActionableSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
             <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
@@ -817,13 +823,6 @@ export default function PriceFundingTracker() {
           </section>
         )}
         {/* --- END NEW SECTION --- */}
-
-
-        <div className="mb-8">
-          <LiquidationHeatmap
-            liquidationEvents={recentLiquidationEvents}
-          />
-        </div>
 
         <div className="my-8 h-px bg-gray-700" />
 
