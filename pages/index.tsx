@@ -13,7 +13,7 @@ import {
   AggregatedLiquidationData,
   MarketAnalysisResults,
   SentimentSignal,
-  SentimentArticle, // NEW: Import SentimentArticle type
+  SentimentArticle,
 } from "../types";
 import {
   BinanceExchangeInfoResponse,
@@ -23,7 +23,7 @@ import {
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import { detectSentimentSignals } from "../utils/signalDetector";
-import { fetchCryptoNews } from "../utils/newsFetcher"; // NEW: Import news fetcher
+import { fetchCryptoNews } from "../utils/newsFetcher";
 import axios, { AxiosError } from 'axios';
 
 // Custom type guard for AxiosError
@@ -91,7 +91,7 @@ export default function PriceFundingTracker() {
 
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
-  // NEW: State for news data
+  // State for news data
   const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
   // Liquidation data states
@@ -129,10 +129,9 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    newsSentiment: { rating: "", interpretation: "", score: 0 }, // NEW: Initialize news sentiment
+    newsSentiment: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
-    // Initialize MarketData and NewsData here as empty or default values
     marketData: {
       greenCount: 0,
       redCount: 0,
@@ -322,15 +321,15 @@ export default function PriceFundingTracker() {
           axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`),
           axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
-          fetchCryptoNews("bitcoin"), // Fetch Bitcoin news
-          fetchCryptoNews("ethereum"), // Fetch Ethereum news
+          fetchCryptoNews("bitcoin"),
+          fetchCryptoNews("ethereum"),
         ]);
 
         const allFetchedNews: SentimentArticle[] = [
-          ...btcNews.map(article => ({ ...article, source: article.source.name })), // Flatten source object
-          ...ethNews.map(article => ({ ...article, source: article.source.name })), // Flatten source object
+          ...btcNews.map(article => ({ ...article, source: article.source.name })),
+          ...ethNews.map(article => ({ ...article, source: article.source.name })),
         ];
-        setCryptoNews(allFetchedNews); // Store news in state
+        setCryptoNews(allFetchedNews);
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
@@ -433,7 +432,7 @@ export default function PriceFundingTracker() {
     };
 
     fetchAllData();
-    const interval = setInterval(fetchAllData, 30000); // Increased interval to 30s as news doesn't need 10s refresh
+    const interval = setInterval(fetchAllData, 30000);
 
     connectLiquidationWs();
 
@@ -473,17 +472,13 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      volumeData: rawData.map(d => ({
-        symbol: d.symbol,
-        volume: d.volume,
-        priceChange: d.priceChangePercent,
-        fundingRate: d.fundingRate,
-      })),
+      // rawData is already SymbolData[], so direct assignment is fine
+      volumeData: rawData, // Corrected: rawData is already SymbolData[]
       liquidationData: aggregatedLiquidationForSentiment,
+      newsArticles: cryptoNews, // Corrected: Pass news data as part of MarketStats
     };
 
-    // Pass news data to analyzeSentiment
-    const sentimentResults = analyzeSentiment(marketStatsForAnalysis, cryptoNews);
+    const sentimentResults = analyzeSentiment(marketStatsForAnalysis); // Corrected: Only one argument
 
     const totalScores = [
       sentimentResults.generalBias.score,
@@ -492,7 +487,7 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
-      sentimentResults.newsSentiment.score, // NEW: Include news sentiment score
+      sentimentResults.newsSentiment.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
     const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
@@ -521,7 +516,7 @@ export default function PriceFundingTracker() {
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
-      newsSentiment: sentimentResults.newsSentiment, // NEW: Set news sentiment
+      newsSentiment: sentimentResults.newsSentiment,
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
       overallMarketOutlook: {
         score: parseFloat(averageScore.toFixed(1)),
@@ -549,7 +544,7 @@ export default function PriceFundingTracker() {
     rawData,
     aggregatedLiquidationForSentiment,
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
-    cryptoNews, // NEW: Add cryptoNews as a dependency
+    cryptoNews,
     priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
   ]);
 
