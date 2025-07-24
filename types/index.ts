@@ -1,4 +1,4 @@
-// src/types/index.ts
+// types/index.ts
 
 export interface SymbolData {
   symbol: string;
@@ -11,11 +11,25 @@ export interface SymbolData {
 export interface SymbolTradeSignal {
   symbol: string;
   signal: "long" | "short" | null;
-  strength: "Weak" | "Medium" | "Strong";
-  confidence: "Low Confidence" | "Medium Confidence" | "High Confidence";
+  strength: "Strong" | "Medium" | "Weak";
+  confidence: "High Confidence" | "Medium Confidence" | "Low Confidence";
   entry: number | null;
   stopLoss: number | null;
   takeProfit: number | null;
+}
+
+export interface MarketStats {
+  green: number;
+  red: number;
+  fundingStats: {
+    greenPositiveFunding: number;
+    greenNegativeFunding: number;
+    redPositiveFunding: number;
+    redNegativeFunding: number;
+  };
+  volumeData: { symbol: string; volume: number; priceChange: number; fundingRate: number }[];
+  liquidationData?: AggregatedLiquidationData; // Optional, as it might not always be available
+  flaggedSignals: SentimentSignal[];
 }
 
 export interface LiquidationEvent {
@@ -39,14 +53,6 @@ export interface SentimentRating {
   score: number;
 }
 
-// NEW TYPE: For your checklist script
-export type SentimentSignal = {
-  symbol: string;
-  signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
-  reason: string;
-};
-
-// Updated MarketAnalysisResults interface
 export interface MarketAnalysisResults {
   generalBias: SentimentRating;
   fundingImbalance: SentimentRating;
@@ -55,7 +61,6 @@ export interface MarketAnalysisResults {
   volumeSentiment: SentimentRating;
   liquidationHeatmap: SentimentRating;
   highQualityBreakout: SentimentRating;
-  // NEW PROPERTY: To store the sentiment derived from the flagged signals
   flaggedSignalSentiment: SentimentRating;
   overallSentimentAccuracy: string;
   overallMarketOutlook: {
@@ -65,22 +70,17 @@ export interface MarketAnalysisResults {
   };
 }
 
-export interface MarketStats {
-  green: number;
-  red: number;
-  fundingStats: {
-    greenPositiveFunding: number;
-    greenNegativeFunding: number;
-    redPositiveFunding: number;
-    redNegativeFunding: number;
-  };
-  volumeData: Array<{
-    symbol: string;
-    volume: number;
-    priceChange: number;
-    fundingRate: number;
-  }>;
-  liquidationData?: AggregatedLiquidationData;
-  // NEW: Add flaggedSignals to MarketStats so sentimentAnalyzer can access it
-  flaggedSignals: SentimentSignal[];
+export interface SentimentSignal {
+  symbol: string;
+  signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
+  reason: string;
+}
+
+export interface FundingImbalanceData {
+  priceUpShortsPaying: number;
+  priceUpLongsPaying: number;
+  priceDownLongsPaying: number;
+  priceDownShortsPaying: number;
+  topShortSqueeze: SymbolData[];
+  topLongTrap: SymbolData[];
 }
