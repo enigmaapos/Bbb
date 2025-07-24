@@ -1,33 +1,10 @@
-// src/components/MarketAnalysisDisplay.tsx
-
+// components/MarketAnalysisDisplay.tsx
 import React from 'react';
-import {
-  SymbolData,
-  MarketAnalysisResults,
-} from '../types';
+import { MarketAnalysisResults, FundingImbalanceData } from '../types';
 
-// Format volume like 25M, 2.1B, etc.
-const formatVolume = (num: number): string => {
-  if (num === 0) return '0';
-  const formatter = new Intl.NumberFormat('en-US', {
-    notation: 'compact',
-    compactDisplay: 'short',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  });
-  return formatter.format(num);
-};
-
-interface MarketAnalysisProps {
+interface MarketAnalysisDisplayProps {
   marketAnalysis: MarketAnalysisResults;
-  fundingImbalanceData: {
-    priceUpShortsPaying: number;
-    priceUpLongsPaying: number;
-    priceDownLongsPaying: number;
-    priceDownShortsPaying: number;
-    topShortSqueeze: SymbolData[];
-    topLongTrap: SymbolData[];
-  };
+  fundingImbalanceData: FundingImbalanceData;
   greenCount: number;
   redCount: number;
   greenPositiveFunding: number;
@@ -36,7 +13,7 @@ interface MarketAnalysisProps {
   redNegativeFunding: number;
 }
 
-const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
+const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   marketAnalysis,
   fundingImbalanceData,
   greenCount,
@@ -46,143 +23,151 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisProps> = ({
   redPositiveFunding,
   redNegativeFunding,
 }) => {
-  const getSentimentColor = (rating: string): string => {
-    if (rating.includes('🟢')) return 'text-green-400';
-    if (rating.includes('🔴')) return 'text-red-400';
-    if (rating.includes('🟡')) return 'text-yellow-300';
-    if (rating.includes('↔️')) return 'text-blue-400';
-    if (rating.includes('💥')) return 'text-pink-400';
-    return 'text-gray-300';
-  };
-
-  const getOutlookTextColor = (tone: string): string => {
-    if (tone.includes('Strongly Bullish')) return 'text-green-400';
-    if (tone.includes('Mixed')) return 'text-yellow-300';
-    if (tone.includes('Bearish')) return 'text-red-400';
-    return 'text-gray-300';
-  };
-
-  const isBullishTrapSqueeze =
-    fundingImbalanceData.priceUpLongsPaying > 100 &&
-    fundingImbalanceData.priceUpShortsPaying < 30;
-
   return (
-    <div className="bg-gray-900 text-white rounded-lg p-6 border border-gray-700 space-y-6 shadow-md">
-      <h2 className="text-2xl font-bold text-blue-300">🧠 Market Sentiment Intelligence</h2>
+    <div className="p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md mb-8">
+      <h2 className="text-2xl font-bold mb-4 text-blue-400">
+        🧠 Advanced Market Sentiment Analysis
+        <span
+          className="text-sm text-gray-400 ml-2 cursor-help"
+          title="Comprehensive analysis of various market factors to determine overall sentiment and potential trading opportunities."
+        >
+          ℹ️
+        </span>
+      </h2>
 
-      {/* General Bias */}
-      <div>
-        <h3 className="text-blue-300 font-semibold mb-1">📊 General Bias</h3>
-        <p className="text-sm text-gray-400">✅ Green: {greenCount} | ❌ Red: {redCount}</p>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.generalBias.rating)}`}>
-          {marketAnalysis.generalBias.rating} ({marketAnalysis.generalBias.score.toFixed(1)}/10)
+      {/* ✅ Overall Market Outlook */}
+      <div className="mb-6 p-4 bg-gray-700 rounded-lg">
+        <h3 className="text-xl font-semibold text-white mb-2">🌐 Overall Market Outlook</h3>
+        <p
+          className="text-lg font-bold"
+          style={{
+            color:
+              marketAnalysis.overallMarketOutlook.score >= 8
+                ? '#4CAF50'
+                : marketAnalysis.overallMarketOutlook.score >= 7
+                ? '#FFEB3B'
+                : marketAnalysis.overallMarketOutlook.score >= 5
+                ? '#9E9E9E'
+                : '#EF5350',
+          }}
+        >
+          {marketAnalysis.overallMarketOutlook.tone} (Score: {marketAnalysis.overallMarketOutlook.score}/10)
+          {' '}
+          {[...Array(5)].map((_, i) => (
+            <span
+              key={i}
+              className={i < Math.round(marketAnalysis.overallMarketOutlook.score / 2) ? 'text-yellow-400' : 'text-gray-500'}
+            >
+              ⭐
+            </span>
+          ))}
         </p>
-        <p className="text-xs italic text-gray-500">{marketAnalysis.generalBias.interpretation}</p>
+        <p className="text-sm text-gray-300 mt-2">
+          📌 <span className="font-semibold">Strategy Suggestion:</span> {marketAnalysis.overallMarketOutlook.strategySuggestion}
+        </p>
       </div>
 
-      {/* Funding Imbalance */}
-      <div>
-        <h3 className="text-yellow-300 font-semibold mb-1">💰 Funding Imbalance</h3>
-        <p className="text-sm text-gray-300">
-          Green (Price Up): ➕ Longs Paying: {greenPositiveFunding}, ➖ Shorts Paying: {greenNegativeFunding}
-        </p>
-        <p className="text-sm text-gray-300">
-          Red (Price Down): ➕ Longs Paying: {redPositiveFunding}, ➖ Shorts Paying: {redNegativeFunding}
-        </p>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.fundingImbalance.rating)}`}>
-          {marketAnalysis.fundingImbalance.rating} ({marketAnalysis.fundingImbalance.score.toFixed(1)}/10)
-        </p>
-        <p className="text-xs italic text-gray-400">{marketAnalysis.fundingImbalance.interpretation}</p>
-      </div>
-
-      {/* 🔥 Bullish Trap Squeeze Notice */}
-      {isBullishTrapSqueeze && (
-        <div className="bg-gray-800 border border-yellow-500 rounded-md p-4">
-          <h3 className="text-yellow-400 font-semibold text-sm mb-2">📈 Bullish Trap Squeeze</h3>
-          <p className="text-sm text-gray-200">
-            Many longs are trapped (
-            <span className="text-green-300 font-bold">{fundingImbalanceData.priceUpLongsPaying}</span> pairs),
-            while only <span className="text-red-300 font-bold">{fundingImbalanceData.priceUpShortsPaying}</span> shorts
-            are paying for rising prices. This suggests strong buying pressure and potential for a **short squeeze**.
-          </p>
-        </div>
-      )}
-
-      {/* Short Squeeze Candidates */}
-      <div>
-        <h3 className="text-green-300 font-semibold mb-1">🚀 Short Squeeze Candidates</h3>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.shortSqueezeCandidates.rating)}`}>
-          {marketAnalysis.shortSqueezeCandidates.rating} ({marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}/10)
-        </p>
-        <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
-        {fundingImbalanceData.topShortSqueeze.length > 0 ? (
-          <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
-            {fundingImbalanceData.topShortSqueeze.map((s) => (
-              <li key={s.symbol}>
-                <strong>{s.symbol}</strong> — Price: {s.priceChangePercent.toFixed(1)}% | Funding:{' '}
-                {(s.fundingRate * 100).toFixed(3)}% | Volume: {formatVolume(s.volume)}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-gray-500 italic">No strong short squeeze setups.</p>
+      {/* ✅ Sentiment Categories Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {renderCategory("📊 General Bias", marketAnalysis.generalBias)}
+        {renderCategory("💰 Funding Imbalance", marketAnalysis.fundingImbalance)}
+        {renderCategoryWithList(
+          "🚀 Short Squeeze Potential",
+          marketAnalysis.shortSqueezeCandidates,
+          fundingImbalanceData.topShortSqueeze
         )}
-      </div>
-
-      {/* Long Trap Candidates */}
-      <div>
-        <h3 className="text-red-300 font-semibold mb-1">⚠️ Long Trap Risk</h3>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.longTrapCandidates.rating)}`}>
-          {marketAnalysis.longTrapCandidates.rating} ({marketAnalysis.longTrapCandidates.score.toFixed(1)}/10)
-        </p>
-        <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.longTrapCandidates.interpretation}</p>
-        {fundingImbalanceData.topLongTrap.length > 0 ? (
-          <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
-            {fundingImbalanceData.topLongTrap.map((s) => (
-              <li key={s.symbol}>
-                <strong>{s.symbol}</strong> — Price: {s.priceChangePercent.toFixed(1)}% | Funding:{' '}
-                {(s.fundingRate * 100).toFixed(3)}% | Volume: {formatVolume(s.volume)}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-gray-500 italic">No long trap risks detected.</p>
+        {renderCategoryWithList(
+          "⚠️ Long Trap Risk",
+          marketAnalysis.longTrapCandidates,
+          fundingImbalanceData.topLongTrap
         )}
-      </div>
-
-      {/* Volume Sentiment */}
-      <div>
-        <h3 className="text-purple-300 font-semibold mb-1">📦 Volume Sentiment</h3>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.volumeSentiment.rating)}`}>
-          {marketAnalysis.volumeSentiment.rating} ({marketAnalysis.volumeSentiment.score.toFixed(1)}/10)
-        </p>
-        <p className="text-xs italic text-gray-400">{marketAnalysis.volumeSentiment.interpretation}</p>
-      </div>
-
-      {/* Liquidation Heatmap */}
-      <div>
-        <h3 className="text-pink-400 font-semibold mb-1">💥 Liquidation Sentiment</h3>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.liquidationHeatmap.rating)}`}>
-          {marketAnalysis.liquidationHeatmap.rating} ({marketAnalysis.liquidationHeatmap.score.toFixed(1)}/10)
-        </p>
-        <p className="text-xs italic text-gray-400">{marketAnalysis.liquidationHeatmap.interpretation}</p>
-      </div>
-
-      {/* Final Outlook */}
-      <div className="pt-4 border-t border-gray-600">
-        <h3 className="text-white font-semibold text-base">🏁 Final Market Outlook</h3>
-        <p className={`text-lg font-bold ${getOutlookTextColor(marketAnalysis.overallMarketOutlook.tone)}`}>
-          {marketAnalysis.overallMarketOutlook.tone.split('—')[0]} ({marketAnalysis.overallMarketOutlook.score.toFixed(1)}/10)
-        </p>
-        <p className="text-sm italic text-gray-400">
-          {marketAnalysis.overallMarketOutlook.tone.split('—')[1]}
-        </p>
-        <p className="text-sm mt-2 text-blue-300">
-          📌 <span className="font-bold">Strategy:</span> {marketAnalysis.overallMarketOutlook.strategySuggestion}
-        </p>
+        {renderCategory("📈 Volume Sentiment", marketAnalysis.volumeSentiment)}
+        {renderCategory("🔥 Liquidation Sentiment", marketAnalysis.liquidationHeatmap)}
+        {renderCategory("💎 High Quality Breakout", marketAnalysis.highQualityBreakout)}
+        {renderCategory("🚩 Flagged Signal Sentiment", marketAnalysis.flaggedSignalSentiment)}
       </div>
     </div>
   );
 };
 
 export default MarketAnalysisDisplay;
+
+const formatVolume = (num: number): string => {
+  if (num === 0) return "0";
+  const formatter = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    compactDisplay: "short",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+  return formatter.format(num);
+};
+
+const renderCategory = (
+  title: string,
+  data: {
+    rating: string;
+    interpretation: string;
+    score: number;
+  }
+) => {
+  const color =
+    data.rating.toLowerCase().includes("bullish")
+      ? "text-green-400"
+      : data.rating.toLowerCase().includes("bearish")
+      ? "text-red-400"
+      : "text-yellow-300";
+
+  return (
+    <div className="p-4 bg-gray-700 rounded-lg">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <p className={`text-md ${color}`}>{data.rating}</p>
+      <p className="text-sm text-gray-400">{data.interpretation}</p>
+      <p className="text-xs text-blue-300">Score: {data.score.toFixed(1)}</p>
+    </div>
+  );
+};
+
+const renderCategoryWithList = (
+  title: string,
+  data: {
+    rating: string;
+    interpretation: string;
+    score: number;
+  },
+  list: {
+    symbol: string;
+    priceChangePercent: number;
+    fundingRate: number;
+    volume: number;
+  }[]
+) => {
+  const color =
+    data.rating.toLowerCase().includes("bullish")
+      ? "text-green-400"
+      : data.rating.toLowerCase().includes("bearish")
+      ? "text-red-400"
+      : "text-yellow-300";
+
+  return (
+    <div className="p-4 bg-gray-700 rounded-lg">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <p className={`text-md ${color}`}>{data.rating}</p>
+      <p className="text-sm text-gray-400">{data.interpretation}</p>
+      <p className="text-xs text-blue-300">Score: {data.score.toFixed(1)}</p>
+      {list.length > 0 && (
+        <div className="mt-2 text-xs text-gray-400">
+          <p className="font-semibold text-white">Top Candidates:</p>
+          <ul className="list-disc ml-4 space-y-1">
+            {list.map((s) => (
+              <li key={s.symbol}>
+                {s.symbol} ({s.priceChangePercent.toFixed(1)}% |{' '}
+                {s.fundingRate.toFixed(4)}% | ${formatVolume(s.volume)})
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
