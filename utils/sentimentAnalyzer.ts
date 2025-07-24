@@ -3,14 +3,16 @@ import { SentimentAnalyzer } from 'vader-sentiment';
 import {
   MarketStats,
   MarketAnalysisResults,
-  // Ensure these types are correctly imported if used in analyzeSentiment
-  // SymbolData, AggregatedLiquidationData, NewsData, SentimentArticle
+  SentimentArticle, // Make sure SentimentArticle is imported for clarity
 } from "../types";
 
-// --- START: New/Updated Helper for Individual Article Sentiment ---
 export interface IndividualSentimentResult {
   compound: number;
   category: 'positive' | 'negative' | 'neutral';
+  // You might want to include raw neg, neu, pos scores too for debugging/detail
+  neg?: number;
+  neu?: number;
+  pos?: number;
 }
 
 /**
@@ -24,13 +26,13 @@ export function getVaderSentiment(text: string | null | undefined): IndividualSe
   }
 
   const analyzer = new SentimentAnalyzer();
-  // Correct method call for vader-sentiment
-  const sentiment = analyzer.getSentiment(text);
+  // CORRECTED: Use polarity_scores
+  const sentiment = analyzer.polarity_scores(text);
 
   const compound = sentiment.compound;
 
   let category: 'positive' | 'negative' | 'neutral';
-  // You can fine-tune these thresholds based on your needs
+  // Standard VADER thresholds
   if (compound >= 0.05) {
     category = 'positive';
   } else if (compound <= -0.05) {
@@ -39,22 +41,19 @@ export function getVaderSentiment(text: string | null | undefined): IndividualSe
     category = 'neutral';
   }
 
-  return { compound, category };
+  return { compound, category, neg: sentiment.neg, neu: sentiment.neu, pos: sentiment.pos };
 }
-// --- END: New/Updated Helper ---
 
-
-// --- START: Your main Market Analysis Function (Updated for News Sentiment) ---
-// This function remains largely the same, but its news sentiment part will now
-// use the sentimentScore and sentimentCategory already present on `newsArticles`.
+// --- Your main Market Analysis Function (analyzeSentiment) remains as you provided it ---
+// (assuming the rest of your logic for other sections is correct based on your data structures)
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
     red,
     fundingStats,
-    volumeData, // Make sure volumeData has `priceChange` and `fundingRate`
+    volumeData,
     liquidationData,
-    newsArticles, // These articles should now already have sentimentScore and sentimentCategory
+    newsArticles,
   } = data;
 
   const results: MarketAnalysisResults = {
@@ -118,17 +117,13 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 2. Funding Imbalance (Existing Logic) ---
-  // IMPORTANT: Ensure `volumeData` in MarketStats contains `priceChange`
-  // Your `SymbolData` interface has `priceChangePercent`, not `priceChange`.
-  // You need to decide whether to use `priceChangePercent` here or
-  // modify `SymbolData` to include `priceChange`. Assuming `priceChangePercent` is intended.
   const priceUpFundingNegative = volumeData.filter(d => d.priceChangePercent > 0 && d.fundingRate < 0).length;
   const priceDownFundingPositive = volumeData.filter(d => d.priceChangePercent < 0 && d.fundingRate > 0).length;
 
   results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
   results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
 
-  const BULLISH_PUN_THRESHOLD = 30;
+  const BULLISH_PUN_THRESHOLD = 30; // These thresholds should be reviewed based on actual data distribution
   const BULLISH_PDP_THRESHOLD = 230;
 
   const BEARISH_PUN_THRESHOLD = 230;
@@ -156,7 +151,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   // --- 3. Short Squeeze Candidates (Existing Logic) ---
   const topShortSqueezeCandidates = volumeData
-    .filter(d => d.priceChangePercent > 0 && d.fundingRate < 0) // Use priceChangePercent
+    .filter(d => d.priceChangePercent > 0 && d.fundingRate < 0)
     .sort((a, b) => a.fundingRate - b.fundingRate)
     .slice(0, 5);
 
@@ -185,7 +180,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   // --- 4. Long Trap Candidates (Existing Logic) ---
   const topLongTrapCandidates = volumeData
-    .filter(d => d.priceChangePercent < 0 && d.fundingRate > 0) // Use priceChangePercent
+    .filter(d => d.priceChangePercent < 0 && d.fundingRate > 0)
     .sort((a, b) => b.fundingRate - a.fundingRate)
     .slice(0, 5);
 
@@ -213,8 +208,8 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 5. Volume Sentiment (Existing Logic) ---
-  const bullishVolume = volumeData.filter(d => d.priceChangePercent > 0 && d.volume > 100_000_000).length; // Use priceChangePercent
-  const bearishVolume = volumeData.filter(d => d.priceChangePercent < 0 && d.volume > 100_000_000).length; // Use priceChangePercent
+  const bullishVolume = volumeData.filter(d => d.priceChangePercent > 0 && d.volume > 100_000_000).length;
+  const bearishVolume = volumeData.filter(d => d.priceChangePercent < 0 && d.volume > 100_000_000).length;
 
   if (bullishVolume > bearishVolume * 2) {
     results.volumeSentiment = {
@@ -284,7 +279,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   let validNewsCount = 0;
 
   newsArticles.forEach(article => {
-    // These articles should already have sentimentScore calculated by the /api/news route
     if (article.sentimentScore !== undefined && article.sentimentScore !== null) {
       totalNewsScore += article.sentimentScore;
       validNewsCount++;
@@ -296,7 +290,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     averageNewsSentimentScore = totalNewsScore / validNewsCount;
   }
 
-  // Classify based on the average 1-10 score
   let newsSentimentRating = "Neutral News";
   let newsSentimentInterpretation = `News sentiment is balanced or indecisive (Avg. score: ${averageNewsSentimentScore.toFixed(2)}).`;
 
@@ -317,7 +310,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   results.newsSentiment = {
     rating: newsSentimentRating,
     interpretation: newsSentimentInterpretation,
-    score: parseFloat(averageNewsSentimentScore.toFixed(2)) // Keep as float for precision
+    score: parseFloat(averageNewsSentimentScore.toFixed(2))
   };
 
   results.overallSentimentAccuracy = "Based on multiple indicators.";
