@@ -72,8 +72,9 @@ export default function PriceFundingTracker() {
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
 
+  // Removed 'sentimentSignal' from sortConfig key type
   const [sortConfig, setSortConfig] = useState<{
-    key: "fundingRate" | "priceChangePercent" | "signal" | "sentimentSignal" | null; // Added sentimentSignal
+    key: "fundingRate" | "priceChangePercent" | "signal" | null;
     direction: "asc" | "desc" | null;
   }>({ key: "fundingRate", direction: "desc" });
 
@@ -86,6 +87,9 @@ export default function PriceFundingTracker() {
     return [];
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // NEW state for actionable sentiment signals
+  const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
   // Liquidation data states
   const liquidationEventsRef = useRef<LiquidationEvent[]>([]);
@@ -323,11 +327,17 @@ export default function PriceFundingTracker() {
         }).filter((d: SymbolData) => d.volume > 0); // Filter out pairs with 0 volume
 
         // --- Call detectSentimentSignals and attach to SymbolData ---
-        const sentimentSignals = detectSentimentSignals(combinedData);
+        const allSentimentSignals = detectSentimentSignals(combinedData);
         combinedData = combinedData.map(d => ({
           ...d,
-          sentimentSignal: sentimentSignals.find(s => s.symbol === d.symbol)
+          sentimentSignal: allSentimentSignals.find(s => s.symbol === d.symbol)
         }));
+
+        // Filter for actionable sentiment signals
+        const filteredActionableSignals = allSentimentSignals.filter(s =>
+          s.signal === 'Bullish Opportunity' || s.signal === 'Bearish Risk'
+        );
+        setActionableSentimentSignals(filteredActionableSignals);
         // --- End SentimentSignal integration ---
 
         setRawData(combinedData);
@@ -496,7 +506,8 @@ export default function PriceFundingTracker() {
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding
   ]);
 
-  const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal" | "sentimentSignal") => { // Added sentimentSignal
+  // Updated handleSort - removed 'sentimentSignal'
+  const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
       let direction: "asc" | "desc" = "desc";
       if (prevConfig.key === key) {
@@ -507,7 +518,7 @@ export default function PriceFundingTracker() {
         }
       } else {
         direction = "desc";
-        if (key === "signal" || key === "sentimentSignal") { // Apply default desc for signals
+        if (key === "signal") { // Only for trade signals now
           direction = "desc";
         }
       }
@@ -536,16 +547,8 @@ export default function PriceFundingTracker() {
         const rankB = rank(signalB);
 
         return (rankA - rankB) * order;
-      } else if (sortConfig.key === "sentimentSignal") { // Sorting for Sentiment Signal
-        const rank = (s: SentimentSignal | undefined) => {
-          if (s?.signal === "Bullish Opportunity") return 0;
-          if (s?.signal === "Bearish Risk") return 1;
-          return 2;
-        };
-        const rankA = rank(a.sentimentSignal);
-        const rankB = rank(b.sentimentSignal);
-        return (rankA - rankB) * order;
       }
+      // Removed sentimentSignal sorting logic from here
       else if (sortConfig.key === "fundingRate") {
         return (a.fundingRate - b.fundingRate) * order;
       } else if (sortConfig.key === "priceChangePercent") {
@@ -701,6 +704,34 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
+        {/* --- NEW SECTION FOR ACTIONABLE SENTIMENT SIGNALS --- */}
+        {actionableSentimentSignals.length > 0 && (
+          <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
+            <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              {actionableSentimentSignals.map((signal, index) => (
+                <div
+                  key={index}
+                  className={`p-3 rounded-md ${
+                    signal.signal === 'Bullish Opportunity'
+                      ? 'bg-green-700/50 border border-green-500'
+                      : 'bg-red-700/50 border border-red-500'
+                  }`}
+                >
+                  <h3 className={`font-bold mb-1 ${
+                    signal.signal === 'Bullish Opportunity' ? 'text-green-300' : 'text-red-300'
+                  }`}>
+                    {signal.signal} ({signal.symbol})
+                  </h3>
+                  <p className="text-gray-200 text-xs">{signal.reason}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* --- END NEW SECTION --- */}
+
+
         <div className="mb-8">
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
@@ -778,14 +809,9 @@ export default function PriceFundingTracker() {
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("signal")}
                 >
-                  Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
+                  Trade Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                <th
-                  className="p-2 cursor-pointer"
-                  onClick={() => handleSort("sentimentSignal")} // NEW Sortable Header
-                >
-                  Sentiment Signal {sortConfig.key === "sentimentSignal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
-                </th>
+                {/* Removed Sentiment Signal Header */}
                 <th className="p-2">★</th>
               </tr>
             </thead>
@@ -794,16 +820,7 @@ export default function PriceFundingTracker() {
               {filteredAndSortedData
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
-                  const sentimentSignal = item.sentimentSignal; // Get the sentiment signal
-
-                  let sentimentSignalColor = 'text-gray-500';
-                  if (sentimentSignal?.signal === 'Bullish Opportunity') {
-                    sentimentSignalColor = 'text-green-400';
-                  } else if (sentimentSignal?.signal === 'Bearish Risk') {
-                    sentimentSignalColor = 'text-red-400';
-                  } else if (sentimentSignal?.signal === 'Neutral') {
-                    sentimentSignalColor = 'text-yellow-400';
-                  }
+                  // sentimentSignal is no longer used here for display in table
 
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
@@ -835,21 +852,7 @@ export default function PriceFundingTracker() {
                         )}
                       </td>
 
-                      {/* NEW Sentiment Signal Display Cell */}
-                      <td className="p-2">
-                        {sentimentSignal && sentimentSignal.signal ? (
-                          <div className="flex flex-col text-xs">
-                            <span className={`font-bold ${sentimentSignalColor}`}>
-                              {sentimentSignal.signal}
-                            </span>
-                            <span className="text-gray-400 italic mt-1 text-[10px]">
-                              {sentimentSignal.reason}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
+                      {/* Removed Sentiment Signal Display Cell */}
 
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
                         setFavorites((prev) =>
