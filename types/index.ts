@@ -7,7 +7,6 @@ export interface SymbolData {
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  // rsi: number | null; // REMOVED: No longer using real RSI
 }
 
 export interface FundingStats {
@@ -65,7 +64,6 @@ export interface MarketStats {
     volume: number;
     priceChange: number;
     fundingRate: number;
-    // rsi?: number | null; // REMOVED: No longer using real RSI
   }>;
   liquidationData?: AggregatedLiquidationData; // Optional, as it might be loading
 }
@@ -81,3 +79,13 @@ export interface MarketAnalysisResults {
   overallSentimentAccuracy: string; // Consider if still needed, might simplify to interpretation directly
   overallMarketOutlook: OverallMarketOutlook;
 }
+
+// NEW TYPE ADDED:
+export type SentimentSignal = {
+  symbol: string;
+  signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
+  reason: string;
+};
+
+
+
