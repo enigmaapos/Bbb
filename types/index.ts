@@ -1,6 +1,5 @@
 // src/types/index.ts
 
-// Existing interfaces/types
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
@@ -34,29 +33,10 @@ export interface AggregatedLiquidationData {
   shortLiquidationCount: number;
 }
 
-// Ensure SentimentRating is defined for MarketAnalysisResults
 export interface SentimentRating {
   rating: string;
   interpretation: string;
   score: number;
-}
-
-// Updated MarketAnalysisResults interface
-export interface MarketAnalysisResults {
-  generalBias: SentimentRating;
-  fundingImbalance: SentimentRating;
-  shortSqueezeCandidates: SentimentRating;
-  longTrapCandidates: SentimentRating;
-  volumeSentiment: SentimentRating;
-  liquidationHeatmap: SentimentRating;
-  // THIS IS THE KEY ADDITION/CONFIRMATION FOR THE BUILD ERROR
-  highQualityBreakout: SentimentRating;
-  overallSentimentAccuracy: string;
-  overallMarketOutlook: {
-    score: number;
-    tone: string;
-    strategySuggestion: string;
-  };
 }
 
 // NEW TYPE: For your checklist script
@@ -66,6 +46,24 @@ export type SentimentSignal = {
   reason: string;
 };
 
+// Updated MarketAnalysisResults interface
+export interface MarketAnalysisResults {
+  generalBias: SentimentRating;
+  fundingImbalance: SentimentRating;
+  shortSqueezeCandidates: SentimentRating;
+  longTrapCandidates: SentimentRating;
+  volumeSentiment: SentimentRating;
+  liquidationHeatmap: SentimentRating;
+  highQualityBreakout: SentimentRating;
+  // NEW PROPERTY: To store the sentiment derived from the flagged signals
+  flaggedSignalSentiment: SentimentRating;
+  overallSentimentAccuracy: string;
+  overallMarketOutlook: {
+    score: number;
+    tone: string;
+    strategySuggestion: string;
+  };
+}
 
 export interface MarketStats {
   green: number;
@@ -82,5 +80,7 @@ export interface MarketStats {
     priceChange: number;
     fundingRate: number;
   }>;
-  liquidationData?: AggregatedLiquidationData; // Optional, as it might not always be available immediately
+  liquidationData?: AggregatedLiquidationData;
+  // NEW: Add flaggedSignals to MarketStats so sentimentAnalyzer can access it
+  flaggedSignals: SentimentSignal[];
 }
