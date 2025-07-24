@@ -1,122 +1,115 @@
 // pages/api/news.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import axios from 'axios';
-// IMPORTANT: Correct Import - import the specific helper function for VADER sentiment analysis
+import axios, { AxiosError } from 'axios';
 import { getVaderSentiment } from '../../utils/sentimentAnalyzer';
+
+// Corrected import for NewsAPI types from the new dedicated file
+import {
+  NewsApiResponse,
+  NewsApiArticle,
+  NewsApiSuccessResponse, // For type guarding
+  NewsApiErrorResponse    // For type guarding
+} from '../../src/types/newsApiTypes'; // Path to the new file
+
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const NEWS_API_BASE_URL = "https://newsapi.org/v2/everything";
 
-// Define an interface for the article structure expected from NewsAPI
-interface NewsAPIArticle {
-  title: string;
-  url: string;
-  source: {
-    id: string | null;
-    name: string;
-  };
-  publishedAt: string;
-  description: string | null;
-  content: string | null;
-  author: string | null;
-  urlToImage: string | null;
-}
-
-// Define an interface for the NewsAPI response structure
-interface NewsApiResponse {
-  status: string;
-  totalResults: number;
-  articles: NewsAPIArticle[];
-}
-
-// Define the shape of the data you want to return to your frontend
-// This must match the SentimentArticle interface in src/types.ts
-interface SimplifiedArticle {
-  title: string;
-  url: string;
-  source: string;
-  publishedAt: string;
-  description: string | null;
-  content: string | null;
-  sentimentScore: number;
-  sentimentCategory: 'positive' | 'negative' | 'neutral';
-}
-
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<SimplifiedArticle[] | { message: string }>
+  res: NextApiResponse
 ) {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  const { q, sortBy, pageSize } = req.query;
+  const { query } = req.query;
 
-  if (!q || typeof q !== 'string') {
-    return res.status(400).json({ message: 'Query parameter "q" is required and must be a string.' });
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ message: 'Missing or invalid query parameter' });
   }
 
   if (!NEWS_API_KEY) {
-    console.error("Server Error: NEWS_API_KEY is not set in environment variables.");
+    console.error("NEWS_API_KEY is not set in environment variables.");
     return res.status(500).json({ message: "Server configuration error: API key missing." });
   }
 
   try {
-    const newsApiResponse = await axios.get<NewsApiResponse>(NEWS_API_BASE_URL, {
-      params: {
-        q: `${q} crypto OR blockchain`,
-        language: "en",
-        sortBy: sortBy || "relevancy",
-        pageSize: pageSize || 5,
-        apiKey: NEWS_API_KEY,
-      },
-    });
+    const newsUrl = `${NEWS_API_BASE_URL}?q=${encodeURIComponent(query)}&apiKey=${NEWS_API_KEY}&sortBy=relevancy&language=en&pageSize=10`;
 
+    // Ensure axios response data is typed as NewsApiResponse
+    const newsApiResponse = await axios.get<NewsApiResponse>(newsUrl);
+
+    // Type guard for error response
     if (newsApiResponse.data.status === 'error') {
-        const errorCode = newsApiResponse.data.code;
-        const errorMessage = newsApiResponse.data.message;
-        console.error(`NewsAPI returned error: ${errorCode} - ${errorMessage}`);
-        let httpStatusCode = 500;
-        if (errorCode === 'apiKeyInvalid' || errorCode === 'apiKeyDisabled') httpStatusCode = 401;
-        if (errorCode === 'rateLimited' || errorCode === 'maximumResultsReached') httpStatusCode = 429;
-        if (errorCode === 'parametersMissing' || errorCode === 'parameterInvalid') httpStatusCode = 400;
+      const { code, message } = newsApiResponse.data; // Destructure safely due to type guard
+      console.error(`NewsAPI returned error: ${code} - ${message}`);
 
-        return res.status(httpStatusCode).json({ message: `News API Error: ${errorMessage}` });
+      let httpStatusCode = 500;
+
+      switch (code) {
+        case 'apiKeyMissing':
+        case 'apiKeyInvalid':
+        case 'apiKeyDisabled':
+        case 'apiKeyExhausted':
+          httpStatusCode = 401;
+          break;
+        case 'parametersMissing':
+        case 'parameterInvalid':
+          httpStatusCode = 400;
+          break;
+        case 'rateLimited':
+          httpStatusCode = 429;
+          break;
+        case 'sourcesTooMany':
+        case 'sourceDoesNotExist':
+          httpStatusCode = 400;
+          break;
+        default:
+          httpStatusCode = 500;
+      }
+
+      return res.status(httpStatusCode).json({
+        message: `News API Error: ${message}`,
+        code: code,
+      });
+
+    } else {
+      // TypeScript now knows newsApiResponse.data is NewsApiSuccessResponse
+      const articles = newsApiResponse.data.articles;
+
+      if (!articles || articles.length === 0) {
+        return res.status(200).json({ articles: [], message: 'No articles found.' });
+      }
+
+      const articlesWithSentiment = articles.map((article: NewsApiArticle) => {
+        const sentimentResult = getVaderSentiment(article.content || article.description || article.title);
+        return {
+          ...article,
+          sentiment: sentimentResult,
+        };
+      });
+
+      return res.status(200).json({ articles: articlesWithSentiment });
     }
 
-    const analyzedArticles: SimplifiedArticle[] = newsApiResponse.data.articles
-        .filter(article => article.title) // Ensure title exists for analysis
-        .map(article => {
-            // Prioritize content, then description, then title for sentiment analysis.
-            // Ensure a string is always passed to getVaderSentiment
-            const textForSentiment = article.content || article.description || article.title || '';
-
-            // --- THIS IS THE CRUCIAL CHANGE ---
-            // Call the specific getVaderSentiment helper function directly for each article
-            const { compound, category } = getVaderSentiment(textForSentiment);
-
-            // Map VADER's -1 to +1 compound score to your 1-10 scale
-            // (compound + 1) * 4.5 + 1 will map -1 to 1, 0 to 5.5, 1 to 10
-            const sentimentScore = parseFloat(((compound + 1) * 4.5 + 1).toFixed(2));
-
-            return {
-                title: article.title,
-                url: article.url,
-                source: article.source.name,
-                publishedAt: article.publishedAt,
-                description: article.description,
-                content: article.content,
-                sentimentScore: sentimentScore,
-                sentimentCategory: category,
-            };
-        });
-
-    res.status(200).json(analyzedArticles);
-
   } catch (error: any) {
-    console.error("Error in News API proxy route:", error.message);
-    const statusCode = error.response?.status || 500;
-    const errorMessage = error.response?.data?.message || "Failed to fetch news from external API.";
-    res.status(statusCode).json({ message: `External API Error: ${errorMessage}` });
+    console.error("Error fetching news:", error);
+
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      if (axiosError.response) {
+        return res.status(axiosError.response.status).json({
+          message: `External API error: ${axiosError.response.statusText || 'Unknown'}`,
+          details: axiosError.response.data,
+        });
+      } else if (axiosError.request) {
+        return res.status(503).json({ message: 'No response received from external API.' });
+      } else {
+        return res.status(500).json({ message: 'Error setting up request to external API.' });
+      }
+    }
+
+    return res.status(500).json({ message: 'Internal server error' });
   }
 }
