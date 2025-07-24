@@ -7,6 +7,7 @@ export interface SymbolData {
   fundingRate: number;
   lastPrice: number;
   volume: number;
+  sentimentSignal?: SentimentSignal; // ADDED: To store the detected signal
 }
 
 export interface FundingStats {
@@ -75,12 +76,11 @@ export interface MarketAnalysisResults {
   longTrapCandidates: SentimentRating;
   volumeSentiment: SentimentRating;
   liquidationHeatmap: SentimentRating;
-  // momentumImbalance: SentimentRating; // REMOVED: No longer using real RSI
-  overallSentimentAccuracy: string; // Consider if still needed, might simplify to interpretation directly
+  overallSentimentAccuracy: string;
   overallMarketOutlook: OverallMarketOutlook;
 }
 
-// NEW TYPE ADDED:
+// NEW TYPE ADDED (already existed, but confirming its place):
 export type SentimentSignal = {
   symbol: string;
   signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
