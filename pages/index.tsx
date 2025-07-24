@@ -6,7 +6,7 @@ import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
 
-// CORRECTED: Import ALL custom types from a single src/types.ts file
+// Import ALL custom types from a single src/types.ts file
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -16,11 +16,11 @@ import {
   MarketAnalysisResults,
   SentimentSignal,
   SentimentArticle,
-  BinanceExchangeInfoResponse, // Now imported from ../types
-  BinanceSymbol, // Now imported from ../types
-  BinanceTicker24hr, // Now imported from ../types
-  BinancePremiumIndex, // Now imported from ../types
-} from "../types"; // <-- All types are here now
+  BinanceExchangeInfoResponse,
+  BinanceSymbol,
+  BinanceTicker24hr,
+  BinancePremiumIndex,
+} from "../types";
 
 // Corrected imports for utils from the 'src/utils' directory
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
@@ -29,7 +29,7 @@ import { fetchCryptoNews } from "../utils/newsFetcher";
 import axios, { AxiosError } from 'axios';
 
 // Custom type guard for AxiosError
-function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
+function isAxiosErrorTypeGuard(error: any): error is AxiosError {
   return (
     typeof error === 'object' &&
     error !== null &&
@@ -333,6 +333,7 @@ export default function PriceFundingTracker() {
         ];
         // Set cryptoNews state here
         setCryptoNews(allFetchedNews);
+        console.log('cryptoNews state after setting:', allFetchedNews.length, allFetchedNews); // For debugging
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
@@ -357,10 +358,7 @@ export default function PriceFundingTracker() {
         }).filter((d: SymbolData) => d.volume > 0);
 
         const allSentimentSignals = detectSentimentSignals(combinedData);
-        // Note: detectSentimentSignals uses priceChange (which is fine if it uses priceChangePercent from SymbolData)
-        // Ensure detectSentimentSignals is correctly implemented to use priceChangePercent internally.
-        // The SymbolData passed to it contains priceChangePercent.
-
+        
         combinedData = combinedData.map(d => ({
           ...d,
           sentimentSignal: allSentimentSignals.find(s => s.symbol === d.symbol)
@@ -433,6 +431,8 @@ export default function PriceFundingTracker() {
         } else {
           setError("Failed to fetch initial market data. Unknown error.");
         }
+        // Ensure cryptoNews is still an empty array or handle error state for it if fetch fails
+        setCryptoNews([]);
       } finally {
         setLoading(false);
       }
@@ -485,7 +485,7 @@ export default function PriceFundingTracker() {
       // Pass rawData directly, as it is already SymbolData[]
       volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
-      // CORRECTED: Pass newsArticles from cryptoNews state
+      // Pass newsArticles from cryptoNews state
       newsArticles: cryptoNews,
     };
 
@@ -499,7 +499,7 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
-      // CORRECTED: Ensure newsSentiment score is included in average calculation
+      // Ensure newsSentiment score is included in average calculation
       sentimentResults.newsSentiment.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
@@ -550,7 +550,7 @@ export default function PriceFundingTracker() {
         totalLongLiquidationsUSD: aggregatedLiquidationForSentiment?.totalLongLiquidationsUSD || 0,
         totalShortLiquidationsUSD: aggregatedLiquidationForSentiment?.totalShortLiquidationsUSD || 0,
       },
-      newsData: cryptoNews, // Ensure newsData is passed
+      newsData: cryptoNews, // Ensure newsData is passed to MarketAnalysisDisplay
     });
 
   }, [
