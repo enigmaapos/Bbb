@@ -5,8 +5,6 @@ import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
-
-// Import ALL custom types from a single src/types.ts file
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -16,20 +14,20 @@ import {
   MarketAnalysisResults,
   SentimentSignal,
   SentimentArticle,
+} from "../types";
+import {
   BinanceExchangeInfoResponse,
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
-} from "../types";
-
-// Corrected imports for utils from the 'src/utils' directory
+} from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import { detectSentimentSignals } from "../utils/signalDetector";
 import { fetchCryptoNews } from "../utils/newsFetcher";
 import axios, { AxiosError } from 'axios';
 
 // Custom type guard for AxiosError
-function isAxiosErrorTypeGuard(error: any): error is AxiosError {
+function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
   return (
     typeof error === 'object' &&
     error !== null &&
@@ -93,7 +91,7 @@ export default function PriceFundingTracker() {
 
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
-  // State for news data
+  // NEW: State for news data
   const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
   // Liquidation data states
@@ -131,7 +129,7 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    newsSentiment: { rating: "", interpretation: "", score: 0 }, // Initialize newsSentiment
+    newsSentiment: { rating: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
     marketData: {
@@ -148,7 +146,7 @@ export default function PriceFundingTracker() {
       totalLongLiquidationsUSD: 0,
       totalShortLiquidationsUSD: 0,
     },
-    newsData: [], // Initialize newsData
+    newsData: [],
   });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
@@ -331,9 +329,7 @@ export default function PriceFundingTracker() {
           ...btcNews,
           ...ethNews,
         ];
-        // Set cryptoNews state here
-        setCryptoNews(allFetchedNews);
-        console.log('cryptoNews state after setting:', allFetchedNews.length, allFetchedNews); // For debugging
+        setCryptoNews(allFetchedNews); // Store news in state
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
@@ -358,7 +354,10 @@ export default function PriceFundingTracker() {
         }).filter((d: SymbolData) => d.volume > 0);
 
         const allSentimentSignals = detectSentimentSignals(combinedData);
-        
+        // Note: detectSentimentSignals uses priceChange (which is fine if it uses priceChangePercent from SymbolData)
+        // Ensure detectSentimentSignals is correctly implemented to use priceChangePercent internally.
+        // The SymbolData passed to it contains priceChangePercent.
+
         combinedData = combinedData.map(d => ({
           ...d,
           sentimentSignal: allSentimentSignals.find(s => s.symbol === d.symbol)
@@ -431,8 +430,6 @@ export default function PriceFundingTracker() {
         } else {
           setError("Failed to fetch initial market data. Unknown error.");
         }
-        // Ensure cryptoNews is still an empty array or handle error state for it if fetch fails
-        setCryptoNews([]);
       } finally {
         setLoading(false);
       }
@@ -468,10 +465,7 @@ export default function PriceFundingTracker() {
   // --- Effect to run Sentiment Analysis when market data or liquidation data or news data changes ---
   useEffect(() => {
     // Only run sentiment analysis if we have rawData, liquidation data, or news
-    if (rawData.length === 0 && !aggregatedLiquidationForSentiment && cryptoNews.length === 0) {
-      console.log("Skipping sentiment analysis: no data yet.");
-      return;
-    }
+    if (rawData.length === 0 && !aggregatedLiquidationForSentiment && cryptoNews.length === 0) return;
 
     const marketStatsForAnalysis: MarketStats = {
       green: greenCount,
@@ -482,10 +476,10 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      // Pass rawData directly, as it is already SymbolData[]
+      // FIX: Pass rawData directly, as it is already SymbolData[]
       volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
-      // Pass newsArticles from cryptoNews state
+      // FIX: Pass newsArticles from cryptoNews state
       newsArticles: cryptoNews,
     };
 
@@ -499,7 +493,6 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
-      // Ensure newsSentiment score is included in average calculation
       sentimentResults.newsSentiment.score,
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
@@ -529,7 +522,7 @@ export default function PriceFundingTracker() {
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
-      newsSentiment: sentimentResults.newsSentiment, // Ensure newsSentiment is passed
+      newsSentiment: sentimentResults.newsSentiment,
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
       overallMarketOutlook: {
         score: parseFloat(averageScore.toFixed(1)),
@@ -550,14 +543,14 @@ export default function PriceFundingTracker() {
         totalLongLiquidationsUSD: aggregatedLiquidationForSentiment?.totalLongLiquidationsUSD || 0,
         totalShortLiquidationsUSD: aggregatedLiquidationForSentiment?.totalShortLiquidationsUSD || 0,
       },
-      newsData: cryptoNews, // Ensure newsData is passed to MarketAnalysisDisplay
+      newsData: cryptoNews,
     });
 
   }, [
     rawData,
     aggregatedLiquidationForSentiment,
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
-    cryptoNews, // Add cryptoNews to the dependency array
+    cryptoNews,
     priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
   ]);
 
@@ -750,7 +743,6 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* Pass the entire marketAnalysis object to MarketAnalysisDisplay */}
         <MarketAnalysisDisplay
           marketAnalysis={marketAnalysis}
           fundingImbalanceData={fundingImbalanceData}
@@ -766,10 +758,9 @@ export default function PriceFundingTracker() {
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
           />
-        </div>
+        </div>   
 
-	 {/* --- SECTION FOR CRYPTO MACRO NEWS (Displaying fetched news) --- */}
-        {/* Only render this section if there's news data available */}
+	 {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
         {cryptoNews.length > 0 && (
           <section className="mt-6 p-4 bg-gray-800 rounded-lg text-sm border border-gray-700 shadow-md">
             <h3 className="text-white font-semibold mb-3 flex items-center">
@@ -793,7 +784,7 @@ export default function PriceFundingTracker() {
             </ul>
           </section>
         )}
-        {/* --- END CRYPTO MACRO NEWS SECTION --- */}
+        {/* --- END NEW SECTION --- */}     
 
         {(bullishActionableSignals.length > 0 || bearishActionableSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
