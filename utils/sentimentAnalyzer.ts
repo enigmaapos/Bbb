@@ -72,13 +72,13 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
     results.fundingImbalance = {
-      rating: "📈 Bullish Trap Squeeze",
+      rating: "📈 Potential Bullish Trap Squeeze",
       interpretation: `Many longs are trapped (${priceDownFundingPositive} pairs) while very few shorts are paying for rising prices (${priceUpFundingNegative} pairs). This suggests strong buying pressure and potential for a squeeze.`,
       score: 9.0,
     };
   } else if (priceUpFundingNegative >= BEARISH_PUN_THRESHOLD && priceDownFundingPositive <= BEARISH_PDP_THRESHOLD) {
     results.fundingImbalance = {
-      rating: "📉 Bearish Trap Squeeze",
+      rating: "📉 Potential Bearish Trap Squeeze",
       interpretation: `Many shorts are trapped (${priceUpFundingNegative} pairs) while very few longs are paying for falling prices (${priceDownFundingPositive} pairs). This suggests a potential bearish reversal or capitulation.`,
       score: 1.0, // A low score for bearish
     };
