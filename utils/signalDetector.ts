@@ -10,17 +10,17 @@ export type SentimentSignal = {
 };
 
 export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
-  return data.map(({ symbol, priceChangePercent, volume, fundingRate }) => { // Changed priceChange to priceChangePercent
+  return data.map(({ symbol, priceChangePercent, volume, fundingRate }) => {
     const volThreshold = 50_000_000; // $50M
 
     // 🔼 Bullish Criteria
     // Price up ≥ 10%
     // Volume ≥ $50M
-    // Funding ≤ 0.01% (not overheated)
+    // Funding ≤ 0.01% (not overheated) -- Adjusted to 0.0001 for decimal representation
     if (
       priceChangePercent >= 10 &&
       volume >= volThreshold &&
-      fundingRate <= 0.0001 // Changed 0.01 to 0.0001 for percentage (0.01% = 0.0001 in decimal)
+      fundingRate <= 0.0001
     ) {
       return {
         symbol,
@@ -32,11 +32,11 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
     // 🔻 Bearish Criteria
     // Price down ≥ 10%
     // Volume ≥ $50M
-    // Funding ≥ 0.01% (trapped longs)
+    // Funding ≥ 0.01% (trapped longs) -- Adjusted to 0.0001 for decimal representation
     if (
       priceChangePercent <= -10 &&
       volume >= volThreshold &&
-      fundingRate >= 0.0001 // Changed 0.01 to 0.0001 for percentage
+      fundingRate >= 0.0001
     ) {
       return {
         symbol,
