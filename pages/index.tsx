@@ -1,4 +1,4 @@
-// pages/index.tsx (or src/pages/index.tsx)
+// pages/index.tsx
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
@@ -12,7 +12,7 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults,
-  // Removed FundingStats here as it's not directly used in overall logic
+  SentimentSignal, // Import SentimentSignal type
 } from "../types";
 import {
   BinanceExchangeInfoResponse,
@@ -21,6 +21,7 @@ import {
   BinancePremiumIndex,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
+import { detectSentimentSignals } from "../utils/signalDetector"; // Import the signal detector
 import axios, { AxiosError } from 'axios';
 
 // Custom type guard for AxiosError
@@ -72,7 +73,7 @@ export default function PriceFundingTracker() {
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
 
   const [sortConfig, setSortConfig] = useState<{
-    key: "fundingRate" | "priceChangePercent" | "signal" | null;
+    key: "fundingRate" | "priceChangePercent" | "signal" | "sentimentSignal" | null; // Added sentimentSignal
     direction: "asc" | "desc" | null;
   }>({ key: "fundingRate", direction: "desc" });
 
@@ -121,7 +122,6 @@ export default function PriceFundingTracker() {
     longTrapCandidates: { rating: "", interpretation: "", score: 0 },
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
-    // momentumImbalance: { rating: "", interpretation: "", score: 0 }, // REMOVED
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
   });
@@ -307,13 +307,11 @@ export default function PriceFundingTracker() {
         const tickerData = tickerRes.data;
         const fundingData = fundingRes.data;
 
-        const combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
+        let combinedData: SymbolData[] = usdtPairs.map((symbol: string) => {
           const ticker = tickerData.find((t) => t.symbol === symbol);
           const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          // RSI removed - no longer generating dummy or real RSI here
-          // const dummyRsi = parseFloat(((Math.random() * 60) + 20).toFixed(2)); // Dummy RSI for now
 
           return {
             symbol,
@@ -321,9 +319,16 @@ export default function PriceFundingTracker() {
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
             volume: volume,
-            // rsi: dummyRsi, // REMOVED
           };
         }).filter((d: SymbolData) => d.volume > 0); // Filter out pairs with 0 volume
+
+        // --- Call detectSentimentSignals and attach to SymbolData ---
+        const sentimentSignals = detectSentimentSignals(combinedData);
+        combinedData = combinedData.map(d => ({
+          ...d,
+          sentimentSignal: sentimentSignals.find(s => s.symbol === d.symbol)
+        }));
+        // --- End SentimentSignal integration ---
 
         setRawData(combinedData);
 
@@ -425,7 +430,7 @@ export default function PriceFundingTracker() {
     const marketStatsForAnalysis: MarketStats = {
       green: greenCount,
       red: redCount,
-      fundingStats: { // Still provide this structure even if individual properties aren't used by new fundingImbalance logic
+      fundingStats: {
         greenPositiveFunding: greenPositiveFunding,
         greenNegativeFunding: greenNegativeFunding,
         redPositiveFunding: redPositiveFunding,
@@ -436,14 +441,12 @@ export default function PriceFundingTracker() {
         volume: d.volume,
         priceChange: d.priceChangePercent,
         fundingRate: d.fundingRate,
-        // rsi: d.rsi, // REMOVED
       })),
       liquidationData: aggregatedLiquidationForSentiment,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
 
-    // Update totalScores calculation based on remaining sentiment factors
     const totalScores = [
       sentimentResults.generalBias.score,
       sentimentResults.fundingImbalance.score,
@@ -451,7 +454,6 @@ export default function PriceFundingTracker() {
       sentimentResults.longTrapCandidates.score,
       sentimentResults.volumeSentiment.score,
       sentimentResults.liquidationHeatmap.score,
-      // sentimentResults.momentumImbalance.score, // REMOVED
     ].filter(score => typeof score === 'number' && !isNaN(score));
 
     const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
@@ -480,7 +482,6 @@ export default function PriceFundingTracker() {
       longTrapCandidates: sentimentResults.longTrapCandidates,
       volumeSentiment: sentimentResults.volumeSentiment,
       liquidationHeatmap: sentimentResults.liquidationHeatmap,
-      // momentumImbalance: sentimentResults.momentumImbalance, // REMOVED
       overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
       overallMarketOutlook: {
         score: parseFloat(averageScore.toFixed(1)),
@@ -495,7 +496,7 @@ export default function PriceFundingTracker() {
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding
   ]);
 
-  const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
+  const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal" | "sentimentSignal") => { // Added sentimentSignal
     setSortConfig((prevConfig) => {
       let direction: "asc" | "desc" = "desc";
       if (prevConfig.key === key) {
@@ -506,7 +507,7 @@ export default function PriceFundingTracker() {
         }
       } else {
         direction = "desc";
-        if (key === "signal") {
+        if (key === "signal" || key === "sentimentSignal") { // Apply default desc for signals
           direction = "desc";
         }
       }
@@ -535,7 +536,17 @@ export default function PriceFundingTracker() {
         const rankB = rank(signalB);
 
         return (rankA - rankB) * order;
-      } else if (sortConfig.key === "fundingRate") {
+      } else if (sortConfig.key === "sentimentSignal") { // Sorting for Sentiment Signal
+        const rank = (s: SentimentSignal | undefined) => {
+          if (s?.signal === "Bullish Opportunity") return 0;
+          if (s?.signal === "Bearish Risk") return 1;
+          return 2;
+        };
+        const rankA = rank(a.sentimentSignal);
+        const rankB = rank(b.sentimentSignal);
+        return (rankA - rankB) * order;
+      }
+      else if (sortConfig.key === "fundingRate") {
         return (a.fundingRate - b.fundingRate) * order;
       } else if (sortConfig.key === "priceChangePercent") {
         return (a.priceChangePercent - b.priceChangePercent) * order;
@@ -763,13 +774,17 @@ export default function PriceFundingTracker() {
                 >
                   Funding {sortConfig.key === "fundingRate" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
-                {/* Removed RSI column header */}
-                {/* <th className="p-2">RSI (Dummy)</th> */}
                 <th
                   className="p-2 cursor-pointer"
                   onClick={() => handleSort("signal")}
                 >
                   Signal {sortConfig.key === "signal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
+                </th>
+                <th
+                  className="p-2 cursor-pointer"
+                  onClick={() => handleSort("sentimentSignal")} // NEW Sortable Header
+                >
+                  Sentiment Signal {sortConfig.key === "sentimentSignal" && (sortConfig.direction === "asc" ? "🔼" : "🔽")}
                 </th>
                 <th className="p-2">★</th>
               </tr>
@@ -779,6 +794,16 @@ export default function PriceFundingTracker() {
               {filteredAndSortedData
                 .map((item) => {
                   const signal = tradeSignals.find((s) => s.symbol === item.symbol);
+                  const sentimentSignal = item.sentimentSignal; // Get the sentiment signal
+
+                  let sentimentSignalColor = 'text-gray-500';
+                  if (sentimentSignal?.signal === 'Bullish Opportunity') {
+                    sentimentSignalColor = 'text-green-400';
+                  } else if (sentimentSignal?.signal === 'Bearish Risk') {
+                    sentimentSignalColor = 'text-red-400';
+                  } else if (sentimentSignal?.signal === 'Neutral') {
+                    sentimentSignalColor = 'text-yellow-400';
+                  }
 
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
@@ -796,13 +821,6 @@ export default function PriceFundingTracker() {
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
 
-                      {/* Removed RSI data cell */}
-                      {/*
-                      <td className="p-2">
-                        {item.rsi ? item.rsi.toFixed(2) : 'N/A'}
-                      </td>
-                      */}
-
                       <td className="p-2 space-y-1 text-xs text-gray-200">
                         {signal && signal.signal ? (
                           <div className="flex flex-col">
@@ -811,6 +829,22 @@ export default function PriceFundingTracker() {
                             </span>
                             <span className="text-yellow-300">{signal.strength}</span>
                             <span className="text-gray-400 italic">{signal.confidence}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+
+                      {/* NEW Sentiment Signal Display Cell */}
+                      <td className="p-2">
+                        {sentimentSignal && sentimentSignal.signal ? (
+                          <div className="flex flex-col text-xs">
+                            <span className={`font-bold ${sentimentSignalColor}`}>
+                              {sentimentSignal.signal}
+                            </span>
+                            <span className="text-gray-400 italic mt-1 text-[10px]">
+                              {sentimentSignal.reason}
+                            </span>
                           </div>
                         ) : (
                           <span className="text-gray-500">-</span>
