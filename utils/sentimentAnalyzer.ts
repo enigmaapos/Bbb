@@ -247,49 +247,89 @@ if (priceUpFundingNegative > BULLISH_PUN_THRESHOLD && priceDownFundingPositive <
     };
   }
 
-  // --- 7. News Sentiment Analysis ---
-  let newsSentimentRating = "Neutral";
-  let newsSentimentInterpretation = "No significant positive or negative news detected.";
-  let newsSentimentScore = 5;
-  let positiveNewsCount = 0;
-  let negativeNewsCount = 0;
 
-  newsArticles.forEach(article => {
-    const title = article.title.toLowerCase();
-    if (title.includes("bullish") || title.includes("gain") || title.includes("rise") || title.includes("surge") || title.includes("breakout")) {
-      positiveNewsCount++;
-    }
-    if (title.includes("bearish") || title.includes("fall") || title.includes("drop") || title.includes("crash") || title.includes("sell-off")) {
-      negativeNewsCount++;
-    }
-  });
+// --- 7. News Sentiment Analysis (Improved) ---
+const sentimentKeywords: Record<string, number> = {
+  bullish: 2,
+  gain: 1,
+  rise: 1,
+  breakout: 2,
+  surge: 2,
+  rally: 2,
+  pump: 2,
+  spike: 1,
+  moon: 2,
+  profit: 1,
 
-  if (positiveNewsCount > negativeNewsCount * 2) {
-    newsSentimentRating = "Bullish News";
-    newsSentimentInterpretation = "Recent news headlines are predominantly positive, likely supporting upward price action.";
-    newsSentimentScore = 8;
-  } else if (negativeNewsCount > positiveNewsCount * 2) {
-    newsSentimentRating = "Bearish News";
-    newsSentimentInterpretation = "Recent news headlines are predominantly negative, likely contributing to downward price action.";
-    newsSentimentScore = 3;
-  } else if (positiveNewsCount > negativeNewsCount) {
-    newsSentimentRating = "Slightly Bullish News";
-    newsSentimentInterpretation = "More positive news than negative, suggesting a mild positive sentiment from headlines.";
-    newsSentimentScore = 6;
-  } else if (negativeNewsCount > positiveNewsCount) {
-    newsSentimentRating = "Slightly Bearish News";
-    newsSentimentInterpretation = "More negative news than positive, suggesting a mild negative sentiment from headlines.";
-    newsSentimentScore = 4;
-  } else {
-    newsSentimentRating = "Neutral News";
-    newsSentimentInterpretation = "News sentiment is balanced or indecisive.";
-    newsSentimentScore = 5;
+  bearish: -2,
+  crash: -3,
+  fall: -2,
+  drop: -2,
+  correction: -1,
+  dip: -1,
+  selloff: -2,
+  dump: -2,
+  panic: -2,
+  loss: -1,
+};
+
+let totalSentimentScore = 0;
+let keywordHitCount = 0;
+let positiveHeadlines: string[] = [];
+let negativeHeadlines: string[] = [];
+
+newsArticles.forEach(article => {
+  const title = article.title.toLowerCase();
+
+  // Ignore headlines that negate sentiment
+  if (title.includes("trap") || title.includes("fake") || title.includes("scam")) return;
+
+  let score = 0;
+
+  for (const [keyword, weight] of Object.entries(sentimentKeywords)) {
+    if (title.includes(keyword)) {
+      score += weight;
+      keywordHitCount++;
+    }
   }
-  results.newsSentiment = {
-    rating: newsSentimentRating,
-    interpretation: newsSentimentInterpretation,
-    score: newsSentimentScore
-  };
+
+  totalSentimentScore += score;
+
+  if (score > 0) positiveHeadlines.push(article.title);
+  else if (score < 0) negativeHeadlines.push(article.title);
+});
+
+// Normalize score to a 0–10 scale (base score is 5, extreme = ±10)
+let newsSentimentScore = 5;
+if (keywordHitCount > 0) {
+  const avgSentiment = totalSentimentScore / keywordHitCount;
+  newsSentimentScore = Math.max(0, Math.min(10, 5 + avgSentiment * 2)); // scale factor
+}
+
+let newsSentimentRating = "Neutral News";
+let newsSentimentInterpretation = "News sentiment is balanced or inconclusive.";
+
+if (newsSentimentScore >= 7.5) {
+  newsSentimentRating = "Bullish News";
+  newsSentimentInterpretation = "News headlines strongly favor upward movement.";
+} else if (newsSentimentScore >= 6) {
+  newsSentimentRating = "Slightly Bullish News";
+  newsSentimentInterpretation = "News sentiment leans slightly positive.";
+} else if (newsSentimentScore <= 2.5) {
+  newsSentimentRating = "Bearish News";
+  newsSentimentInterpretation = "News headlines suggest strong bearish pressure.";
+} else if (newsSentimentScore <= 4) {
+  newsSentimentRating = "Slightly Bearish News";
+  newsSentimentInterpretation = "News sentiment leans slightly negative.";
+}
+
+// Final assignment
+results.newsSentiment = {
+  rating: newsSentimentRating,
+  interpretation: newsSentimentInterpretation,
+  score: parseFloat(newsSentimentScore.toFixed(1)),
+  topHeadlines: [...positiveHeadlines.slice(0, 3), ...negativeHeadlines.slice(0, 2)], // Max 5
+};
 
 
   results.overallSentimentAccuracy = "Based on multiple indicators.";
