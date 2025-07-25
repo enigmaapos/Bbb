@@ -1,50 +1,28 @@
-// src/utils/newsFetcher.ts
+// src/utils/newsFetcher.ts (updated to use your API route)
 import axios from 'axios';
-import { SentimentArticle } from '../types';
-import { getVaderSentiment } from './sentimentAnalyzer';
+import { SentimentArticle } from '../types'; // Assuming SentimentArticle matches your desired output
 
-const NEWS_API_KEY = process.env.NEXT_PUBLIC_NEWS_API_KEY; // ✅ Use NEXT_PUBLIC_ prefix
-const NEWS_API_BASE_URL = "https://newsapi.org/v2";
+// Your frontend now calls your OWN Next.js API route
+const LOCAL_NEWS_API_ROUTE = "/api/news"; // Relative path to your API route
 
-export async function fetchCryptoNews(query: string): Promise<SentimentArticle[]> {
-  if (!NEWS_API_KEY) {
-    console.warn("🚫 NEWS_API_KEY is not set. Crypto news fetching skipped.");
-    return [];
-  }
-
+export async function fetchCryptoNews(query: string, sortBy: string = "relevancy", pageSize: number = 5): Promise<SentimentArticle[]> {
   try {
-    const response = await axios.get(`${NEWS_API_BASE_URL}/everything`, {
+    // Make the request to your local Next.js API route
+    // The query, sortBy, and pageSize parameters are passed through to your API route
+    const response = await axios.get<SentimentArticle[]>(LOCAL_NEWS_API_ROUTE, {
       params: {
         q: query,
-        language: 'en',
-        sortBy: 'publishedAt',
-        pageSize: 5,
-        apiKey: NEWS_API_KEY,
+        sortBy: sortBy,
+        pageSize: pageSize,
       },
     });
 
-    const articles: SentimentArticle[] = response.data.articles.map((article: any) => {
-      const sentimentResult = getVaderSentiment(`${article.title} ${article.description || ''}`);
-      const sentimentScoreScaled = ((sentimentResult.compound + 1) / 2) * 10;
-
-      return {
-        source: article.source.name,
-        author: article.author,
-        title: article.title,
-        description: article.description,
-        url: article.url,
-        urlToImage: article.urlToImage,
-        publishedAt: article.publishedAt,
-        content: article.content,
-        sentimentScore: sentimentScoreScaled,
-        sentimentCategory: sentimentResult.category,
-      };
-    });
-
-    return articles;
+    // Your API route should already return SentimentArticle[], so direct return
+    return response.data;
 
   } catch (error) {
-    console.error(`❌ Error fetching news for "${query}":`, error);
+    console.error(`Error fetching news for ${query} via proxy:`, error);
+    // You might want to provide a more user-friendly error message here
     return [];
   }
 }

@@ -91,16 +91,16 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </div>
 
         {/* Funding Imbalance */}
-        <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance</h3>
-          <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
-          <p className="text-yellow-100 text-xs mt-1">
-            {marketAnalysis.fundingImbalance.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
-          </p>
-          <p className={`text-right font-bold ${getScoreColor(marketAnalysis.fundingImbalance.score)}`}>
-            Score: {marketAnalysis.fundingImbalance.score.toFixed(1)}
-          </p>
-        </div>
+<div className="p-3 bg-gray-700/50 rounded-md">
+  <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance (Watchlist)</h3>
+  <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
+  <p className="text-yellow-100 text-xs mt-1">
+    {marketAnalysis.fundingImbalance.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
+  </p>
+  <p className={`text-right font-bold ${getScoreColor(marketAnalysis.fundingImbalance.score)}`}>
+    Score: {marketAnalysis.fundingImbalance.score.toFixed(1)}
+  </p>
+</div>
 
         {/* Short Squeeze */}
         <div className="p-3 bg-gray-700/50 rounded-md">
@@ -166,55 +166,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </p>
         </div>
 
-        {/* News Sentiment - NEW SECTION */}
-        <div className="p-3 bg-gray-700/50 rounded-md col-span-full"> {/* Make it span full width if desired */}
-          <h3 className="font-semibold text-orange-300 mb-1">📰 News Sentiment</h3>
-          {marketAnalysis.newsSentiment && (
-            <>
-              <p className="text-orange-300">{marketAnalysis.newsSentiment.rating}</p>
-              <p className="text-orange-200 text-xs mt-1">{marketAnalysis.newsSentiment.interpretation}</p>
-              <p className={`text-right font-bold ${getScoreColor(marketAnalysis.newsSentiment.score)}`}>
-                Score: {marketAnalysis.newsSentiment.score.toFixed(1)}
-              </p>
-            </>
-          )}
-
-          {/* Display actual news articles if available */}
-          {marketAnalysis.newsData && marketAnalysis.newsData.length > 0 && (
-            <div className="mt-3 text-xs">
-              <p className="font-semibold text-orange-200 mb-1">Relevant Articles:</p>
-              <ul className="list-disc list-inside text-gray-400 max-h-48 overflow-y-auto pr-2"> {/* Added max-height and scroll */}
-                {marketAnalysis.newsData.map((article, index) => (
-                  <li key={index} className="mb-1">
-                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                      {article.title}
-                    </a>
-                    <br />
-                    <span className="text-gray-500 italic">
-                      {article.source} - {new Date(article.publishedAt).toLocaleDateString()}
-                    </span>
-                    <span className={`ml-2 text-sm font-semibold ${
-                        article.sentimentCategory === 'positive' ? 'text-green-500' :
-                        article.sentimentCategory === 'negative' ? 'text-red-500' :
-                        'text-gray-400'
-                    }`}>
-                        ({article.sentimentCategory || 'N/A'})
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {/* Message if no news articles are found */}
-          {marketAnalysis.newsData && marketAnalysis.newsData.length === 0 && (
-            <p className="text-gray-400 text-xs mt-2">No recent news articles found for sentiment analysis.</p>
-          )}
-          {!marketAnalysis.newsSentiment && marketAnalysis.newsData === undefined && (
-              <p className="text-gray-400 text-xs mt-2">News sentiment data is not available.</p>
-          )}
-        </div>
-
-      </div> {/* End of grid */}
+      </div>
     </div>
   );
 };
