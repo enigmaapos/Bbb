@@ -90,7 +90,7 @@ results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
 // Thresholds
 const PUN_MAX = 30;
 const PDP_HIGH_THRESHOLD = 230;
-const PDP_LOW_THRESHOLD = 130;
+const PDP_LOW_THRESHOLD = 150;
 
 if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRESHOLD) {
   results.fundingImbalance = {
