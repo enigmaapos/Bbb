@@ -116,39 +116,40 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-  // --- 2. Funding Imbalance (Existing Logic) ---
-  const priceUpFundingNegative = volumeData.filter(d => d.priceChangePercent > 0 && d.fundingRate < 0).length;
-  const priceDownFundingPositive = volumeData.filter(d => d.priceChangePercent < 0 && d.fundingRate > 0).length;
+// --- 2. Funding Imbalance (Threshold-Based Trap Detection) ---
+const priceUpFundingNegative = volumeData.filter(d => d.priceChangePercent > 0 && d.fundingRate < 0).length; // PUN
+const priceDownFundingPositive = volumeData.filter(d => d.priceChangePercent < 0 && d.fundingRate > 0).length; // PDP
 
-  results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
-  results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
+results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
+results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
 
-  const BULLISH_PUN_THRESHOLD = 30; // These thresholds should be reviewed based on actual data distribution
-  const BULLISH_PUN_THRESHOLD = 230;
-  
-  const BEARISH_PDP_THRESHOLD = 230;
-	const BEARISH_PDP_THRESHOLD = 30;
-  
-  if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
-    results.fundingImbalance = {
-      rating: "📈 Potential Bullish Trap Squeeze",
-      interpretation: `Many longs are trapped (${priceDownFundingPositive} pairs) while very few shorts are paying for rising prices (${priceUpFundingNegative} pairs). This suggests strong buying pressure and potential for a squeeze.`,
-      score: 9.0,
-    };
-  } else if (priceUpFundingNegative >= BEARISH_PUN_THRESHOLD && priceDownFundingPositive <= BEARISH_PDP_THRESHOLD) {
-    results.fundingImbalance = {
-      rating: "📉 Potential Bearish Trap Squeeze",
-      interpretation: `Many shorts are trapped (${priceUpFundingNegative} pairs) while very few longs are paying for falling prices (${priceDownFundingPositive} pairs). This suggests a potential bearish reversal or capitulation.`,
-      score: 1.0,
-    };
-  } else {
-    results.fundingImbalance = {
-      rating: "Neutral/Mixed Funding",
-      interpretation: "Funding rates do not meet specific 'trap squeeze' criteria.",
-      score: 5,
-    };
-  }
+// Define thresholds
+const BULLISH_PUN_THRESHOLD = 230;
+const BULLISH_PDP_THRESHOLD = 30;
 
+const BEARISH_PUN_THRESHOLD = 30;
+const BEARISH_PDP_THRESHOLD = 230;
+
+if (priceUpFundingNegative > BULLISH_PUN_THRESHOLD && priceDownFundingPositive < BULLISH_PDP_THRESHOLD) {
+  results.fundingImbalance = {
+    rating: "📈 Bullish Trap Squeeze",
+    interpretation: `Strong bullish signal: ${priceUpFundingNegative} shorts paying on rising prices vs only ${priceDownFundingPositive} longs trapped. Bullish squeeze likely.`,
+    score: 9.0,
+  };
+} else if (priceUpFundingNegative < BEARISH_PUN_THRESHOLD && priceDownFundingPositive > BEARISH_PDP_THRESHOLD) {
+  results.fundingImbalance = {
+    rating: "📉 Bearish Trap Skew",
+    interpretation: `Bearish warning: ${priceDownFundingPositive} longs are paying while price drops, but only ${priceUpFundingNegative} shorts on price rises. Longs are trapped.`,
+    score: 2.0,
+  };
+} else {
+  results.fundingImbalance = {
+    rating: "⚪ Mixed/Neutral Funding",
+    interpretation: `No extreme trap squeeze conditions detected. PUN: ${priceUpFundingNegative}, PDP: ${priceDownFundingPositive}.`,
+    score: 5.0,
+  };
+}
+	
   // --- 3. Short Squeeze Candidates (Existing Logic) ---
   const topShortSqueezeCandidates = volumeData
     .filter(d => d.priceChangePercent > 0 && d.fundingRate < 0)
