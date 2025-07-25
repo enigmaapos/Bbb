@@ -1,6 +1,7 @@
 // src/utils/newsFetcher.ts (updated to use your API route)
 import axios from 'axios';
 import { SentimentArticle } from '../types'; // Assuming SentimentArticle matches your desired output
+import { getVaderSentiment } from './sentimentAnalyzer'; // Import the sentiment analyzer
 
 // Your frontend now calls your OWN Next.js API route
 const LOCAL_NEWS_API_ROUTE = "/api/news"; // Relative path to your API route
