@@ -124,10 +124,10 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
 
   const BULLISH_PUN_THRESHOLD = 230; // These thresholds should be reviewed based on actual data distribution
-  const BULLISH_PDP_THRESHOLD = 0;
+  const BULLISH_PDP_THRESHOLD = 30;
 
   const BEARISH_PUN_THRESHOLD = 30;
-  const BEARISH_PDP_THRESHOLD = 0;
+  const BEARISH_PDP_THRESHOLD = 230;
 
   if (priceUpFundingNegative <= BULLISH_PUN_THRESHOLD && priceDownFundingPositive >= BULLISH_PDP_THRESHOLD) {
     results.fundingImbalance = {
