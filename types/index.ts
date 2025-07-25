@@ -2,11 +2,11 @@
 
 export interface SymbolData {
   symbol: string;
-  priceChangePercent: number; // This is crucial
+  priceChangePercent: number;
   fundingRate: number;
-  lastPrice: number; // This is crucial
+  lastPrice: number;
   volume: number;
-  sentimentSignal?: SentimentSignal; // Optional sentiment signal
+  sentimentSignal?: SentimentSignal;
 }
 
 export interface SymbolTradeSignal {
@@ -21,10 +21,10 @@ export interface SymbolTradeSignal {
 
 export interface LiquidationEvent {
   symbol: string;
-  side: "BUY" | "SELL"; // BUY for short liquidations, SELL for long liquidations
+  side: "BUY" | "SELL";
   price: number;
   quantity: number;
-  timestamp: number; // Unix timestamp in milliseconds
+  timestamp: number;
 }
 
 export interface AggregatedLiquidationData {
@@ -37,20 +37,19 @@ export interface AggregatedLiquidationData {
 export interface MarketAnalysisResultDetail {
   rating: string;
   interpretation: string;
-  score: number; // Score from 0-10
+  score: number; // Score from 0–10
+  topHeadlines?: string[]; // ✅ Optional for news sentiment only
 }
-
 
 export interface SentimentArticle {
   title: string;
   url: string;
   source: string;
   publishedAt: string;
-  content?: string; // You'll need the article content for analysis
-  sentimentScore?: number; // e.g., -1 to 1, or 0 to 100
+  content?: string;
+  sentimentScore?: number;
   sentimentCategory?: 'positive' | 'negative' | 'neutral';
 }
-
 
 export interface MarketData {
   greenCount: number;
@@ -69,7 +68,6 @@ export interface MarketData {
 
 export interface NewsData extends Array<SentimentArticle> {}
 
-
 export interface MarketAnalysisResults {
   generalBias: MarketAnalysisResultDetail;
   fundingImbalance: MarketAnalysisResultDetail;
@@ -77,7 +75,7 @@ export interface MarketAnalysisResults {
   longTrapCandidates: MarketAnalysisResultDetail;
   volumeSentiment: MarketAnalysisResultDetail;
   liquidationHeatmap: MarketAnalysisResultDetail;
-  newsSentiment: MarketAnalysisResultDetail;
+  newsSentiment: MarketAnalysisResultDetail; // ✅ Supports topHeadlines
   overallSentimentAccuracy: string;
   overallMarketOutlook: {
     score: number;
@@ -97,9 +95,9 @@ export interface MarketStats {
     redPositiveFunding: number;
     redNegativeFunding: number;
   };
-  volumeData: SymbolData[]; // This is the key: it must be SymbolData[]
+  volumeData: SymbolData[];
   liquidationData: AggregatedLiquidationData | undefined;
-  newsArticles: SentimentArticle[]; // Assuming news is passed as part of MarketStats now
+  newsArticles: SentimentArticle[];
 }
 
 export interface SentimentSignal {
@@ -108,14 +106,14 @@ export interface SentimentSignal {
   reason: string;
 }
 
-// These are the raw Binance API response types
+// Raw Binance API types
 export interface BinanceTicker24hr {
   symbol: string;
-  priceChange: string; // Absolute change
-  priceChangePercent: string; // This is what SymbolData needs
+  priceChange: string;
+  priceChangePercent: string;
   weightedAvgPrice: string;
   prevClosePrice: string;
-  lastPrice: string; // This is what SymbolData needs
+  lastPrice: string;
   lastQty: string;
   bidPrice: string;
   bidQty: string;
@@ -124,8 +122,8 @@ export interface BinanceTicker24hr {
   openPrice: string;
   highPrice: string;
   lowPrice: string;
-  volume: string; // Base asset volume (used for SymbolData)
-  quoteVolume: string; // Quote asset volume (e.g., USDT volume)
+  volume: string;
+  quoteVolume: string;
   openTime: number;
   closeTime: number;
   firstId: number;
@@ -138,7 +136,7 @@ export interface BinancePremiumIndex {
   markPrice: string;
   indexPrice: string;
   estimatedSettlePrice: string;
-  lastFundingRate: string; // This is what SymbolData needs
+  lastFundingRate: string;
   nextFundingTime: number;
   interestRate: string;
   time: number;
