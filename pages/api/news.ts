@@ -12,8 +12,8 @@ import {
 } from '../../types/newsApiTypes'; // Path to the new file
 
 
-const NEWSAPI_KEY = process.env.NEWSAPI_KEY;
-const NEWSAPI_BASE_URL = "https://newsapi.org/v2/everything";
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
+const NEWS_API_BASE_URL = "https://newsapi.org/v2/everything";
 
 export default async function handler(
   req: NextApiRequest,
@@ -29,13 +29,13 @@ export default async function handler(
     return res.status(400).json({ message: 'Missing or invalid query parameter' });
   }
 
-  if (!NEWSAPI_KEY) {
-    console.error("NEWSAPI_KEY is not set in environment variables.");
+  if (!NEWS_API_KEY) {
+    console.error("NEWS_API_KEY is not set in environment variables.");
     return res.status(500).json({ message: "Server configuration error: API key missing." });
   }
 
   try {
-    const newsUrl = `${NEWSAPI_BASE_URL}?q=${encodeURIComponent(query)}&apiKey=${NEWSAPI_KEY}&sortBy=relevancy&language=en&pageSize=10`;
+    const newsUrl = `${NEWS_API_BASE_URL}?q=${encodeURIComponent(query)}&apiKey=${NEWS_API_KEY}&sortBy=relevancy&language=en&pageSize=10`;
 
     // Ensure axios response data is typed as NewsApiResponse
     const newsApiResponse = await axios.get<NewsApiResponse>(newsUrl);
