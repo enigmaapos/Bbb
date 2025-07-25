@@ -92,7 +92,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
 
         {/* Funding Imbalance */}
         <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance (Watchlist)</h3>
+          <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance</h3>
           <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
           <p className="text-yellow-100 text-xs mt-1">
             {marketAnalysis.fundingImbalance.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
