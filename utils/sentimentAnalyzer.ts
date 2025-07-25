@@ -80,36 +80,34 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-// --- 2. Funding Imbalance (Custom Trap Logic) ---
+// --- 2. Funding Imbalance (Refined Custom Trap Logic) ---
 const priceUpFundingNegative = volumeData.filter(d => d.priceChangePercent > 0 && d.fundingRate < 0).length; // PUN
 const priceDownFundingPositive = volumeData.filter(d => d.priceChangePercent < 0 && d.fundingRate > 0).length; // PDP
 
 results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
 results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
 
-// Custom thresholds
-const BULLISH_PUN_MIN = 1;
-const BULLISH_PDP_MAX = 130;
+// Thresholds
+const PUN_MAX = 30;
+const PDP_HIGH_THRESHOLD = 230;
+const PDP_LOW_THRESHOLD = 130;
 
-const BEARISH_PUN_MAX = 30;
-const BEARISH_PDP_MIN = 230;
-
-if (priceUpFundingNegative > BULLISH_PUN_MIN && priceDownFundingPositive < BULLISH_PDP_MAX) {
-  results.fundingImbalance = {
-    rating: "📈 Bullish Trap Squeeze",
-    interpretation: `Bullish squeeze potential: ${priceUpFundingNegative} shorts are paying while price rises, and only ${priceDownFundingPositive} longs are trapped. Possible breakout.`,
-    score: 9.0,
-  };
-} else if (priceUpFundingNegative < BEARISH_PUN_MAX && priceDownFundingPositive > BEARISH_PDP_MIN) {
+if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRESHOLD) {
   results.fundingImbalance = {
     rating: "📉 Bearish Trap Skew",
-    interpretation: `Bearish trap warning: ${priceDownFundingPositive} longs are paying while price drops, and only ${priceUpFundingNegative} shorts are reacting to rising prices. Possible cascade.`,
+    interpretation: `Bearish trap: ${priceDownFundingPositive} longs are paying while price drops, and only ${priceUpFundingNegative} shorts are present. Longs are trapped, further selloff possible.`,
     score: 2.0,
+  };
+} else if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive < PDP_LOW_THRESHOLD) {
+  results.fundingImbalance = {
+    rating: "📈 Bullish Weak Trap Recovery",
+    interpretation: `Bullish recovery possible: ${priceDownFundingPositive} longs are paying but not extreme, and only ${priceUpFundingNegative} shorts are defending upside. Market may lean bullish.`,
+    score: 8.0,
   };
 } else {
   results.fundingImbalance = {
     rating: "⚪ Mixed/Neutral Funding",
-    interpretation: `No clear trap signal. PUN: ${priceUpFundingNegative}, PDP: ${priceDownFundingPositive}.`,
+    interpretation: `No strong trap pattern. PUN: ${priceUpFundingNegative}, PDP: ${priceDownFundingPositive}.`,
     score: 5.0,
   };
 }
