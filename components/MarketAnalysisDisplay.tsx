@@ -1,3 +1,4 @@
+// src/components/MarketAnalysisDisplay.tsx
 import React from 'react';
 import { MarketAnalysisResults, AggregatedLiquidationData } from '../types';
 import { SymbolData } from '../types';
@@ -90,16 +91,16 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </div>
 
         {/* Funding Imbalance */}
-        <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance (Watchlist)</h3>
-          <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
-          <p className="text-yellow-100 text-xs mt-1">
-            {marketAnalysis.fundingImbalance.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
-          </p>
-          <p className={`text-right font-bold ${getScoreColor(marketAnalysis.fundingImbalance.score)}`}>
-            Score: {marketAnalysis.fundingImbalance.score.toFixed(1)}
-          </p>
-        </div>
+<div className="p-3 bg-gray-700/50 rounded-md">
+  <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance (Watchlist)</h3>
+  <p className="text-yellow-200">{marketAnalysis.fundingImbalance.rating}</p>
+  <p className="text-yellow-100 text-xs mt-1">
+    {marketAnalysis.fundingImbalance.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
+  </p>
+  <p className={`text-right font-bold ${getScoreColor(marketAnalysis.fundingImbalance.score)}`}>
+    Score: {marketAnalysis.fundingImbalance.score.toFixed(1)}
+  </p>
+</div>
 
         {/* Short Squeeze */}
         <div className="p-3 bg-gray-700/50 rounded-md">
@@ -163,26 +164,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.liquidationHeatmap.score)}`}>
             Score: {marketAnalysis.liquidationHeatmap.score.toFixed(1)}
           </p>
-        </div>
-
-        {/* News Sentiment */}
-        <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-cyan-300 mb-1">📰 News Sentiment</h3>
-          <p className="text-cyan-300">{marketAnalysis.newsSentiment.rating}</p>
-          <p className="text-cyan-200 text-xs mt-1">{marketAnalysis.newsSentiment.interpretation}</p>
-          <p className={`text-right font-bold ${getScoreColor(marketAnalysis.newsSentiment.score)}`}>
-            Score: {marketAnalysis.newsSentiment.score.toFixed(1)}
-          </p>
-          {marketAnalysis.newsSentiment.topHeadlines && (
-            <div className="mt-2 text-xs">
-              <p className="font-semibold text-cyan-200">Notable Headlines:</p>
-              <ul className="list-disc list-inside text-gray-400">
-                {marketAnalysis.newsSentiment.topHeadlines.slice(0, 3).map((title, i) => (
-                  <li key={i}>{title}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
 
       </div>
