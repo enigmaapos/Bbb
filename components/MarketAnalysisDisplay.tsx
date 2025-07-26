@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { MarketAnalysisResults, SymbolData } from '../types';
 
 interface MarketAnalysisDisplayProps {
@@ -63,27 +63,12 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     { name: 'News', score: marketAnalysis.newsSentiment.score },
   ];
 
-  // Conditionally add 'Actionable' sentiment to the chart data if it exists
   if (marketAnalysis.actionableSentimentSummary) {
     sentimentScores.push({
       name: 'Actionable',
       score: marketAnalysis.actionableSentimentSummary.score
     });
   }
-
-  // Define the type for Legend payload items for clarity and potential strictness issues
-  type LegendPayloadItem = {
-    value: string;
-    type: 'rect' | 'circle' | 'line' | 'star' | 'triangle' | 'diamond' | 'square' | 'cross' | 'wye' | 'none'; // Recharts supported types
-    color: string;
-  };
-
-  const legendPayload: LegendPayloadItem[] = [
-    { value: 'Strong (7.5-10)', type: 'rect', color: '#4ade80' },
-    { value: 'Good (6-7.4)', type: 'rect', color: '#facc15' },
-    { value: 'Moderate (4-5.9)', type: 'rect', color: '#f97316' },
-    { value: 'Weak (0-3.9)', type: 'rect', color: '#f87171' },
-  ];
 
   return (
     <div className="mt-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
@@ -109,50 +94,26 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </span>
       </p>
 
-      {/* Chart Title added here */}
-      <h3 className="text-lg font-semibold text-white mb-2 text-center">
-        Individual Sentiment Score Breakdown
-      </h3>
-
+      {/* 📊 Sentiment Scores Overview Chart */}
       <div className="h-64 mb-6">
+        <h3 className="text-white text-sm font-semibold mb-2">📊 Sentiment Scores Overview</h3>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={sentimentScores}>
-            {/* XAxis with Label */}
-            <XAxis
-              dataKey="name"
-              stroke="#ccc"
-              tick={{ fill: '#ccc' }}
-              label={{ value: 'Sentiment Category', position: 'insideBottom', offset: -5, fill: '#ccc' }}
-            />
-            {/* YAxis with Label */}
-            <YAxis
-              domain={[0, 10]}
-              stroke="#ccc"
-              tick={{ fill: '#ccc' }}
-              label={{ value: 'Score (0-10)', angle: -90, position: 'insideLeft', offset: 10, fill: '#ccc' }}
-            />
-            <Tooltip
-              formatter={(value: number) => `${value.toFixed(1)}/10`}
-              contentStyle={{ backgroundColor: '#333', borderColor: '#555', color: '#fff' }}
-              labelStyle={{ color: '#fff' }}
-            />
-            {/* Using the typed legendPayload */}
-            <Legend
-                wrapperStyle={{ color: '#ccc', paddingTop: '10px' }} // Style for the Legend wrapper
-                payload={legendPayload}
-            />
+            <XAxis dataKey="name" stroke="#ccc" />
+            <YAxis domain={[0, 10]} stroke="#ccc" />
+            <Tooltip formatter={(value: number) => `${value.toFixed(1)}/10`} />
             <Bar dataKey="score">
               {sentimentScores.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={
                     entry.score >= 7.5
-                      ? "#4ade80" // green
+                      ? "#4ade80"
                       : entry.score >= 6
-                      ? "#facc15" // yellow
+                      ? "#facc15"
                       : entry.score >= 4
-                      ? "#f97316" // orange
-                      : "#f87171" // red
+                      ? "#f97316"
+                      : "#f87171"
                   }
                 />
               ))}
@@ -161,7 +122,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </ResponsiveContainer>
       </div>
 
+      {/* Sentiment Details Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+
         {/* General Bias */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-blue-300 mb-1">General Bias</h3>
@@ -268,7 +231,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           )}
         </div>
 
-        {/* Actionable Sentiment Signals Summary - This remains a separate, detailed display block */}
+        {/* Actionable Sentiment */}
         {marketAnalysis.actionableSentimentSummary && (
           <div className="p-4 mb-4 bg-gray-700 rounded-md border border-gray-600">
             <h3 className="font-semibold text-indigo-300 mb-2">🔍 Actionable Sentiment Signals</h3>
@@ -284,7 +247,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
           </div>
         )}
-          
+        
       </div>
     </div>
   );
