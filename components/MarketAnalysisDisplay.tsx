@@ -120,7 +120,10 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </p>
 
       <h3 className="text-lg font-semibold text-white mb-2 text-center">📊 Sentiment Scores Overview</h3>
-        <div className="w-full max-w-[720px] h-[320px] mx-auto overflow-hidden touch-auto">
+        <div
+  className="w-full max-w-[720px] h-[320px] mx-auto overflow-visible pointer-events-auto touch-none"
+  style={{ WebkitOverflowScrolling: 'auto' }}
+>
   <ResponsiveContainer width="100%" height="100%">
     <BarChart data={sentimentScores}>
       <XAxis
@@ -143,7 +146,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         stroke="#ccc"
         tick={{ fill: '#ccc' }}
         label={{
-          value: 'Score (0-10)',
+          value: 'Score (0–10)',
           angle: -90,
           position: 'insideLeft',
           offset: 10,
@@ -180,7 +183,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </Bar>
     </BarChart>
   </ResponsiveContainer>
-</div> 
+</div>
 
 {/* Top Short Squeeze Candidates */}
       <div className="mb-4">
