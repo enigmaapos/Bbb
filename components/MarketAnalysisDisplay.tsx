@@ -192,7 +192,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       <div className="mb-4">
         <h3 className="text-yellow-400 font-semibold mb-1">🔥 Top Short Squeeze Candidates</h3>
           {marketAnalysis.shortSqueezeCandidates.rating} <span className="font-bold">({marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}/10)</span>
-        </p>
         <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
         <ul className="list-disc list-inside text-sm text-yellow-100">
           {fundingImbalanceData.topShortSqueeze.length > 0 ? (
@@ -211,7 +210,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       <div className="mb-4">
         <h3 className="text-pink-400 font-semibold mb-1">⚠️ Top Long Trap Candidates</h3>
           {marketAnalysis.longTrapCandidates.rating} <span className="font-bold">({marketAnalysis.longTrapCandidates.score.toFixed(1)}/10)</span>
-        </p>
         <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.longTrapCandidates.interpretation}</p>
         <ul className="list-disc list-inside text-sm text-pink-100">
           {fundingImbalanceData.topLongTrap.length > 0 ? (
