@@ -15,6 +15,17 @@ export type SentimentSignal = {
   riskReward?: 'Low' | 'Medium' | 'Medium-High' | 'High' | 'Strong';
 };
 
+// ✅ Volume formatter
+function formatVolume(volume: number): string {
+  if (volume >= 1_000_000_000) {
+    return `$${(volume / 1e9).toFixed(1)}B`;
+  } else if (volume >= 1_000_000) {
+    return `$${(volume / 1e6).toFixed(1)}M`;
+  } else {
+    return `$${volume.toLocaleString()}`;
+  }
+}
+
 export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
   const volumeThreshold = 50_000_000;
   const strongVolume = 100_000_000;
@@ -22,13 +33,13 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
   const strongNegativeFunding = -0.015;
 
   return data.map(({ symbol, priceChangePercent, volume, fundingRate }) => {
-    const volumeUSD = `$${(volume / 1e6).toFixed(1)}M`;
+    const volumeUSD = formatVolume(volume);
     const fundingPercent = (fundingRate * 100).toFixed(4) + '%';
 
     const absPriceChange = Math.abs(priceChangePercent);
     const isStrongVolume = volume >= strongVolume;
 
-    // 🔸 Classify RISK/REWARD DYNAMICALLY
+    // 🧠 Risk/Reward rating
     let riskReward: SentimentSignal['riskReward'] = 'Medium';
     if (absPriceChange > 4.5 && isStrongVolume) riskReward = 'Strong';
     else if (absPriceChange > 3.5) riskReward = 'High';
@@ -87,8 +98,7 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
       fundingRate <= 0.0001
     ) {
       const strongBuy =
-        absPriceChange > 3 &&
-        (fundingRate < 0 || isStrongVolume);
+        absPriceChange > 3 && (fundingRate < 0 || isStrongVolume);
 
       return {
         symbol,
@@ -110,8 +120,7 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
       fundingRate >= 0.0001
     ) {
       const strongSell =
-        absPriceChange > 3 &&
-        (fundingRate > 0.01 || isStrongVolume);
+        absPriceChange > 3 && (fundingRate > 0.01 || isStrongVolume);
 
       return {
         symbol,
