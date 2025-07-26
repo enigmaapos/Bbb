@@ -639,6 +639,11 @@ export default function PriceFundingTracker() {
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
 
+  // New filtered list for bullish signals that are also in topShortSqueeze
+  const bullishSqueezeSignals = bullishActionableSignals.filter(signal =>
+    fundingImbalanceData.topShortSqueeze.some(squeezeCandidate => squeezeCandidate.symbol === signal.symbol)
+  );
+
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -756,8 +761,8 @@ export default function PriceFundingTracker() {
           redCount={redCount}
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redNegativeFunding}
-	redNegativeFunding={redNegativeFunding}	
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding} // Make sure this prop is passed!
         />
 
 	<div className="mb-8">
@@ -792,7 +797,7 @@ export default function PriceFundingTracker() {
         )}
         {/* --- END NEW SECTION --- */}
 
-        {(bullishActionableSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishActionableSignals.length > 0) && (
+        {(bullishSqueezeSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishActionableSignals.length > 0) && (
   <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
     <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
@@ -804,11 +809,11 @@ export default function PriceFundingTracker() {
       For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
     </p>
 
-    {bullishActionableSignals.length > 0 && (
+    {bullishSqueezeSignals.length > 0 && ( // Use bullishSqueezeSignals here
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities</h3>
+        <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities (Top Short Squeeze Candidates)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {bullishActionableSignals.map((signal, index) => (
+          {bullishSqueezeSignals.map((signal, index) => (
             <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
               <h4 className="font-bold mb-1 text-green-300">{signal.symbol}</h4>
               <p className="text-gray-200 text-xs">{signal.reason}</p>
