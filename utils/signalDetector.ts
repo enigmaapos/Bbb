@@ -1,26 +1,24 @@
 // src/utils/signalDetector.ts
 
-// Using SymbolData from your main types, adjust property names to match
 import { SymbolData } from '../types';
 
 export type SentimentSignal = {
   symbol: string;
-  signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
+  signal: 'Bullish Opportunity' | 'Early Squeeze Signal' | 'Bearish Risk' | 'Neutral';
   reason: string;
 };
 
 export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
   return data.map(({ symbol, priceChangePercent, volume, fundingRate }) => {
     const volThreshold = 50_000_000; // $50M
+    const bullishFundingCap = 0.0001; // 0.01%
+    const earlySqueezeFundingCap = 0; // Negative funding
 
-    // 🔼 Bullish Criteria
-    // Price up ≥ 10%
-    // Volume ≥ $50M
-    // Funding ≤ 0.01% (not overheated) -- Adjusted to 0.0001 for decimal representation
+    // ✅ Strong Bullish Opportunity
     if (
       priceChangePercent >= 10 &&
       volume >= volThreshold &&
-      fundingRate <= 0.0001
+      fundingRate <= bullishFundingCap
     ) {
       return {
         symbol,
@@ -29,14 +27,25 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
       };
     }
 
-    // 🔻 Bearish Criteria
-    // Price down ≥ 10%
-    // Volume ≥ $50M
-    // Funding ≥ 0.01% (trapped longs) -- Adjusted to 0.0001 for decimal representation
+    // 🔶 Early Squeeze Signal
+    if (
+      priceChangePercent > 0 &&
+      priceChangePercent < 10 &&
+      volume >= volThreshold &&
+      fundingRate < earlySqueezeFundingCap
+    ) {
+      return {
+        symbol,
+        signal: 'Early Squeeze Signal',
+        reason: `Moderate price gain (+${priceChangePercent.toFixed(1)}%), strong volume ($${(volume / 1e6).toFixed(1)}M), and negative funding (${(fundingRate * 100).toFixed(4)}%) suggest a developing short squeeze.`,
+      };
+    }
+
+    // ❌ Bearish Risk
     if (
       priceChangePercent <= -10 &&
       volume >= volThreshold &&
-      fundingRate >= 0.0001
+      fundingRate >= bullishFundingCap
     ) {
       return {
         symbol,
@@ -45,6 +54,7 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
       };
     }
 
+    // ❔ Neutral
     return {
       symbol,
       signal: 'Neutral',
