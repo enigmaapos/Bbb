@@ -1,12 +1,10 @@
-// src/types.ts
-
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  sentimentSignal?: SentimentSignal;
+  sentimentSignal?: SentimentSignal; // Ensure this is present and correct
 }
 
 export interface SymbolTradeSignal {
@@ -100,9 +98,10 @@ export interface MarketStats {
   newsArticles: SentimentArticle[];
 }
 
+// THE FIX IS HERE: Add 'Early Squeeze Signal' to the union type
 export interface SentimentSignal {
   symbol: string;
-  signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Neutral';
+  signal: 'Bullish Opportunity' | 'Early Squeeze Signal' | 'Bearish Risk' | 'Neutral';
   reason: string;
 }
 
