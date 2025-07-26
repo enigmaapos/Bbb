@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts'; // Import Legend for better context
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 import { MarketAnalysisResults, SymbolData } from '../types';
 
 interface MarketAnalysisDisplayProps {
@@ -71,6 +71,20 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     });
   }
 
+  // Define the type for Legend payload items for clarity and potential strictness issues
+  type LegendPayloadItem = {
+    value: string;
+    type: 'rect' | 'circle' | 'line' | 'star' | 'triangle' | 'diamond' | 'square' | 'cross' | 'wye' | 'none'; // Recharts supported types
+    color: string;
+  };
+
+  const legendPayload: LegendPayloadItem[] = [
+    { value: 'Strong (7.5-10)', type: 'rect', color: '#4ade80' },
+    { value: 'Good (6-7.4)', type: 'rect', color: '#facc15' },
+    { value: 'Moderate (4-5.9)', type: 'rect', color: '#f97316' },
+    { value: 'Weak (0-3.9)', type: 'rect', color: '#f87171' },
+  ];
+
   return (
     <div className="mt-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
       <h2 className="text-xl font-bold text-white mb-4">
@@ -122,14 +136,10 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
               contentStyle={{ backgroundColor: '#333', borderColor: '#555', color: '#fff' }}
               labelStyle={{ color: '#fff' }}
             />
+            {/* Using the typed legendPayload */}
             <Legend
                 wrapperStyle={{ color: '#ccc', paddingTop: '10px' }} // Style for the Legend wrapper
-                payload={[ // Manually define legend items based on your Cell fill logic
-                    { value: 'Strong (7.5-10)', type: 'rect', color: '#4ade80' },
-                    { value: 'Good (6-7.4)', type: 'rect', color: '#facc15' },
-                    { value: 'Moderate (4-5.9)', type: 'rect', color: '#f97316' },
-                    { value: 'Weak (0-3.9)', type: 'rect', color: '#f87171' },
-                ]}
+                payload={legendPayload}
             />
             <Bar dataKey="score">
               {sentimentScores.map((entry, index) => (
