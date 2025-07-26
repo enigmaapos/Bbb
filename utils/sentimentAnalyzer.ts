@@ -12,7 +12,6 @@ import {
 
 import { detectSentimentSignals } from "./signalDetector"; // Assuming you have this import for your signal detector
 
-// KEEP THIS ONE AND ADD 'return results;' at the end
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
@@ -32,7 +31,8 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     newsSentiment: { rating: "", interpretation: "", score: 0 },
     actionableSentimentSignals: [],
-    actionableSentimentSummary: { bullishCount: 0, bearishCount: 0, tone: "", interpretation: "", score: 0 },
+    // FIX IS HERE: Change "" to "Neutral" for tone
+    actionableSentimentSummary: { bullishCount: 0, bearishCount: 0, tone: "Neutral", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
     marketData: {
@@ -304,7 +304,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
       score: 4,
     };
   } else {
-    // This 'else' block was causing the error due to incomplete statement and then another else block
     results.newsSentiment = {
       rating: "Neutral News",
       interpretation: "News sentiment is balanced or indecisive.",
@@ -314,6 +313,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
 
   // --- 8. Actionable Sentiment Signals ---
     const actionableSentimentSignals: SentimentSignal[] = detectSentimentSignals(volumeData);
+    results.actionableSentimentSignals = actionableSentimentSignals; // Assign to results object
 
   // Count bullish and bearish signals
   const bullishCount = actionableSentimentSignals.filter(
@@ -343,7 +343,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // Compose the actionable sentiment summary
-  const actionableSentimentSummary = {
+  results.actionableSentimentSummary = { // Assign to results object
     bullishCount,
     bearishCount,
     tone,
@@ -364,7 +364,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     results.volumeSentiment.score +
     results.liquidationHeatmap.score +
     results.newsSentiment.score +
-    results.actionableSentimentSummary.score;
+    results.actionableSentimentSummary.score; // Use the property from results
 
   const numberOfScores = 8; // Updated to include actionableSentimentSummary
 
