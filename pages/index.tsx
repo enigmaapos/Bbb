@@ -764,75 +764,92 @@ export default function PriceFundingTracker() {
         )}
         {/* --- END NEW SECTION --- */}
 
-        {(top5BullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || top5BearishNegativeFundingSignals.length > 0 || earlyLongTrapSignals.length > 0) && (
-          <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
-            <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
+       {(
+  top5BullishPositiveFundingSignals.length > 0 ||
+  earlySqueezeSignals.length > 0 ||
+  top5BearishNegativeFundingSignals.length > 0 ||
+  earlyLongTrapSignals.length > 0
+) && (
+  <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
+    <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
-            <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
-              <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
-              <br />
-              For **long opportunities**, consider waiting for pullbacks to the **200 EMA zone** on the daily timeframe for better entry.
-              <br />
-              For **short opportunities**, consider waiting for bounces to **resistance or the 200 EMA zone** before entering.
-            </p>
+    <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
+      <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
+      <br />
+      For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
+      <br />
+      For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
+    </p>
 
-            {top5BullishPositiveFundingSignals.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Top 5 Bullish Opportunities (Positive Funding & Moderate Price Gain)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {top5BullishPositiveFundingSignals.map((signal, index) => (
-                    <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
-                      <h4 className="font-bold mb-1 text-green-300">{signal.symbol}</h4>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
-                    </div>
-                  ))}
-                </div>
+    {top5BullishPositiveFundingSignals.length > 0 && (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Top 5 Bullish Opportunities</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {top5BullishPositiveFundingSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-green-300">{signal.symbol}</h4>
+                {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>}
               </div>
-            )}
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
-            {earlySqueezeSignals.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {earlySqueezeSignals.map((signal, index) => (
-                    <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
-                      <h4 className="font-bold mb-1 text-orange-300">{signal.symbol}</h4>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
-                    </div>
-                  ))}
-                </div>
+    {earlySqueezeSignals.length > 0 && (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {earlySqueezeSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-orange-300">{signal.symbol}</h4>
+                {signal.strongBuy && <span className="text-xs text-white bg-orange-800 px-2 py-0.5 rounded-md">🚀 Strong Buy</span>}
               </div>
-            )}
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
-            {earlyLongTrapSignals.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {earlyLongTrapSignals.map((signal, index) => (
-                    <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
-                      <h4 className="font-bold mb-1 text-purple-300">{signal.symbol}</h4>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
-                    </div>
-                  ))}
-                </div>
+    {earlyLongTrapSignals.length > 0 && (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {earlyLongTrapSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-purple-300">{signal.symbol}</h4>
+                {signal.strongSell && <span className="text-xs text-white bg-purple-800 px-2 py-0.5 rounded-md">⚠️ Strong Sell</span>}
               </div>
-            )}
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
-            {top5BearishNegativeFundingSignals.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Top 5 Bearish Risks (Negative Funding & Moderate Price Drop)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {top5BearishNegativeFundingSignals.map((signal, index) => (
-                    <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
-                      <h4 className="font-bold mb-1 text-red-300">{signal.symbol}</h4>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
-                    </div>
-                  ))}
-                </div>
+    {top5BearishNegativeFundingSignals.length > 0 && (
+      <div>
+        <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Top 5 Bearish Risks</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {top5BearishNegativeFundingSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-red-300">{signal.symbol}</h4>
+                {signal.strongSell && <span className="text-xs text-white bg-red-800 px-2 py-0.5 rounded-md">🔻 Strong Sell</span>}
               </div>
-            )}
-          </div>
-        )}
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)} 
 
 
         <div className="my-8 h-px bg-gray-700" />
