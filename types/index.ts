@@ -1,10 +1,14 @@
+// ----------------------------------------------
+// types.ts (or your shared types file)
+// ----------------------------------------------
+
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  sentimentSignal?: SentimentSignal; // Ensure this is present and correct
+  sentimentSignal?: SentimentSignal; // Optional sentiment signal per symbol
 }
 
 export interface SymbolTradeSignal {
@@ -36,7 +40,7 @@ export interface MarketAnalysisResultDetail {
   rating: string;
   interpretation: string;
   score: number; // Score from 0–10
-  topHeadlines?: string[]; // ✅ Optional for news sentiment only
+  topHeadlines?: string[]; // Optional for news sentiment only
 }
 
 export interface SentimentArticle {
@@ -66,6 +70,21 @@ export interface MarketData {
 
 export interface NewsData extends Array<SentimentArticle> {}
 
+export interface SentimentSignal {
+  symbol: string;
+  signal: 'Bullish Opportunity' | 'Early Squeeze Signal' | 'Bearish Risk' | 'Neutral';
+  reason: string;
+}
+
+// New interface for actionable sentiment summary (aggregated counts + tone)
+export interface ActionableSentimentSummary {
+  bullishCount: number;
+  bearishCount: number;
+  tone: 'Bullish' | 'Bearish' | 'Neutral';
+  interpretation: string;
+  score: number; // Score 0–10 for overall sentiment strength
+}
+
 export interface MarketAnalysisResults {
   generalBias: MarketAnalysisResultDetail;
   fundingImbalance: MarketAnalysisResultDetail;
@@ -73,7 +92,7 @@ export interface MarketAnalysisResults {
   longTrapCandidates: MarketAnalysisResultDetail;
   volumeSentiment: MarketAnalysisResultDetail;
   liquidationHeatmap: MarketAnalysisResultDetail;
-  newsSentiment: MarketAnalysisResultDetail; // ✅ Supports topHeadlines
+  newsSentiment: MarketAnalysisResultDetail;
   overallSentimentAccuracy: string;
   overallMarketOutlook: {
     score: number;
@@ -82,6 +101,10 @@ export interface MarketAnalysisResults {
   };
   marketData: MarketData;
   newsData: NewsData;
+
+  // NEW: actionable sentiment signals per symbol and aggregated summary
+  actionableSentimentSignals?: SentimentSignal[];
+  actionableSentimentSummary?: ActionableSentimentSummary;
 }
 
 export interface MarketStats {
@@ -98,14 +121,7 @@ export interface MarketStats {
   newsArticles: SentimentArticle[];
 }
 
-// THE FIX IS HERE: Add 'Early Squeeze Signal' to the union type
-export interface SentimentSignal {
-  symbol: string;
-  signal: 'Bullish Opportunity' | 'Early Squeeze Signal' | 'Bearish Risk' | 'Neutral';
-  reason: string;
-}
-
-// Raw Binance API types
+// Raw Binance API types (unchanged)
 export interface BinanceTicker24hr {
   symbol: string;
   priceChange: string;
