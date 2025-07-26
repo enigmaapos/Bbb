@@ -639,16 +639,16 @@ export default function PriceFundingTracker() {
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
 
-  // Bullish signals with POSITIVE funding rate
+  // Bullish signals with POSITIVE funding rate AND price change not above 10%
   const bullishPositiveFundingSignals = bullishActionableSignals.filter(signal => {
     const symbolData = rawData.find(d => d.symbol === signal.symbol);
-    return symbolData && symbolData.fundingRate > 0;
+    return symbolData && symbolData.fundingRate > 0 && symbolData.priceChangePercent <= 10;
   });
 
-  // NEW FILTER: Bearish signals with NEGATIVE funding rate
+  // Bearish signals with NEGATIVE funding rate AND price change not below -10%
   const bearishNegativeFundingSignals = bearishActionableSignals.filter(signal => {
     const symbolData = rawData.find(d => d.symbol === signal.symbol);
-    return symbolData && symbolData.fundingRate < 0;
+    return symbolData && symbolData.fundingRate < 0 && symbolData.priceChangePercent >= -10;
   });
 
 
@@ -818,7 +818,7 @@ export default function PriceFundingTracker() {
 
             {bullishPositiveFundingSignals.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities (Positive Funding)</h3>
+                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities (Positive Funding & Moderate Price Gain)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   {bullishPositiveFundingSignals.map((signal, index) => (
                     <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
@@ -844,9 +844,9 @@ export default function PriceFundingTracker() {
               </div>
             )}
 
-            {bearishNegativeFundingSignals.length > 0 && ( // Conditional rendering for Bearish Risks
+            {bearishNegativeFundingSignals.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks (Negative Funding)</h3>
+                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks (Negative Funding & Moderate Price Drop)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   {bearishNegativeFundingSignals.map((signal, index) => (
                     <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
