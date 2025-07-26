@@ -189,43 +189,74 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </ResponsiveContainer>
     </div>
 
-{/* Short Squeeze */}
-        <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-green-300 mb-1">Short Squeeze Potential</h3>
-          <p className="text-green-300">{marketAnalysis.shortSqueezeCandidates?.rating || 'N/A'}</p>
-          <p className="text-green-200 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates?.interpretation || 'No interpretation available.'}</p>
-          {fundingImbalanceData.topShortSqueeze.length > 0 && (
-            <div className="mt-2 text-xs">
-              <p className="font-semibold text-green-200">Top Candidates:</p>
-              <ul className="list-disc list-inside text-gray-400">
-                {fundingImbalanceData.topShortSqueeze.map((s) => (
-                  <li key={s.symbol}>
-                    {s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+     <div className="mt-4 text-xs text-gray-300 space-y-1 max-w-[720px] mx-auto">
+  <p><span className="font-semibold text-white">Bias:</span> Overall market direction based on key indicators (bullish or bearish).</p>
+  <p><span className="font-semibold text-white">Funding:</span> Measures how imbalanced the funding rates are (positive = long-heavy, negative = short-heavy).</p>
+  <p><span className="font-semibold text-white">Squeeze:</span> Likelihood of a short squeeze based on funding and price action.</p>
+  <p><span className="font-semibold text-white">Long Trap:</span> Risk of long traders getting trapped due to sudden reversals.</p>
+  <p><span className="font-semibold text-white">Volume:</span> Strength of volume behind recent moves (buy/sell dominance).</p>
+  <p><span className="font-semibold text-white">Liquidation:</span> Analysis of recent long/short liquidations and their impact.</p>
+  <p><span className="font-semibold text-white">News:</span> Sentiment derived from the latest crypto news and media.</p>
+  <p><span className="font-semibold text-white">Actionable:</span> Final summarized signal considering all sentiment data.</p>
+</div> 
 
-        {/* Long Trap */}
-        <div className="p-3 bg-gray-700/50 rounded-md">
-          <h3 className="font-semibold text-red-300 mb-1">Long Trap Risk</h3>
-          <p className="text-red-300">{marketAnalysis.longTrapCandidates?.rating || 'N/A'}</p>
-          <p className="text-red-200 text-xs mt-1">{marketAnalysis.longTrapCandidates?.interpretation || 'No interpretation available.'}</p>
-          {fundingImbalanceData.topLongTrap.length > 0 && (
-            <div className="mt-2 text-xs">
-              <p className="font-semibold text-red-200">Top Candidates:</p>
-              <ul className="list-disc list-inside text-gray-400">
-                {fundingImbalanceData.topLongTrap.map((s) => (
-                  <li key={s.symbol}>
-                    {s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+{/* Short Squeeze Section */}
+<div className="p-4 bg-gray-700/50 rounded-md">
+  <h3 className="text-green-300 font-semibold text-sm mb-1">📈 Short Squeeze Potential</h3>
+
+  <p className="text-green-300 text-base font-medium">
+    {marketAnalysis.shortSqueezeCandidates?.rating || 'N/A'}
+  </p>
+
+  <p className="text-green-200 text-xs mt-1">
+    {marketAnalysis.shortSqueezeCandidates?.interpretation || 'No interpretation available.'}
+  </p>
+
+  {fundingImbalanceData.topShortSqueeze.length > 0 && (
+    <div className="mt-2">
+      <p className="text-green-200 text-xs font-semibold mb-1">Top Short Squeeze Candidates:</p>
+      <ul className="list-disc list-inside space-y-1 text-gray-300 text-xs">
+        {fundingImbalanceData.topShortSqueeze.map((s) => (
+          <li key={s.symbol}>
+            <span className="font-semibold">{s.symbol}</span> — 
+            Change: {s.priceChangePercent.toFixed(1)}% | 
+            Funding: {(s.fundingRate * 100).toFixed(3)}% | 
+            Volume: ${formatVolume(s.volume)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+</div>
+
+{/* Long Trap Section */}
+<div className="p-4 bg-gray-700/50 rounded-md">
+  <h3 className="text-red-300 font-semibold text-sm mb-1">⚠️ Long Trap Risk</h3>
+
+  <p className="text-red-300 text-base font-medium">
+    {marketAnalysis.longTrapCandidates?.rating || 'N/A'}
+  </p>
+
+  <p className="text-red-200 text-xs mt-1">
+    {marketAnalysis.longTrapCandidates?.interpretation || 'No interpretation available.'}
+  </p>
+
+  {fundingImbalanceData.topLongTrap.length > 0 && (
+    <div className="mt-2">
+      <p className="text-red-200 text-xs font-semibold mb-1">Top Long Trap Candidates:</p>
+      <ul className="list-disc list-inside space-y-1 text-gray-300 text-xs">
+        {fundingImbalanceData.topLongTrap.map((s) => (
+          <li key={s.symbol}>
+            <span className="font-semibold">{s.symbol}</span> — 
+            Change: {s.priceChangePercent.toFixed(1)}% | 
+            Funding: {(s.fundingRate * 100).toFixed(3)}% | 
+            Volume: ${formatVolume(s.volume)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+</div>
       
     </div>
   );
