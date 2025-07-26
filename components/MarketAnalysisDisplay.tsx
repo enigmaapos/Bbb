@@ -76,23 +76,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </span>
       </p>
 
-      {/* New: Actionable Sentiment Signals Summary */}
-      {marketAnalysis.actionableSentimentSummary && (
-        <div className="p-4 mb-4 bg-gray-700 rounded-md border border-gray-600">
-          <h3 className="font-semibold text-indigo-300 mb-2">🔍 Actionable Sentiment Signals</h3>
-          <p className="text-indigo-200 mb-1">
-            Bullish Opportunities: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bullishCount}</span>
-          </p>
-          <p className="text-indigo-200 mb-1">
-            Bearish Risks: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bearishCount}</span>
-          </p>
-          <p className={`font-bold ${getScoreColor(marketAnalysis.actionableSentimentSummary.score)}`}>
-            Overall Tone: {marketAnalysis.actionableSentimentSummary.tone} (Score: {marketAnalysis.actionableSentimentSummary.score.toFixed(1)})
-          </p>
-          <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
         {/* General Bias */}
         <div className="p-3 bg-gray-700/50 rounded-md">
@@ -199,6 +182,24 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             </div>
           )}
         </div>
+
+{/* New: Actionable Sentiment Signals Summary */}
+      {marketAnalysis.actionableSentimentSummary && (
+        <div className="p-4 mb-4 bg-gray-700 rounded-md border border-gray-600">
+          <h3 className="font-semibold text-indigo-300 mb-2">🔍 Actionable Sentiment Signals</h3>
+          <p className="text-indigo-200 mb-1">
+            Bullish Opportunities: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bullishCount}</span>
+          </p>
+          <p className="text-indigo-200 mb-1">
+            Bearish Risks: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bearishCount}</span>
+          </p>
+          <p className={`font-bold ${getScoreColor(marketAnalysis.actionableSentimentSummary.score)}`}>
+            Overall Tone: {marketAnalysis.actionableSentimentSummary.tone} (Score: {marketAnalysis.actionableSentimentSummary.score.toFixed(1)})
+          </p>
+          <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
+        </div>
+      )}
+        
       </div>
     </div>
   );
