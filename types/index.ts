@@ -74,6 +74,8 @@ symbol: string;
 signal: 'Bullish Opportunity' | 'Early Squeeze Signal' | 'Bearish Risk' | 'Early Long Trap' | 'Neutral'; // Updated to include Early Long Trap
 reason: string;
 priceChangePercent: number; // Added priceChangePercent as per the updated signalDetector.ts
+   strongBuy?: boolean;
+  strongSell?: boolean; 
 }
 
 // New interface for actionable sentiment summary (aggregated counts + tone)
