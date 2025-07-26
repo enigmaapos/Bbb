@@ -1,5 +1,6 @@
 import React from 'react';
-import { MarketAnalysisResults, SymbolData, SentimentSignal } from '../types';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, } from 'recharts';
+import { MarketAnalysisResults, SymbolData } from '../types';
 
 interface MarketAnalysisDisplayProps {
   marketAnalysis: MarketAnalysisResults;
@@ -52,6 +53,16 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     return "⭐".repeat(numStars) + "☆".repeat(5 - numStars);
   };
 
+  const sentimentScores = [
+    { name: 'Bias', score: marketAnalysis.generalBias.score },
+    { name: 'Funding', score: marketAnalysis.fundingImbalance.score },
+    { name: 'Squeeze', score: marketAnalysis.shortSqueezeCandidates.score },
+    { name: 'Long Trap', score: marketAnalysis.longTrapCandidates.score },
+    { name: 'Volume', score: marketAnalysis.volumeSentiment.score },
+    { name: 'Liquidation', score: marketAnalysis.liquidationHeatmap.score },
+    { name: 'News', score: marketAnalysis.newsSentiment.score },
+  ];
+
   return (
     <div className="mt-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
       <h2 className="text-xl font-bold text-white mb-4">
@@ -75,6 +86,32 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           Strategy Suggestion: {marketAnalysis.overallMarketOutlook.strategySuggestion}
         </span>
       </p>
+
+      <div className="h-64 mb-6">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={sentimentScores}>
+            <XAxis dataKey="name" stroke="#ccc" />
+            <YAxis domain={[0, 10]} stroke="#ccc" />
+            <Tooltip formatter={(value: number) => `${value.toFixed(1)}/10`} />
+            <Bar dataKey="score">
+              {sentimentScores.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.score >= 7.5
+                      ? "#4ade80" // green
+                      : entry.score >= 6
+                      ? "#facc15" // yellow
+                      : entry.score >= 4
+                      ? "#f97316" // orange
+                      : "#f87171" // red
+                  }
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
         {/* General Bias */}
@@ -183,23 +220,23 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           )}
         </div>
 
-{/* New: Actionable Sentiment Signals Summary */}
-      {marketAnalysis.actionableSentimentSummary && (
-        <div className="p-4 mb-4 bg-gray-700 rounded-md border border-gray-600">
-          <h3 className="font-semibold text-indigo-300 mb-2">🔍 Actionable Sentiment Signals</h3>
-          <p className="text-indigo-200 mb-1">
-            Bullish Opportunities: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bullishCount}</span>
-          </p>
-          <p className="text-indigo-200 mb-1">
-            Bearish Risks: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bearishCount}</span>
-          </p>
-          <p className={`font-bold ${getScoreColor(marketAnalysis.actionableSentimentSummary.score)}`}>
-            Overall Tone: {marketAnalysis.actionableSentimentSummary.tone} (Score: {marketAnalysis.actionableSentimentSummary.score.toFixed(1)})
-          </p>
-          <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
-        </div>
-      )}
-        
+        {/* New: Actionable Sentiment Signals Summary */}
+        {marketAnalysis.actionableSentimentSummary && (
+          <div className="p-4 mb-4 bg-gray-700 rounded-md border border-gray-600">
+            <h3 className="font-semibold text-indigo-300 mb-2">🔍 Actionable Sentiment Signals</h3>
+            <p className="text-indigo-200 mb-1">
+              Bullish Opportunities: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bullishCount}</span>
+            </p>
+            <p className="text-indigo-200 mb-1">
+              Bearish Risks: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bearishCount}</span>
+            </p>
+            <p className={`font-bold ${getScoreColor(marketAnalysis.actionableSentimentSummary.score)}`}>
+              Overall Tone: {marketAnalysis.actionableSentimentSummary.tone} (Score: {marketAnalysis.actionableSentimentSummary.score.toFixed(1)})
+            </p>
+            <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
+          </div>
+        )}
+          
       </div>
     </div>
   );
