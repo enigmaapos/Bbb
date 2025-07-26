@@ -1,6 +1,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 import { MarketAnalysisResults, SymbolData } from '../types';
+import CustomChartTooltip from './CustomChartTooltip'; // Import the new custom tooltip component
 
 interface MarketAnalysisDisplayProps {
   marketAnalysis: MarketAnalysisResults;
@@ -138,7 +139,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </span>
       </p>
 
-      ---
+      <hr className="border-gray-700 my-6" /> {/* Use hr for visual separation */}
 
       <h3 className="text-lg font-semibold text-white mb-2 text-center">
         📊 Sentiment Scores Overview
@@ -158,16 +159,11 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
               tick={{ fill: '#ccc' }}
               label={{ value: 'Score (0-10)', angle: -90, position: 'insideLeft', offset: 10, fill: '#ccc' }}
             />
+            {/* RENDER THE CUSTOM TOOLTIP HERE */}
             <Tooltip
-              formatter={(value: number) => `${value.toFixed(1)}/10`}
-              contentStyle={{
-                backgroundColor: '#333',
-                borderColor: '#555',
-                color: '#fff',
-                borderRadius: '4px',
-                padding: '8px',
-              }}
-              labelStyle={{ color: '#fff' }}
+              content={<CustomChartTooltip />} // Pass your custom component here
+              // You can remove or keep allowEscapeViewBox, it won't impact the portal tooltip's behavior much
+              // allowEscapeViewBox={{ x: false, y: false }}
             />
             <Legend
               wrapperStyle={{ paddingTop: '10px' }}
@@ -193,29 +189,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </ResponsiveContainer>
       </div>
 
-      {/* Remember to apply the global CSS for tooltip background as discussed */}
-      {/*
-        // In your `globals.css` or equivalent global stylesheet:
-        .recharts-tooltip-wrapper {
-          background-color: #333 !important;
-          border: 1px solid #555 !important;
-          border-radius: 4px;
-          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
-          z-index: 1000;
-        }
+      <hr className="border-gray-700 my-6" /> {/* Use hr for visual separation */}
 
-        .recharts-default-tooltip {
-            background-color: #333;
-            border: none;
-            padding: 8px;
-        }
-
-        .recharts-tooltip-label {
-            color: #fff;
-        }
-      */}
-
-      ---
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
         {/* General Bias */}
