@@ -1,5 +1,3 @@
-// src/utils/signalDetector.ts
-
 import { SymbolData } from '../types';
 
 export type SentimentSignal = {
@@ -8,10 +6,12 @@ export type SentimentSignal = {
     | 'Bullish Opportunity'
     | 'Early Squeeze Signal'
     | 'Bearish Risk'
-    | 'Early Long Trap' // 🔴 NEW
+    | 'Early Long Trap'
     | 'Neutral';
   reason: string;
   priceChangePercent: number;
+  strongBuy?: boolean;
+  strongSell?: boolean;
 };
 
 export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
@@ -34,10 +34,11 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
         signal: 'Early Squeeze Signal',
         reason: `Moderate price gain (+${priceChangePercent.toFixed(1)}%), strong volume (${volumeUSD}), and negative funding (${fundingPercent}) suggest a developing short squeeze.`,
         priceChangePercent,
+        strongBuy: true,
       };
     }
 
-    // 🔴 EARLY LONG TRAP SIGNAL (REVERSE LOGIC OF EARLY SQUEEZE)
+    // 🔴 EARLY LONG TRAP SIGNAL
     if (
       priceChangePercent < 0 &&
       priceChangePercent > -10 &&
@@ -49,6 +50,7 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
         signal: 'Early Long Trap',
         reason: `Moderate price drop (${priceChangePercent.toFixed(1)}%), high volume (${volumeUSD}), and positive funding (${fundingPercent}) suggest a developing long trap scenario.`,
         priceChangePercent,
+        strongSell: true,
       };
     }
 
@@ -64,6 +66,7 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
         signal: 'Bullish Opportunity',
         reason: `Moderate price gain (+${priceChangePercent.toFixed(1)}%), high volume (${volumeUSD}), and low or negative funding (${fundingPercent}) suggest early bullish momentum.`,
         priceChangePercent,
+        strongBuy: true,
       };
     }
 
@@ -79,6 +82,7 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
         signal: 'Bearish Risk',
         reason: `Moderate price drop (${priceChangePercent.toFixed(1)}%), high volume (${volumeUSD}), and positive funding (${fundingPercent}) suggest long trap or hidden sell pressure.`,
         priceChangePercent,
+        strongSell: true,
       };
     }
 
