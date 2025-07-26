@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.recharts-tooltip-wrapper {
+  z-index: 1000 !important;
+  pointer-events: none;
+}
+
+.recharts-default-tooltip {
+  background-color: #333 !important;
+  border: 1px solid #555 !important;
+  border-radius: 4px;
+  color: white;
+  padding: 8px;
+}
+
+.recharts-tooltip-label {
+  color: #fff !important;
+}
