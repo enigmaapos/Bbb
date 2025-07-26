@@ -162,14 +162,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={sentimentScores}
-            // `key` prop can still be useful if you're dynamically changing data structure
-            // or need to force a re-render for non-data related reasons.
-            // key={chartKey}
-            // `pointer-events-none` is good for chart container if you don't want it to block clicks
-            // that are meant for elements *behind* the chart, but for tooltip interaction,
-            // you might need it on specific elements or manage it differently.
-            // For general charts, it's often better to let it have pointer events unless necessary.
-            // I've removed it from here as the Tooltip and CustomBarLabel need pointer events.
+            className="pointer-events-none"
           >
             <XAxis
               dataKey="name"
