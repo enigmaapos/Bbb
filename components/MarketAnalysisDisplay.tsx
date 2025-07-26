@@ -168,7 +168,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           <Bar
             dataKey="score"
             animationDuration={800}
-            animationEasing="ease-out" 
           >
             {sentimentScores.map((entry, index) => (
               <Cell
@@ -192,7 +191,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
 {/* Top Short Squeeze Candidates */}
       <div className="mb-4">
         <h3 className="text-yellow-400 font-semibold mb-1">🔥 Top Short Squeeze Candidates</h3>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.shortSqueezeCandidates.rating)}`}>
           {marketAnalysis.shortSqueezeCandidates.rating} <span className="font-bold">({marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
@@ -212,7 +210,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       {/* Top Long Trap Candidates */}
       <div className="mb-4">
         <h3 className="text-pink-400 font-semibold mb-1">⚠️ Top Long Trap Candidates</h3>
-        <p className={`text-sm ${getSentimentColor(marketAnalysis.longTrapCandidates.rating)}`}>
           {marketAnalysis.longTrapCandidates.rating} <span className="font-bold">({marketAnalysis.longTrapCandidates.score.toFixed(1)}/10)</span>
         </p>
         <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.longTrapCandidates.interpretation}</p>
