@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts'; // Import Legend for better context
 import { MarketAnalysisResults, SymbolData } from '../types';
 
 interface MarketAnalysisDisplayProps {
@@ -95,12 +95,42 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </span>
       </p>
 
+      {/* Chart Title added here */}
+      <h3 className="text-lg font-semibold text-white mb-2 text-center">
+        Individual Sentiment Score Breakdown
+      </h3>
+
       <div className="h-64 mb-6">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={sentimentScores}>
-            <XAxis dataKey="name" stroke="#ccc" />
-            <YAxis domain={[0, 10]} stroke="#ccc" />
-            <Tooltip formatter={(value: number) => `${value.toFixed(1)}/10`} />
+            {/* XAxis with Label */}
+            <XAxis
+              dataKey="name"
+              stroke="#ccc"
+              tick={{ fill: '#ccc' }}
+              label={{ value: 'Sentiment Category', position: 'insideBottom', offset: -5, fill: '#ccc' }}
+            />
+            {/* YAxis with Label */}
+            <YAxis
+              domain={[0, 10]}
+              stroke="#ccc"
+              tick={{ fill: '#ccc' }}
+              label={{ value: 'Score (0-10)', angle: -90, position: 'insideLeft', offset: 10, fill: '#ccc' }}
+            />
+            <Tooltip
+              formatter={(value: number) => `${value.toFixed(1)}/10`}
+              contentStyle={{ backgroundColor: '#333', borderColor: '#555', color: '#fff' }}
+              labelStyle={{ color: '#fff' }}
+            />
+            <Legend
+                wrapperStyle={{ color: '#ccc', paddingTop: '10px' }} // Style for the Legend wrapper
+                payload={[ // Manually define legend items based on your Cell fill logic
+                    { value: 'Strong (7.5-10)', type: 'rect', color: '#4ade80' },
+                    { value: 'Good (6-7.4)', type: 'rect', color: '#facc15' },
+                    { value: 'Moderate (4-5.9)', type: 'rect', color: '#f97316' },
+                    { value: 'Weak (0-3.9)', type: 'rect', color: '#f87171' },
+                ]}
+            />
             <Bar dataKey="score">
               {sentimentScores.map((entry, index) => (
                 <Cell
