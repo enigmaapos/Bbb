@@ -156,7 +156,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       <Tooltip
         formatter={(value: number) => `${value.toFixed(1)}/10`}
         contentStyle={{
-          backgroundColor: '#333',
+          backgroundColor: '#fff',
           borderColor: '#555',
           color: '#fff',
           borderRadius: '4px',
