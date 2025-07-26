@@ -23,6 +23,24 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
+// ✅ Custom XAxis tick renderer
+const CustomCategoryTick = ({ x, y, payload }: any) => {
+  const isGreen = payload.value === "Green";
+  const color = isGreen ? "#10B981" : "#EF4444";
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      fill={color}
+      textAnchor="middle"
+      fontSize={12}
+      fontWeight={600}
+    >
+      {payload.value}
+    </text>
+  );
+};
+
 export default function FundingSentimentChart({
   greenPositiveFunding,
   greenNegativeFunding,
@@ -53,7 +71,7 @@ export default function FundingSentimentChart({
 
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data}>
-          <XAxis dataKey="category" stroke="#aaa" />
+          <XAxis dataKey="category" tick={<CustomCategoryTick />} />
           <YAxis stroke="#aaa" />
           <Tooltip content={<CustomTooltip />} />
           <Legend
