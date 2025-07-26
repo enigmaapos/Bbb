@@ -120,7 +120,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </p>
 
       <h3 className="text-lg font-semibold text-white mb-2 text-center">📊 Sentiment Scores Overview</h3>
-         <div className="w-full max-w-[720px] h-[320px] mx-auto overflow-hidden touch-none">
+         <div className="w-full max-w-[720px] h-[320px] mx-auto overflow-hidden touch-auto">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={sentimentScores}
@@ -168,8 +168,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           <Bar
             dataKey="score"
             animationDuration={800}
-            animationEasing="ease-out"
-            className="pointer-events-none" // disables tap on bars specifically
+            animationEasing="ease-auto"
+            className="pointer-events-auto" 
           >
             {sentimentScores.map((entry, index) => (
               <Cell
