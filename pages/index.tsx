@@ -639,11 +639,16 @@ export default function PriceFundingTracker() {
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
 
-  // NEW FILTER: Bullish signals with POSITIVE funding rate
+  // Bullish signals with POSITIVE funding rate
   const bullishPositiveFundingSignals = bullishActionableSignals.filter(signal => {
-    // Find the corresponding SymbolData to get its fundingRate
     const symbolData = rawData.find(d => d.symbol === signal.symbol);
     return symbolData && symbolData.fundingRate > 0;
+  });
+
+  // NEW FILTER: Bearish signals with NEGATIVE funding rate
+  const bearishNegativeFundingSignals = bearishActionableSignals.filter(signal => {
+    const symbolData = rawData.find(d => d.symbol === signal.symbol);
+    return symbolData && symbolData.fundingRate < 0;
   });
 
 
@@ -799,7 +804,7 @@ export default function PriceFundingTracker() {
         )}
         {/* --- END NEW SECTION --- */}
 
-        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishActionableSignals.length > 0) && (
+        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishNegativeFundingSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
             <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
@@ -839,11 +844,11 @@ export default function PriceFundingTracker() {
               </div>
             )}
 
-            {bearishActionableSignals.length > 0 && (
+            {bearishNegativeFundingSignals.length > 0 && ( // Conditional rendering for Bearish Risks
               <div>
-                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks</h3>
+                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks (Negative Funding)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {bearishActionableSignals.map((signal, index) => (
+                  {bearishNegativeFundingSignals.map((signal, index) => (
                     <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
                       <h4 className="font-bold mb-1 text-red-300">{signal.symbol}</h4>
                       <p className="text-gray-200 text-xs">{signal.reason}</p>
