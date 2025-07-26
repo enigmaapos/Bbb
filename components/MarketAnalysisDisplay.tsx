@@ -165,27 +165,22 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             labelStyle={{ color: '#fff' }}
           />
           <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
-          <Bar
-            dataKey="score"
-            isAnimationActive={true}
-            animationDuration={800}
-            animationEasing="ease-out" 
-          >
-            {sentimentScores.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={
-                  entry.score >= 7.5
-                    ? '#4ade80'
-                    : entry.score >= 6
-                    ? '#facc15'
-                    : entry.score >= 4
-                    ? '#f97316'
-                    : '#f87171'
-                }
-              />
-            ))}
-          </Bar>
+          <Bar dataKey="score" isAnimationActive={true}>
+  {sentimentScores.map((entry, index) => (
+    <Cell
+      key={`cell-${index}`}
+      fill={
+        entry.score >= 7.5
+          ? "#4ade80"
+          : entry.score >= 6
+          ? "#facc15"
+          : entry.score >= 4
+          ? "#f97316"
+          : "#f87171"
+      }
+    />
+  ))}
+</Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>      
