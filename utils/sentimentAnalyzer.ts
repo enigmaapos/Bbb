@@ -7,17 +7,19 @@ import {
   MarketData,
   NewsData,
   SentimentArticle,
+  SentimentSignal,
 } from "../types";
 
-// The function now takes MarketStats, which includes newsArticles directly
+import { detectSentimentSignals } from "./signalDetector"; // Assuming you have this import for your signal detector
+
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
     red,
     fundingStats,
-    volumeData,   // This is now guaranteed to be SymbolData[]
+    volumeData,
     liquidationData,
-    newsArticles, // Destructure newsArticles from MarketStats
+    newsArticles,
   } = data;
 
   const results: MarketAnalysisResults = {
@@ -28,23 +30,25 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     newsSentiment: { rating: "", interpretation: "", score: 0 },
+    actionableSentimentSignals: [],
+    actionableSentimentSummary: { bullishCount: 0, bearishCount: 0, tone: "", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
-    marketData: { // Initialize with defaults or actual data
-        greenCount: green,
-        redCount: red,
-        greenPositiveFunding: fundingStats.greenPositiveFunding,
-        greenNegativeFunding: fundingStats.greenNegativeFunding,
-        redPositiveFunding: fundingStats.redPositiveFunding,
-        redNegativeFunding: fundingStats.redNegativeFunding,
-        priceUpFundingNegativeCount: 0, // Will be calculated below
-        priceDownFundingPositiveCount: 0, // Will be calculated below
-        topShortSqueeze: [], // Initialized as empty
-        topLongTrap: [],     // Initialized as empty
-        totalLongLiquidationsUSD: liquidationData?.totalLongLiquidationsUSD || 0,
-        totalShortLiquidationsUSD: liquidationData?.totalShortLiquidationsUSD || 0,
+    marketData: {
+      greenCount: green,
+      redCount: red,
+      greenPositiveFunding: fundingStats.greenPositiveFunding,
+      greenNegativeFunding: fundingStats.greenNegativeFunding,
+      redPositiveFunding: fundingStats.redPositiveFunding,
+      redNegativeFunding: fundingStats.redNegativeFunding,
+      priceUpFundingNegativeCount: 0,
+      priceDownFundingPositiveCount: 0,
+      topShortSqueeze: [],
+      topLongTrap: [],
+      totalLongLiquidationsUSD: liquidationData?.totalLongLiquidationsUSD || 0,
+      totalShortLiquidationsUSD: liquidationData?.totalShortLiquidationsUSD || 0,
     },
-    newsData: newsArticles, // Directly use the newsArticles passed in MarketStats
+    newsData: newsArticles,
   };
 
   // --- 1. General Bias ---
@@ -80,57 +84,59 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     };
   }
 
-// --- 2. Funding Imbalance (Refined Custom Trap Logic) ---
-const priceUpFundingNegative = volumeData.filter(d => d.priceChangePercent > 0 && d.fundingRate < 0).length; // PUN
-const priceDownFundingPositive = volumeData.filter(d => d.priceChangePercent < 0 && d.fundingRate > 0).length; // PDP
+  // --- 2. Funding Imbalance (Refined Custom Trap Logic) ---
+  const priceUpFundingNegative = volumeData.filter(
+    (d) => d.priceChangePercent > 0 && d.fundingRate < 0
+  ).length; // PUN
+  const priceDownFundingPositive = volumeData.filter(
+    (d) => d.priceChangePercent < 0 && d.fundingRate > 0
+  ).length; // PDP
 
-results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
-results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
+  results.marketData.priceUpFundingNegativeCount = priceUpFundingNegative;
+  results.marketData.priceDownFundingPositiveCount = priceDownFundingPositive;
 
-// Thresholds
-const PUN_MAX = 30;
-const PDP_HIGH_THRESHOLD = 230;
-const PDP_LOW_THRESHOLD = 150;
+  const PUN_MAX = 30;
+  const PDP_HIGH_THRESHOLD = 230;
+  const PDP_LOW_THRESHOLD = 150;
 
-if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRESHOLD) {
-  results.fundingImbalance = {
-    rating: "📉 Bearish Trap Skew",
-    interpretation: `Bearish trap: ${priceDownFundingPositive} longs are paying while price drops, and only ${priceUpFundingNegative} shorts are present. Longs are trapped, further selloff possible.`,
-    score: 2.0,
-  };
-} else if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive < PDP_LOW_THRESHOLD) {
-  results.fundingImbalance = {
-    rating: "📈 Bullish Weak Trap Recovery",
-    interpretation: `Bullish recovery possible: ${priceDownFundingPositive} longs are paying but not extreme, and only ${priceUpFundingNegative} shorts are defending upside. Market may lean bullish.`,
-    score: 8.0,
-  };
-} else {
-  results.fundingImbalance = {
-    rating: "⚪ Mixed/Neutral Funding",
-    interpretation: `No strong trap pattern. PUN: ${priceUpFundingNegative}, PDP: ${priceDownFundingPositive}.`,
-    score: 5.0,
-  };
-}
+  if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRESHOLD) {
+    results.fundingImbalance = {
+      rating: "📉 Bearish Trap Skew",
+      interpretation: `Bearish trap: ${priceDownFundingPositive} longs are paying while price drops, and only ${priceUpFundingNegative} shorts are present. Longs are trapped, further selloff possible.`,
+      score: 2.0,
+    };
+  } else if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive < PDP_LOW_THRESHOLD) {
+    results.fundingImbalance = {
+      rating: "📈 Bullish Weak Trap Recovery",
+      interpretation: `Bullish recovery possible: ${priceDownFundingPositive} longs are paying but not extreme, and only ${priceUpFundingNegative} shorts are defending upside. Market may lean bullish.`,
+      score: 8.0,
+    };
+  } else {
+    results.fundingImbalance = {
+      rating: "⚪ Mixed/Neutral Funding",
+      interpretation: `No strong trap pattern. PUN: ${priceUpFundingNegative}, PDP: ${priceDownFundingPositive}.`,
+      score: 5.0,
+    };
+  }
 
   // --- 3. Short Squeeze Candidates ---
-  // Filter and sort directly from volumeData which is already SymbolData[]
-  // FIX: Changed d.priceChange to d.priceChangePercent
   const topShortSqueezeCandidates = volumeData
-    .filter(d => d.priceChangePercent > 0 && d.fundingRate < 0)
-    .sort((a, b) => a.fundingRate - b.fundingRate) // Sort by funding rate (most negative first)
+    .filter((d) => d.priceChangePercent > 0 && d.fundingRate < 0)
+    .sort((a, b) => a.fundingRate - b.fundingRate)
     .slice(0, 5);
 
-  // Assign to marketData
   results.marketData.topShortSqueeze = topShortSqueezeCandidates;
 
-  const shortSqueezeCount = topShortSqueezeCandidates.filter(d => d.volume > 50_000_000).length;
-  if (shortSqueezeCount > 3) { // Adjusted condition to be more realistic for a slice of 5
+  const shortSqueezeCount = topShortSqueezeCandidates.filter(
+    (d) => d.volume > 50_000_000
+  ).length;
+  if (shortSqueezeCount > 3) {
     results.shortSqueezeCandidates = {
       rating: "High Potential",
       interpretation: `Many pairs (${shortSqueezeCount}) show price appreciation with negative funding, indicating shorts are being squeezed.`,
       score: 8,
     };
-  } else if (shortSqueezeCount > 0) { // If there's at least one candidate
+  } else if (shortSqueezeCount > 0) {
     results.shortSqueezeCandidates = {
       rating: "Moderate Potential",
       interpretation: `${shortSqueezeCount} pairs show signs of short squeezes.`,
@@ -145,24 +151,23 @@ if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRE
   }
 
   // --- 4. Long Trap Candidates ---
-  // Filter and sort directly from volumeData which is already SymbolData[]
-  // FIX: Changed d.priceChange to d.priceChangePercent
   const topLongTrapCandidates = volumeData
-    .filter(d => d.priceChangePercent < 0 && d.fundingRate > 0)
-    .sort((a, b) => b.fundingRate - a.fundingRate) // Sort by funding rate (most positive first)
-    .slice(0, 5); // Take top 5
+    .filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0)
+    .sort((a, b) => b.fundingRate - a.fundingRate)
+    .slice(0, 5);
 
-  // Assign to marketData
   results.marketData.topLongTrap = topLongTrapCandidates;
 
-  const longTrapCount = topLongTrapCandidates.filter(d => d.volume > 50_000_000).length;
-  if (longTrapCount > 3) { // Adjusted condition to be more realistic for a slice of 5
+  const longTrapCount = topLongTrapCandidates.filter(
+    (d) => d.volume > 50_000_000
+  ).length;
+  if (longTrapCount > 3) {
     results.longTrapCandidates = {
       rating: "High Risk",
       interpretation: `Many pairs (${longTrapCount}) show price depreciation with positive funding, indicating longs are trapped.`,
       score: 2,
     };
-  } else if (longTrapCount > 0) { // If there's at least one candidate
+  } else if (longTrapCount > 0) {
     results.longTrapCandidates = {
       rating: "Moderate Risk",
       interpretation: `${longTrapCount} pairs show signs of long traps.`,
@@ -177,10 +182,12 @@ if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRE
   }
 
   // --- 5. Volume Sentiment ---
-  // FIX: Changed d.priceChange to d.priceChangePercent
-  const bullishVolume = volumeData.filter(d => d.priceChangePercent > 0 && d.volume > 100_000_000).length;
-  // FIX: Changed d.priceChange to d.priceChangePercent
-  const bearishVolume = volumeData.filter(d => d.priceChangePercent < 0 && d.volume > 100_000_000).length;
+  const bullishVolume = volumeData.filter(
+    (d) => d.priceChangePercent > 0 && d.volume > 100_000_000
+  ).length;
+  const bearishVolume = volumeData.filter(
+    (d) => d.priceChangePercent < 0 && d.volume > 100_000_000
+  ).length;
 
   if (bullishVolume > bearishVolume * 2) {
     results.volumeSentiment = {
@@ -211,17 +218,17 @@ if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRE
       const longLiquidationRatio = totalLongLiquidationsUSD / totalLiquidations;
       const shortLiquidationRatio = totalShortLiquidationsUSD / totalLiquidations;
 
-      if (longLiquidationRatio > 0.7) { // Over 70% long liquidations
+      if (longLiquidationRatio > 0.7) {
         results.liquidationHeatmap = {
           rating: "Heavy Long Liquidations",
           interpretation: `A significant amount of long positions (${(longLiquidationRatio * 100).toFixed(0)}%) are being liquidated, indicating strong downward pressure.`,
-          score: 1.5, // Very bearish
+          score: 1.5,
         };
-      } else if (shortLiquidationRatio > 0.7) { // Over 70% short liquidations
+      } else if (shortLiquidationRatio > 0.7) {
         results.liquidationHeatmap = {
           rating: "Heavy Short Liquidations",
           interpretation: `A significant amount of short positions (${(shortLiquidationRatio * 100).toFixed(0)}%) are being liquidated, indicating strong upward pressure or short squeezes.`,
-          score: 8.5, // Very bullish
+          score: 8.5,
         };
       } else {
         results.liquidationHeatmap = {
@@ -234,65 +241,122 @@ if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRE
       results.liquidationHeatmap = {
         rating: "No Recent Liquidations",
         interpretation: "No significant liquidation events observed recently.",
-        score: 5, // Neutral if no liquidations
+        score: 5,
       };
     }
   } else {
     results.liquidationHeatmap = {
       rating: "Data Unavailable",
       interpretation: "Liquidation data not yet available for sentiment analysis.",
-      score: 5, // Neutral fallback
+      score: 5,
     };
   }
 
- // --- 7. News Sentiment Analysis ---
-  let newsSentimentRating = "Neutral";
-  let newsSentimentInterpretation = "No significant positive or negative news detected.";
-  let newsSentimentScore = 5;
+  // --- 7. News Sentiment Analysis ---
   let positiveNewsCount = 0;
   let negativeNewsCount = 0;
 
-  newsArticles.forEach(article => {
+  newsArticles.forEach((article) => {
     const title = article.title.toLowerCase();
-    if (title.includes("bullish") || title.includes("gain") || title.includes("rise") || title.includes("surge") || title.includes("breakout")) {
+    if (
+      title.includes("bullish") ||
+      title.includes("gain") ||
+      title.includes("rise") ||
+      title.includes("surge") ||
+      title.includes("breakout")
+    ) {
       positiveNewsCount++;
     }
-    if (title.includes("bearish") || title.includes("fall") || title.includes("drop") || title.includes("crash") || title.includes("sell-off")) {
+    if (
+      title.includes("bearish") ||
+      title.includes("fall") ||
+      title.includes("drop") ||
+      title.includes("crash") ||
+      title.includes("sell-off")
+    ) {
       negativeNewsCount++;
     }
   });
 
   if (positiveNewsCount > negativeNewsCount * 2) {
-    newsSentimentRating = "Bullish News";
-    newsSentimentInterpretation = "Recent news headlines are predominantly positive, likely supporting upward price action.";
-    newsSentimentScore = 8;
+    results.newsSentiment = {
+      rating: "Bullish News",
+      interpretation: "Recent news headlines are predominantly positive, likely supporting upward price action.",
+      score: 8,
+    };
   } else if (negativeNewsCount > positiveNewsCount * 2) {
-    newsSentimentRating = "Bearish News";
-    newsSentimentInterpretation = "Recent news headlines are predominantly negative, likely contributing to downward price action.";
-    newsSentimentScore = 3;
+    results.newsSentiment = {
+      rating: "Bearish News",
+      interpretation: "Recent news headlines are predominantly negative, likely contributing to downward price action.",
+      score: 3,
+    };
   } else if (positiveNewsCount > negativeNewsCount) {
-    newsSentimentRating = "Slightly Bullish News";
-    newsSentimentInterpretation = "More positive news than negative, suggesting a mild positive sentiment from headlines.";
-    newsSentimentScore = 6;
+    results.newsSentiment = {
+      rating: "Slightly Bullish News",
+      interpretation: "More positive news than negative, suggesting a mild positive sentiment from headlines.",
+      score: 6,
+    };
   } else if (negativeNewsCount > positiveNewsCount) {
-    newsSentimentRating = "Slightly Bearish News";
-    newsSentimentInterpretation = "More negative news than positive, suggesting a mild negative sentiment from headlines.";
-    newsSentimentScore = 4;
+    results.newsSentiment = {
+      rating: "Slightly Bearish News",
+      interpretation: "More negative news than positive, suggesting a mild negative sentiment from headlines.",
+      score: 4,
+    };
   } else {
-    newsSentimentRating = "Neutral News";
-    newsSentimentInterpretation = "News sentiment is balanced or indecisive.";
-    newsSentimentScore = 5;
+    results.newsSent
+
+  else {
+      results.newsSentiment = {
+        rating: "Neutral News",
+        interpretation: "News sentiment is balanced or indecisive.",
+        score: 5,
+      };
+    }
+
+  // --- 8. Actionable Sentiment Signals ---
+  const actionableSentimentSignals: SentimentSignal[] = detectSentimentSignals(volumeData);
+  results.actionableSentimentSignals = actionableSentimentSignals;
+
+  // Count bullish and bearish signals
+  const bullishCount = actionableSentimentSignals.filter(
+    (sig) => sig.signal === "Bullish Opportunity"
+  ).length;
+  const bearishCount = actionableSentimentSignals.filter(
+    (sig) => sig.signal === "Bearish Risk"
+  ).length;
+
+  // Evaluate overall tone from counts
+  let tone = "";
+  let interpretation = "";
+  let score = 5; // Neutral base
+
+  if (bullishCount > bearishCount) {
+    tone = "Bullish";
+    interpretation = `Market shows more bullish opportunities (${bullishCount}) than bearish risks (${bearishCount}).`;
+    score = 7;
+  } else if (bearishCount > bullishCount) {
+    tone = "Bearish";
+    interpretation = `Market shows more bearish risks (${bearishCount}) than bullish opportunities (${bullishCount}).`;
+    score = 3;
+  } else {
+    tone = "Neutral";
+    interpretation = `Bullish opportunities and bearish risks are balanced (${bullishCount} each).`;
+    score = 5;
   }
-  results.newsSentiment = {
-    rating: newsSentimentRating,
-    interpretation: newsSentimentInterpretation,
-    score: newsSentimentScore
+
+  results.actionableSentimentSummary = {
+    bullishCount,
+    bearishCount,
+    tone,
+    interpretation,
+    score,
   };
 
+  // --- 9. Overall Sentiment Accuracy ---
+  results.overallSentimentAccuracy = "Based on multiple indicators including price action, funding, volume, liquidations, and news.";
 
-  results.overallSentimentAccuracy = "Based on multiple indicators.";
-
-  // Calculate overall market outlook score, tone, and strategy suggestion
+  // --- 10. Overall Market Outlook ---
+  // Include actionable sentiment score in average calculation
   const totalScore =
     results.generalBias.score +
     results.fundingImbalance.score +
@@ -300,9 +364,11 @@ if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRE
     results.longTrapCandidates.score +
     results.volumeSentiment.score +
     results.liquidationHeatmap.score +
-    results.newsSentiment.score; // Include news sentiment
+    results.newsSentiment.score +
+    results.actionableSentimentSummary.score;
 
-  const numberOfScores = 7; // Update this if you add/remove sentiment categories
+  const numberOfScores = 8; // Updated to include actionableSentimentSummary
+
   const averageScore = totalScore / numberOfScores;
 
   let overallTone = "";
@@ -310,25 +376,30 @@ if (priceUpFundingNegative < PUN_MAX && priceDownFundingPositive > PDP_HIGH_THRE
 
   if (averageScore >= 7.5) {
     overallTone = "Strongly Bullish";
-    strategySuggestion = "Consider aggressive long positions with tight risk management. Focus on strong fundamental projects.";
+    strategySuggestion =
+      "Consider aggressive long positions with tight risk management. Focus on strong fundamental projects.";
   } else if (averageScore >= 6) {
     overallTone = "Moderately Bullish";
-    strategySuggestion = "Cautiously seek long opportunities, consider consolidating positions. Monitor key resistance levels.";
+    strategySuggestion =
+      "Cautiously seek long opportunities, consider consolidating positions. Monitor key resistance levels.";
   } else if (averageScore >= 4.5) {
     overallTone = "Neutral/Volatile";
-    strategySuggestion = "Market is indecisive. Consider range trading or wait for clearer signals. High volatility is possible.";
+    strategySuggestion =
+      "Market is indecisive. Consider range trading or wait for clearer signals. High volatility is possible.";
   } else if (averageScore >= 3) {
     overallTone = "Moderately Bearish";
-    strategySuggestion = "Consider shorting opportunities or reducing long exposure. Monitor key support levels carefully.";
+    strategySuggestion =
+      "Consider shorting opportunities or reducing long exposure. Monitor key support levels carefully.";
   } else {
     overallTone = "Strongly Bearish";
-    strategySuggestion = "Favor short positions or remain in cash. Protect capital as further downside is likely.";
+    strategySuggestion =
+      "Favor short positions or remain in cash. Protect capital as further downside is likely.";
   }
 
   results.overallMarketOutlook = {
     score: parseFloat(averageScore.toFixed(2)),
     tone: overallTone,
-    strategySuggestion: strategySuggestion,
+    strategySuggestion,
   };
 
   return results;
