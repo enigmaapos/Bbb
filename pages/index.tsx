@@ -393,7 +393,7 @@ export default function PriceFundingTracker() {
             s.signal === 'Bullish Opportunity' ||
             s.signal === 'Bearish Risk' ||
             s.signal === 'Early Squeeze Signal' ||
-            s.signal === 'Early Long Trap' // 🔴 ADDED THE NEW SIGNAL HERE
+            s.signal === 'Early Long Trap'
         );
         setActionableSentimentSignals(filteredActionableSignals);
 
@@ -593,21 +593,21 @@ export default function PriceFundingTracker() {
   const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
-  const earlyLongTrapSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Long Trap'); // 🔴 NEW FILTER
+  const earlyLongTrapSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Long Trap');
 
-  // These filters might need adjustment based on your exact definition in signalDetector.ts
-  // For 'Bullish Opportunity', you had `fundingRate <= fundingThreshold`, not `> 0`.
-  // For 'Bearish Risk', you had `fundingRate >= fundingThreshold`, not `< 0`.
-  // I've kept your original filtering from the prompt for these, but note the discrepancy.
-  const bullishPositiveFundingSignals = bullishActionableSignals.filter(signal => {
-    const symbolData = rawData.find(d => d.symbol === signal.symbol);
-    return symbolData && symbolData.fundingRate <= 0.0001 && symbolData.priceChangePercent <= 10; // Adjusted per signalDetector logic
-  });
+  const top5BullishPositiveFundingSignals = bullishActionableSignals
+    .filter(signal => {
+      const symbolData = rawData.find(d => d.symbol === signal.symbol);
+      return symbolData && symbolData.fundingRate <= 0.0001 && symbolData.priceChangePercent <= 10;
+    })
+    .slice(0, 5); // Slice to get top 5
 
-  const bearishNegativeFundingSignals = bearishActionableSignals.filter(signal => {
-    const symbolData = rawData.find(d => d.symbol === signal.symbol);
-    return symbolData && symbolData.fundingRate >= 0.0001 && symbolData.priceChangePercent >= -10; // Adjusted per signalDetector logic
-  });
+  const top5BearishNegativeFundingSignals = bearishActionableSignals
+    .filter(signal => {
+      const symbolData = rawData.find(d => d.symbol === signal.symbol);
+      return symbolData && symbolData.fundingRate >= 0.0001 && symbolData.priceChangePercent >= -10;
+    })
+    .slice(0, 5); // Slice to get top 5
 
 
   return (
@@ -764,7 +764,7 @@ export default function PriceFundingTracker() {
         )}
         {/* --- END NEW SECTION --- */}
 
-        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishNegativeFundingSignals.length > 0 || earlyLongTrapSignals.length > 0) && (/* 🔴 ADDED `earlyLongTrapSignals.length > 0` HERE */
+        {(top5BullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || top5BearishNegativeFundingSignals.length > 0 || earlyLongTrapSignals.length > 0) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
             <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
@@ -776,11 +776,11 @@ export default function PriceFundingTracker() {
               For **short opportunities**, consider waiting for bounces to **resistance or the 200 EMA zone** before entering.
             </p>
 
-            {bullishPositiveFundingSignals.length > 0 && (
+            {top5BullishPositiveFundingSignals.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities (Positive Funding & Moderate Price Gain)</h3>
+                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Top 5 Bullish Opportunities (Positive Funding & Moderate Price Gain)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {bullishPositiveFundingSignals.map((signal, index) => (
+                  {top5BullishPositiveFundingSignals.map((signal, index) => (
                     <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
                       <h4 className="font-bold mb-1 text-green-300">{signal.symbol}</h4>
                       <p className="text-gray-200 text-xs">{signal.reason}</p>
@@ -804,7 +804,6 @@ export default function PriceFundingTracker() {
               </div>
             )}
 
-            {/* 🔴 NEW SECTION FOR EARLY LONG TRAP SIGNALS */}
             {earlyLongTrapSignals.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
@@ -819,11 +818,11 @@ export default function PriceFundingTracker() {
               </div>
             )}
 
-            {bearishNegativeFundingSignals.length > 0 && (
+            {top5BearishNegativeFundingSignals.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks (Negative Funding & Moderate Price Drop)</h3>
+                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Top 5 Bearish Risks (Negative Funding & Moderate Price Drop)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {bearishNegativeFundingSignals.map((signal, index) => (
+                  {top5BearishNegativeFundingSignals.map((signal, index) => (
                     <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
                       <h4 className="font-bold mb-1 text-red-300">{signal.symbol}</h4>
                       <p className="text-gray-200 text-xs">{signal.reason}</p>
