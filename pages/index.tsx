@@ -131,6 +131,8 @@ export default function PriceFundingTracker() {
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     newsSentiment: { rating: "", interpretation: "", score: 0 },
+    actionableSentimentSignals: [], // Initialize here
+    actionableSentimentSummary: { bullishCount: 0, bearishCount: 0, tone: "Neutral", interpretation: "", score: 0 }, // Initialize here with valid tone
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
     marketData: {
@@ -489,65 +491,9 @@ export default function PriceFundingTracker() {
     // The analyzeSentiment function now expects one argument: MarketStats
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
 
-    const totalScores = [
-      sentimentResults.generalBias.score,
-      sentimentResults.fundingImbalance.score,
-      sentimentResults.shortSqueezeCandidates.score,
-      sentimentResults.longTrapCandidates.score,
-      sentimentResults.volumeSentiment.score,
-      sentimentResults.liquidationHeatmap.score,
-      sentimentResults.newsSentiment.score,
-    ].filter(score => typeof score === 'number' && !isNaN(score));
-
-    const averageScore = totalScores.length > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length : 0;
-
-    let finalOutlookTone = "";
-    let strategySuggestion = "";
-
-    if (averageScore >= 8.0) {
-      finalOutlookTone = "🟢 Strongly Bullish — The market shows clear bullish momentum and strong setups.";
-      strategySuggestion = "Aggressively seek **long opportunities**, especially on strong short squeeze candidates.";
-    } else if (averageScore >= 7.0) {
-      finalOutlookTone = "🟡 Mixed leaning Bullish — Some bullish momentum exists, but caution is advised due to underlying risks.";
-      strategySuggestion = "Look for **long opportunities** on high-conviction setups, but be prepared for volatility and consider tighter stop losses.";
-    } else if (averageScore >= 5.0) {
-      finalOutlookTone = "↔️ Mixed/Neutral — The market lacks a clear direction, with both bullish and bearish elements.";
-      strategySuggestion = "Focus on **scalping** or **range trading** specific high-volume symbols. Avoid strong directional bets until clarity emerges.";
-    } else {
-      finalOutlookTone = "🔻 Bearish — The market is under heavy selling pressure. Longs are trapped, and few bullish setups exist.";
-      strategySuggestion = "Consider **shorting opportunities** on long trap candidates, or **staying on the sidelines**. Exercise extreme caution with long positions.";
-    }
-
-    setMarketAnalysis({
-      generalBias: sentimentResults.generalBias,
-      fundingImbalance: sentimentResults.fundingImbalance,
-      shortSqueezeCandidates: sentimentResults.shortSqueezeCandidates,
-      longTrapCandidates: sentimentResults.longTrapCandidates,
-      volumeSentiment: sentimentResults.volumeSentiment,
-      liquidationHeatmap: sentimentResults.liquidationHeatmap,
-      newsSentiment: sentimentResults.newsSentiment,
-      overallSentimentAccuracy: sentimentResults.overallSentimentAccuracy,
-      overallMarketOutlook: {
-        score: parseFloat(averageScore.toFixed(1)),
-        tone: finalOutlookTone,
-        strategySuggestion: strategySuggestion,
-      },
-      marketData: {
-        greenCount: greenCount,
-        redCount: redCount,
-        greenPositiveFunding: greenPositiveFunding,
-        redPositiveFunding: redPositiveFunding,
-        greenNegativeFunding: greenNegativeFunding,
-        redNegativeFunding: redNegativeFunding,
-        priceUpFundingNegativeCount: priceUpFundingNegativeCount,
-        priceDownFundingPositiveCount: priceDownFundingPositiveCount,
-        topShortSqueeze: fundingImbalanceData.topShortSqueeze,
-        topLongTrap: fundingImbalanceData.topLongTrap,
-        totalLongLiquidationsUSD: aggregatedLiquidationForSentiment?.totalLongLiquidationsUSD || 0,
-        totalShortLiquidationsUSD: aggregatedLiquidationForSentiment?.totalShortLiquidationsUSD || 0,
-      },
-      newsData: cryptoNews,
-    });
+    // No need to calculate averageScore here as analyzeSentiment now returns overallMarketOutlook
+    // with score and tone directly.
+    setMarketAnalysis(sentimentResults);
 
   }, [
     rawData,
@@ -635,6 +581,7 @@ export default function PriceFundingTracker() {
   }
 
   // Define these variables within the component's render scope
+  // These now correctly filter from the `actionableSentimentSignals` state
   const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
