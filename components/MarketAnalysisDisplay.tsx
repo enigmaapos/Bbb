@@ -128,8 +128,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     <BarChart data={sentimentScores}>
       <XAxis
         dataKey="name"
-        stroke="#fff"
-        tick={{ fill: '#fff', fontSize: 12 }}
+        stroke="#ccc"
+        tick={{ fill: '#ccc', fontSize: 12 }}
         interval={0}
         angle={-30}
         textAnchor="end"
@@ -143,20 +143,20 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       />
       <YAxis
         domain={[0, 10]}
-        stroke="#fff"
-        tick={{ fill: '#fff' }}
+        stroke="#ccc"
+        tick={{ fill: '#ccc' }}
         label={{
           value: 'Score (0–10)',
           angle: -90,
           position: 'insideLeft',
           offset: 10,
-          fill: '#fff',
+          fill: '#ccc',
         }}
       />
       <Tooltip
         formatter={(value: number) => `${value.toFixed(1)}/10`}
         contentStyle={{
-          backgroundColor: '#fff',
+          backgroundColor: '#333',
           borderColor: '#555',
           color: '#fff',
           borderRadius: '4px',
@@ -165,7 +165,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         labelStyle={{ color: '#fff' }}
       />
       <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
-      <Bar dataKey="score" isAnimationActive={false}>
+      <Bar dataKey="score" isAnimationActive={true}>
         {sentimentScores.map((entry, index) => (
           <Cell
             key={`cell-${index}`}
@@ -186,6 +186,10 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
 </div>
 
 {/* Top Short Squeeze Candidates */}
+      <div
+  className="w-full max-w-[720px] h-[320px] mx-auto overflow-visible pointer-events-auto touch-auto"
+  style={{ WebkitOverflowScrolling: 'auto' }}
+>
       <div className="mb-4">
         <h3 className="text-yellow-400 font-semibold mb-1">🔥 Top Short Squeeze Candidates</h3>
           {marketAnalysis.shortSqueezeCandidates.rating} <span className="font-bold">({marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}/10)</span>
@@ -220,7 +224,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           )}
         </ul>
       </div>     
-
+</div>
 
       
     </div>
