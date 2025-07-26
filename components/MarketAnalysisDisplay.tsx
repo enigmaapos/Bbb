@@ -61,9 +61,15 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     { name: 'Volume', score: marketAnalysis.volumeSentiment.score },
     { name: 'Liquidation', score: marketAnalysis.liquidationHeatmap.score },
     { name: 'News', score: marketAnalysis.newsSentiment.score },
-    // Added Actionable Sentiment to the chart data
-    { name: 'Actionable', score: marketAnalysis.actionableSentimentSummary.score },
   ];
+
+  // Conditionally add 'Actionable' sentiment to the chart data if it exists
+  if (marketAnalysis.actionableSentimentSummary) {
+    sentimentScores.push({
+      name: 'Actionable',
+      score: marketAnalysis.actionableSentimentSummary.score
+    });
+  }
 
   return (
     <div className="mt-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
@@ -222,7 +228,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           )}
         </div>
 
-        {/* New: Actionable Sentiment Signals Summary */}
+        {/* Actionable Sentiment Signals Summary - This remains a separate, detailed display block */}
         {marketAnalysis.actionableSentimentSummary && (
           <div className="p-4 mb-4 bg-gray-700 rounded-md border border-gray-600">
             <h3 className="font-semibold text-indigo-300 mb-2">🔍 Actionable Sentiment Signals</h3>
