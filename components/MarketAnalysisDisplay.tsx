@@ -42,6 +42,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   redNegativeFunding,
 }) => {
   const getScoreColor = (score: number) => {
+    // Ensure score is a number before comparison
+    if (typeof score !== 'number') return "text-gray-500"; // Fallback color if not a number
     if (score >= 7.5) return "text-green-400";
     if (score >= 6) return "text-yellow-400";
     if (score >= 4) return "text-orange-400";
@@ -52,7 +54,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     // Ensure score is a number before arithmetic operations
     const safeScore = typeof score === 'number' ? score : 0;
     const numStars = Math.round(safeScore / 2);
-    return "⭐".repeat(numStars) + "☆".repeat(5 - numStars);
+    // Ensure numStars is not negative in case of unexpected score values
+    const clampedNumStars = Math.max(0, Math.min(5, numStars)); // Stars should be between 0 and 5
+    return "⭐".repeat(clampedNumStars) + "☆".repeat(5 - clampedNumStars);
   };
 
   const sentimentScores = [
@@ -90,7 +94,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     },
   ].filter(Boolean) as { name: string; score: number }[];
 
-  // Define a custom Legend component to render the payload
   const CustomLegend = () => {
     const legendItems = [
       { value: 'Strong (7.5-10)', color: '#4ade80' },
@@ -127,7 +130,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         🌐 Overall Market Outlook:{" "}
         <span className={`${getScoreColor(marketAnalysis.overallMarketOutlook?.score || 0)} font-bold`}>
           {marketAnalysis.overallMarketOutlook?.tone || 'N/A'} (Score: {marketAnalysis.overallMarketOutlook?.score?.toFixed(1) || 'N/A'}/10){" "}
-          {scoreToStars(marketAnalysis.overallMarketOutlook?.score || 0)} {/* FIX APPLIED HERE */}
+          {scoreToStars(marketAnalysis.overallMarketOutlook?.score || 0)}
         </span>
         <br />
         <span className="text-gray-400 italic text-xs ml-4">
@@ -135,21 +138,20 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </span>
       </p>
 
-      {/* Chart with title */}
+      ---
+
       <h3 className="text-lg font-semibold text-white mb-2 text-center">
         📊 Sentiment Scores Overview
       </h3>
       <div className="h-64 mb-6">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={sentimentScores}>
-            {/* XAxis with Label */}
             <XAxis
               dataKey="name"
               stroke="#ccc"
               tick={{ fill: '#ccc' }}
               label={{ value: 'Sentiment Category', position: 'insideBottom', offset: -5, fill: '#ccc' }}
             />
-            {/* YAxis with Label */}
             <YAxis
               domain={[0, 10]}
               stroke="#ccc"
@@ -159,18 +161,17 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             <Tooltip
               formatter={(value: number) => `${value.toFixed(1)}/10`}
               contentStyle={{
-                backgroundColor: '#333', // Inner tooltip background
+                backgroundColor: '#333',
                 borderColor: '#555',
                 color: '#fff',
-                borderRadius: '4px', // Add some rounded corners
-                padding: '8px', // Add some padding
+                borderRadius: '4px',
+                padding: '8px',
               }}
               labelStyle={{ color: '#fff' }}
             />
-            {/* Use the content prop with the custom Legend component */}
             <Legend
-              wrapperStyle={{ paddingTop: '10px' }} // Wrapper style for the legend container
-              content={<CustomLegend />} // Render our custom legend component
+              wrapperStyle={{ paddingTop: '10px' }}
+              content={<CustomLegend />}
             />
             <Bar dataKey="score">
               {sentimentScores.map((entry, index) => (
@@ -178,12 +179,12 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
                   key={`cell-${index}`}
                   fill={
                     entry.score >= 7.5
-                      ? "#4ade80" // green
+                      ? "#4ade80"
                       : entry.score >= 6
-                      ? "#facc15" // yellow
+                      ? "#facc15"
                       : entry.score >= 4
-                      ? "#f97316" // orange
-                      : "#f87171" // red
+                      ? "#f97316"
+                      : "#f87171"
                   }
                 />
               ))}
@@ -192,11 +193,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </ResponsiveContainer>
       </div>
 
-      {/* IMPORTANT: ADD THE FOLLOWING CSS TO YOUR GLOBAL STYLESHEET (e.g., globals.css or index.css) */}
-      {/* This will ensure the outer tooltip wrapper also has a dark background */}
+      {/* Remember to apply the global CSS for tooltip background as discussed */}
       {/*
-        If you are using a global CSS file (like globals.css in Next.js), add these rules directly:
-        
         // In your `globals.css` or equivalent global stylesheet:
         .recharts-tooltip-wrapper {
           background-color: #333 !important;
@@ -207,7 +205,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         }
 
         .recharts-default-tooltip {
-            // Ensure consistency, though contentStyle usually handles this part
             background-color: #333;
             border: none;
             padding: 8px;
@@ -217,6 +214,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             color: #fff;
         }
       */}
+
+      ---
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
         {/* General Bias */}
@@ -341,7 +340,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
           </div>
         )}
-          
       </div>
     </div>
   );
