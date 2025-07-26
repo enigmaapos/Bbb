@@ -51,6 +51,20 @@ const formatVolume = (num: number): string => {
   return formatter.format(num);
 };
 
+// Helper function to format time for Davao City
+const formatDavaoTime = (): string => {
+  const now = new Date();
+  // Ensure the timeZone is 'Asia/Manila' for Davao City
+  const davaoTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: true,
+  }).format(now);
+  return davaoTime;
+};
+
 export default function PriceFundingTracker() {
   const priceChangeThreshold = 2;
   const fundingRateThreshold = 0.0001;
@@ -73,6 +87,8 @@ export default function PriceFundingTracker() {
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
 
   const [sortConfig, setSortConfig] = useState<{
     key: "fundingRate" | "priceChangePercent" | "signal" | null;
@@ -131,8 +147,8 @@ export default function PriceFundingTracker() {
     volumeSentiment: { rating: "", interpretation: "", score: 0 },
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     newsSentiment: { rating: "", interpretation: "", score: 0 },
-    actionableSentimentSignals: [], // Initialize here
-    actionableSentimentSummary: { bullishCount: 0, bearishCount: 0, tone: "Neutral", interpretation: "", score: 0 }, // Initialize here with valid tone
+    actionableSentimentSignals: [],
+    actionableSentimentSummary: { bullishCount: 0, bearishCount: 0, tone: "Neutral", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
     marketData: {
@@ -357,9 +373,6 @@ export default function PriceFundingTracker() {
         }).filter((d: SymbolData) => d.volume > 0);
 
         const allSentimentSignals = detectSentimentSignals(combinedData);
-        // Note: detectSentimentSignals uses priceChange (which is fine if it uses priceChangePercent from SymbolData)
-        // Ensure detectSentimentSignals is correctly implemented to use priceChangePercent internally.
-        // The SymbolData passed to it contains priceChangePercent.
 
         combinedData = combinedData.map(d => ({
           ...d,
@@ -376,8 +389,6 @@ export default function PriceFundingTracker() {
           .sort((a, b) => b.fundingRate - a.fundingRate)
           .slice(0, 5);
 
-        // Corrected filtering for actionable signals:
-        // Filter signals based on their 'signal' property from detectSentimentSignals
         const filteredActionableSignals = allSentimentSignals.filter(s =>
             s.signal === 'Bullish Opportunity' || s.signal === 'Bearish Risk' || s.signal === 'Early Squeeze Signal'
         );
@@ -427,6 +438,8 @@ export default function PriceFundingTracker() {
 
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
+        setLastUpdated(formatDavaoTime());
+
 
       } catch (err: any) {
         console.error("Error fetching initial market data or news:", err);
@@ -481,18 +494,12 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      // FIX: Pass rawData directly, as it is already SymbolData[]
       volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
-      // FIX: Pass newsArticles from cryptoNews state
       newsArticles: cryptoNews,
     };
 
-    // The analyzeSentiment function now expects one argument: MarketStats
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
-
-    // No need to calculate averageScore here as analyzeSentiment now returns overallMarketOutlook
-    // with score and tone directly.
     setMarketAnalysis(sentimentResults);
 
   }, [
@@ -580,19 +587,15 @@ export default function PriceFundingTracker() {
     );
   }
 
-  // Define these variables within the component's render scope
-  // These now correctly filter from the `actionableSentimentSignals` state
   const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
 
-  // Bullish signals with POSITIVE funding rate AND price change not above 10%
   const bullishPositiveFundingSignals = bullishActionableSignals.filter(signal => {
     const symbolData = rawData.find(d => d.symbol === signal.symbol);
     return symbolData && symbolData.fundingRate > 0 && symbolData.priceChangePercent <= 10;
   });
 
-  // Bearish signals with NEGATIVE funding rate AND price change not below -10%
   const bearishNegativeFundingSignals = bearishActionableSignals.filter(signal => {
     const symbolData = rawData.find(d => d.symbol === signal.symbol);
     return symbolData && symbolData.fundingRate < 0 && symbolData.priceChangePercent >= -10;
@@ -608,7 +611,9 @@ export default function PriceFundingTracker() {
       </Head>
 
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
+        <h1 className="text-3xl font-bold mb-3 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
+        <p className="text-sm text-gray-400 mb-6">Last Updated (Davao City): {lastUpdated}</p>
+
 
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
           <h2 className="text-lg font-bold text-white mb-3">
@@ -758,9 +763,9 @@ export default function PriceFundingTracker() {
             <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
               <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
               <br />
-              For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
+              For **long opportunities**, consider waiting for pullbacks to the **200 EMA zone** on the daily timeframe for better entry.
               <br />
-              For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
+              For **short opportunities**, consider waiting for bounces to **resistance or the 200 EMA zone** before entering.
             </p>
 
             {bullishPositiveFundingSignals.length > 0 && (
