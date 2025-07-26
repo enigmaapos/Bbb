@@ -61,6 +61,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     { name: 'Volume', score: marketAnalysis.volumeSentiment.score },
     { name: 'Liquidation', score: marketAnalysis.liquidationHeatmap.score },
     { name: 'News', score: marketAnalysis.newsSentiment.score },
+    // Added Actionable Sentiment to the chart data
+    { name: 'Actionable', score: marketAnalysis.actionableSentimentSummary.score },
   ];
 
   return (
