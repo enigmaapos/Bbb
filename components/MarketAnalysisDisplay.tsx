@@ -143,7 +143,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         stroke="#ccc"
         tick={{ fill: '#ccc' }}
         label={{
-          value: 'Score (0-10)',
+          value: 'Score (0–10)',
           angle: -90,
           position: 'insideLeft',
           offset: 10,
@@ -162,7 +162,12 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         labelStyle={{ color: '#fff' }}
       />
       <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
-      <Bar dataKey="score" isAnimationActive={false}>
+
+      <Bar
+        dataKey="score"
+        animationDuration={800} // ✅ Animate bars over 800ms
+        animationEasing="ease-out"
+      >
         {sentimentScores.map((entry, index) => (
           <Cell
             key={`cell-${index}`}
@@ -182,7 +187,50 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   </ResponsiveContainer>
 </div>
 
-      {/* ...keep the rest of your component as-is */}
+{/* Short Squeeze */}
+        <div className="p-3 bg-gray-700/50 rounded-md">
+          <h3 className="font-semibold text-green-300 mb-1">Short Squeeze Potential</h3>
+          <p className="text-green-300">{marketAnalysis.shortSqueezeCandidates?.rating || 'N/A'}</p>
+          <p className="text-green-200 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates?.interpretation || 'No interpretation available.'}</p>
+          <p className={`text-right font-bold ${getScoreColor(marketAnalysis.shortSqueezeCandidates?.score || 0)}`}>
+            Score: {marketAnalysis.shortSqueezeCandidates?.score?.toFixed(1) || 'N/A'}
+          </p>
+          {fundingImbalanceData.topShortSqueeze.length > 0 && (
+            <div className="mt-2 text-xs">
+              <p className="font-semibold text-green-200">Top Candidates:</p>
+              <ul className="list-disc list-inside text-gray-400">
+                {fundingImbalanceData.topShortSqueeze.map((s) => (
+                  <li key={s.symbol}>
+                    {s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Long Trap */}
+        <div className="p-3 bg-gray-700/50 rounded-md">
+          <h3 className="font-semibold text-red-300 mb-1">Long Trap Risk</h3>
+          <p className="text-red-300">{marketAnalysis.longTrapCandidates?.rating || 'N/A'}</p>
+          <p className="text-red-200 text-xs mt-1">{marketAnalysis.longTrapCandidates?.interpretation || 'No interpretation available.'}</p>
+          <p className={`text-right font-bold ${getScoreColor(marketAnalysis.longTrapCandidates?.score || 0)}`}>
+            Score: {marketAnalysis.longTrapCandidates?.score?.toFixed(1) || 'N/A'}
+          </p>
+          {fundingImbalanceData.topLongTrap.length > 0 && (
+            <div className="mt-2 text-xs">
+              <p className="font-semibold text-red-200">Top Candidates:</p>
+              <ul className="list-disc list-inside text-gray-400">
+                {fundingImbalanceData.topLongTrap.map((s) => (
+                  <li key={s.symbol}>
+                    {s.symbol} ({s.priceChangePercent.toFixed(1)}% | {(s.fundingRate * 100).toFixed(3)}% | ${formatVolume(s.volume)})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      
     </div>
   );
 };
