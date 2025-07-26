@@ -59,13 +59,25 @@ export default function FundingSentimentChart({
           <Legend
             wrapperStyle={{ color: "#E5E7EB", fontSize: "12px", marginTop: "10px" }}
           />
+
+          {/* Funding ➕ (Longs Paying) */}
           <Bar dataKey="Positive" stackId="a" name="Funding ➕ (Longs Paying)">
-            <Cell fill="#EF4444" /> {/* Green group */}
-            <Cell fill="#EF4444" /> {/* Red group */}
+            {data.map((entry, index) => (
+              <Cell
+                key={`positive-${index}`}
+                fill={entry.category === "Green" ? "#F87171" : "#B91C1C"}
+              />
+            ))}
           </Bar>
+
+          {/* Funding ➖ (Shorts Paying) */}
           <Bar dataKey="Negative" stackId="a" name="Funding ➖ (Shorts Paying)">
-            <Cell fill="#10B981" /> {/* Green group */}
-            <Cell fill="#10B981" /> {/* Red group */}
+            {data.map((entry, index) => (
+              <Cell
+                key={`negative-${index}`}
+                fill={entry.category === "Green" ? "#6EE7B7" : "#047857"}
+              />
+            ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
