@@ -120,72 +120,75 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </p>
 
       <h3 className="text-lg font-semibold text-white mb-2 text-center">📊 Sentiment Scores Overview</h3>
-      <div className="w-full max-w-[720px] h-[320px] mx-auto overflow-hidden touch-none">
-  <ResponsiveContainer width="100%" height="100%">
-    <BarChart data={sentimentScores}>
-      <XAxis
-        dataKey="name"
-        stroke="#ccc"
-        tick={{ fill: '#ccc', fontSize: 12 }}
-        interval={0}
-        angle={-30}
-        textAnchor="end"
-        height={60}
-        label={{
-          value: 'Sentiment Category',
-          position: 'insideBottom',
-          offset: -5,
-          fill: '#ccc',
-        }}
-      />
-      <YAxis
-        domain={[0, 10]}
-        stroke="#ccc"
-        tick={{ fill: '#ccc' }}
-        label={{
-          value: 'Score (0–10)',
-          angle: -90,
-          position: 'insideLeft',
-          offset: 10,
-          fill: '#ccc',
-        }}
-      />
-      <Tooltip
-        formatter={(value: number) => `${value.toFixed(1)}/10`}
-        contentStyle={{
-          backgroundColor: '#333',
-          borderColor: '#555',
-          color: '#fff',
-          borderRadius: '4px',
-          padding: '8px',
-        }}
-        labelStyle={{ color: '#fff' }}
-      />
-      <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
-
-      <Bar
-        dataKey="score"
-        animationDuration={800} // ✅ Animate bars over 800ms
-        animationEasing="ease-out"
-      >
-        {sentimentScores.map((entry, index) => (
-          <Cell
-            key={`cell-${index}`}
-            fill={
-              entry.score >= 7.5
-                ? "#4ade80"
-                : entry.score >= 6
-                ? "#facc15"
-                : entry.score >= 4
-                ? "#f97316"
-                : "#f87171"
-            }
+         <div className="w-full max-w-[720px] h-[320px] mx-auto overflow-hidden touch-none">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={sentimentScores}
+          className="pointer-events-none" // disables click/tap
+        >
+          <XAxis
+            dataKey="name"
+            stroke="#ccc"
+            tick={{ fill: '#ccc', fontSize: 12 }}
+            interval={0}
+            angle={-30}
+            textAnchor="end"
+            height={60}
+            label={{
+              value: 'Sentiment Category',
+              position: 'insideBottom',
+              offset: -5,
+              fill: '#ccc',
+            }}
           />
-        ))}
-      </Bar>
-    </BarChart>
-  </ResponsiveContainer>
-</div>
+          <YAxis
+            domain={[0, 10]}
+            stroke="#ccc"
+            tick={{ fill: '#ccc' }}
+            label={{
+              value: 'Score (0–10)',
+              angle: -90,
+              position: 'insideLeft',
+              offset: 10,
+              fill: '#ccc',
+            }}
+          />
+          <Tooltip
+            formatter={(value: number) => `${value.toFixed(1)}/10`}
+            contentStyle={{
+              backgroundColor: '#333',
+              borderColor: '#555',
+              color: '#fff',
+              borderRadius: '4px',
+              padding: '8px',
+            }}
+            labelStyle={{ color: '#fff' }}
+          />
+          <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
+          <Bar
+            dataKey="score"
+            animationDuration={800}
+            animationEasing="ease-out"
+            className="pointer-events-none" // disables tap on bars specifically
+          >
+            {sentimentScores.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={
+                  entry.score >= 7.5
+                    ? '#4ade80'
+                    : entry.score >= 6
+                    ? '#facc15'
+                    : entry.score >= 4
+                    ? '#f97316'
+                    : '#f87171'
+                }
+              />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
 
 {/* Short Squeeze */}
         <div className="p-3 bg-gray-700/50 rounded-md">
