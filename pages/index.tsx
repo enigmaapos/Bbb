@@ -757,6 +757,7 @@ export default function PriceFundingTracker() {
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
           redPositiveFunding={redNegativeFunding}
+	redNegativeFunding={redNegativeFunding}	
         />
 
 	<div className="mb-8">
