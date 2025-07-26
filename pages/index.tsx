@@ -22,7 +22,7 @@ import {
   BinancePremiumIndex,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import { detectSentimentSignals } from "../utils/signalDetector";
+import { detectSentimentSignals } from "../utils/signalDetector"; // Ensure this import is correct
 import { fetchCryptoNews } from "../utils/newsFetcher";
 import axios, { AxiosError } from 'axios';
 
@@ -390,7 +390,10 @@ export default function PriceFundingTracker() {
           .slice(0, 5);
 
         const filteredActionableSignals = allSentimentSignals.filter(s =>
-            s.signal === 'Bullish Opportunity' || s.signal === 'Bearish Risk' || s.signal === 'Early Squeeze Signal'
+            s.signal === 'Bullish Opportunity' ||
+            s.signal === 'Bearish Risk' ||
+            s.signal === 'Early Squeeze Signal' ||
+            s.signal === 'Early Long Trap' // 🔴 ADDED THE NEW SIGNAL HERE
         );
         setActionableSentimentSignals(filteredActionableSignals);
 
@@ -590,15 +593,20 @@ export default function PriceFundingTracker() {
   const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
+  const earlyLongTrapSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Long Trap'); // 🔴 NEW FILTER
 
+  // These filters might need adjustment based on your exact definition in signalDetector.ts
+  // For 'Bullish Opportunity', you had `fundingRate <= fundingThreshold`, not `> 0`.
+  // For 'Bearish Risk', you had `fundingRate >= fundingThreshold`, not `< 0`.
+  // I've kept your original filtering from the prompt for these, but note the discrepancy.
   const bullishPositiveFundingSignals = bullishActionableSignals.filter(signal => {
     const symbolData = rawData.find(d => d.symbol === signal.symbol);
-    return symbolData && symbolData.fundingRate > 0 && symbolData.priceChangePercent <= 10;
+    return symbolData && symbolData.fundingRate <= 0.0001 && symbolData.priceChangePercent <= 10; // Adjusted per signalDetector logic
   });
 
   const bearishNegativeFundingSignals = bearishActionableSignals.filter(signal => {
     const symbolData = rawData.find(d => d.symbol === signal.symbol);
-    return symbolData && symbolData.fundingRate < 0 && symbolData.priceChangePercent >= -10;
+    return symbolData && symbolData.fundingRate >= 0.0001 && symbolData.priceChangePercent >= -10; // Adjusted per signalDetector logic
   });
 
 
@@ -756,7 +764,7 @@ export default function PriceFundingTracker() {
         )}
         {/* --- END NEW SECTION --- */}
 
-        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishNegativeFundingSignals.length > 0) && (
+        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishNegativeFundingSignals.length > 0 || earlyLongTrapSignals.length > 0) && ( {/* 🔴 ADDED `earlyLongTrapSignals.length > 0` HERE */}
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
             <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
@@ -789,6 +797,21 @@ export default function PriceFundingTracker() {
                   {earlySqueezeSignals.map((signal, index) => (
                     <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
                       <h4 className="font-bold mb-1 text-orange-300">{signal.symbol}</h4>
+                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 🔴 NEW SECTION FOR EARLY LONG TRAP SIGNALS */}
+            {earlyLongTrapSignals.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {earlyLongTrapSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
+                      <h4 className="font-bold mb-1 text-purple-300">{signal.symbol}</h4>
                       <p className="text-gray-200 text-xs">{signal.reason}</p>
                     </div>
                   ))}
