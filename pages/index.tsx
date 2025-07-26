@@ -89,6 +89,7 @@ export default function PriceFundingTracker() {
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
+  // This state already holds all sentiment signals
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
   // NEW: State for news data
@@ -373,11 +374,13 @@ export default function PriceFundingTracker() {
           .sort((a, b) => b.fundingRate - a.fundingRate)
           .slice(0, 5);
 
+        // Corrected filtering for actionable signals:
+        // Filter signals based on their 'signal' property from detectSentimentSignals
         const filteredActionableSignals = allSentimentSignals.filter(s =>
-          (s.signal === 'Bullish Opportunity' && topShortSqueeze.some(ts => ts.symbol === s.symbol)) ||
-          (s.signal === 'Bearish Risk' && topLongTrap.some(tl => tl.symbol === s.symbol))
+            s.signal === 'Bullish Opportunity' || s.signal === 'Bearish Risk' || s.signal === 'Early Squeeze Signal'
         );
         setActionableSentimentSignals(filteredActionableSignals);
+
 
         setRawData(combinedData);
 
@@ -631,8 +634,11 @@ export default function PriceFundingTracker() {
     );
   }
 
+  // Define these variables within the component's render scope
   const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
+  const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
+
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -750,15 +756,14 @@ export default function PriceFundingTracker() {
           redCount={redCount}
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
+          redPositiveFunding={redNegativeFunding}
         />
 
 	<div className="mb-8">
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
           />
-        </div>   
+        </div>
 
 	 {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
         {cryptoNews.length > 0 && (
@@ -784,7 +789,7 @@ export default function PriceFundingTracker() {
             </ul>
           </section>
         )}
-        {/* --- END NEW SECTION --- */}     
+        {/* --- END NEW SECTION --- */}
 
         {(bullishActionableSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishActionableSignals.length > 0) && (
   <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
