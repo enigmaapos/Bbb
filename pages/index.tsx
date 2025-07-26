@@ -92,7 +92,7 @@ export default function PriceFundingTracker() {
   // This state already holds all sentiment signals
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
 
-  // NEW: State for news data
+  // State for news data
   const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
   // Liquidation data states
@@ -536,8 +536,8 @@ export default function PriceFundingTracker() {
         greenCount: greenCount,
         redCount: redCount,
         greenPositiveFunding: greenPositiveFunding,
-        greenNegativeFunding: greenNegativeFunding,
         redPositiveFunding: redPositiveFunding,
+        greenNegativeFunding: greenNegativeFunding,
         redNegativeFunding: redNegativeFunding,
         priceUpFundingNegativeCount: priceUpFundingNegativeCount,
         priceDownFundingPositiveCount: priceDownFundingPositiveCount,
@@ -639,10 +639,12 @@ export default function PriceFundingTracker() {
   const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
 
-  // New filtered list for bullish signals that are also in topShortSqueeze
-  const bullishSqueezeSignals = bullishActionableSignals.filter(signal =>
-    fundingImbalanceData.topShortSqueeze.some(squeezeCandidate => squeezeCandidate.symbol === signal.symbol)
-  );
+  // NEW FILTER: Bullish signals with POSITIVE funding rate
+  const bullishPositiveFundingSignals = bullishActionableSignals.filter(signal => {
+    // Find the corresponding SymbolData to get its fundingRate
+    const symbolData = rawData.find(d => d.symbol === signal.symbol);
+    return symbolData && symbolData.fundingRate > 0;
+  });
 
 
   return (
@@ -762,7 +764,7 @@ export default function PriceFundingTracker() {
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
           redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding} // Make sure this prop is passed!
+          redNegativeFunding={redNegativeFunding}
         />
 
 	<div className="mb-8">
@@ -797,61 +799,61 @@ export default function PriceFundingTracker() {
         )}
         {/* --- END NEW SECTION --- */}
 
-        {(bullishSqueezeSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishActionableSignals.length > 0) && (
-  <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
-    <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
+        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishActionableSignals.length > 0) && (
+          <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
+            <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
-    <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
-      <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
-      <br />
-      For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
-      <br />
-      For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
-    </p>
+            <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
+              <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
+              <br />
+              For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
+              <br />
+              For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
+            </p>
 
-    {bullishSqueezeSignals.length > 0 && ( // Use bullishSqueezeSignals here
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities (Top Short Squeeze Candidates)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {bullishSqueezeSignals.map((signal, index) => (
-            <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
-              <h4 className="font-bold mb-1 text-green-300">{signal.symbol}</h4>
-              <p className="text-gray-200 text-xs">{signal.reason}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+            {bullishPositiveFundingSignals.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Bullish Opportunities (Positive Funding)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {bullishPositiveFundingSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
+                      <h4 className="font-bold mb-1 text-green-300">{signal.symbol}</h4>
+                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-    {earlySqueezeSignals.length > 0 && (
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {earlySqueezeSignals.map((signal, index) => (
-            <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
-              <h4 className="font-bold mb-1 text-orange-300">{signal.symbol}</h4>
-              <p className="text-gray-200 text-xs">{signal.reason}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+            {earlySqueezeSignals.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {earlySqueezeSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
+                      <h4 className="font-bold mb-1 text-orange-300">{signal.symbol}</h4>
+                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-    {bearishActionableSignals.length > 0 && (
-      <div>
-        <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {bearishActionableSignals.map((signal, index) => (
-            <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
-              <h4 className="font-bold mb-1 text-red-300">{signal.symbol}</h4>
-              <p className="text-gray-200 text-xs">{signal.reason}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-)}
+            {bearishActionableSignals.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Bearish Risks</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {bearishActionableSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
+                      <h4 className="font-bold mb-1 text-red-300">{signal.symbol}</h4>
+                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
 
         <div className="my-8 h-px bg-gray-700" />
