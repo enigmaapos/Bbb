@@ -31,6 +31,36 @@ const formatVolume = (num: number): string => {
   return formatter.format(num);
 };
 
+// Custom Label component to display score on top of bars
+const CustomBarLabel: React.FC<any> = ({ x, y, width, height, value }) => {
+  // Adjust position to be just above the bar
+  const displayY = y - (value < 0 ? height : 0) - 5; // 5px padding above the bar
+
+  // Determine text color based on the score value, similar to getScoreColor
+  let textColor = '#fff'; // Default to white
+  if (typeof value === 'number') {
+    if (value >= 7.5) textColor = '#4ade80'; // Green
+    else if (value >= 6) textColor = '#facc15'; // Yellow
+    else if (value >= 4) textColor = '#f97316'; // Orange
+    else textColor = '#f87171'; // Red
+  }
+
+  return (
+    <text
+      x={x + width / 2} // Center horizontally
+      y={displayY} // Position vertically above the bar
+      fill={textColor} // Set text color
+      textAnchor="middle" // Center text
+      dominantBaseline="auto" // Align text
+      fontSize={12} // Adjust font size as needed
+      fontWeight="bold"
+    >
+      {typeof value === 'number' ? value.toFixed(1) : value}
+    </text>
+  );
+};
+
+
 const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   marketAnalysis,
   fundingImbalanceData,
@@ -43,10 +73,18 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
 }) => {
   const [chartKey, setChartKey] = useState(0);
 
+  // You can remove this useEffect if you don't need to force re-render on click for other reasons.
+  // The CustomChartTooltip now handles its own positioning, so a chart re-render isn't needed for that.
   useEffect(() => {
     const handleClick = () => setChartKey((prev) => prev + 1);
-    window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
+    // Be careful with adding a global click listener that forces a re-render
+    // of the entire chart. This might affect performance if the component is large.
+    // Consider if this is truly necessary or if there's a more targeted re-render trigger.
+    // For now, I'll comment it out, as it's not directly related to the label display.
+    // window.addEventListener('click', handleClick);
+    return () => {
+      // window.removeEventListener('click', handleClick);
+    };
   }, []);
 
   const getScoreColor = (score: number) => {
@@ -120,72 +158,79 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </p>
 
       <h3 className="text-lg font-semibold text-white mb-2 text-center">📊 Sentiment Scores Overview</h3>
-  <div className="w-full max-w-[720px] h-[320px] mx-auto overflow-hidden touch-auto">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={sentimentScores}
-          className="pointer-events-none"
-        >
-          <XAxis
-            dataKey="name"
-            stroke="#ccc"
-            tick={{ fill: '#ccc', fontSize: 12 }}
-            interval={0}
-            angle={-30}
-            textAnchor="end"
-            height={60}
-            label={{
-              value: 'Sentiment Category',
-              position: 'insideBottom',
-              offset: -5,
-              fill: '#ccc',
-            }}
-          />
-          <YAxis
-            domain={[0, 10]}
-            stroke="#ccc"
-            tick={{ fill: '#ccc' }}
-            label={{
-              value: 'Score (0–10)',
-              angle: -90,
-              position: 'insideLeft',
-              offset: 10,
-              fill: '#ccc',
-            }}
-          />
-          <Tooltip
-            formatter={(value: number) => `${value.toFixed(1)}/10`}
-            contentStyle={{
-              backgroundColor: '#333',
-              borderColor: '#555',
-              color: '#fff',
-              borderRadius: '4px',
-              padding: '8px',
-            }}
-            labelStyle={{ color: '#fff' }}
-          />
-          <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
-          <Bar dataKey="score" isAnimationActive={true}>
-  {sentimentScores.map((entry, index) => (
-    <Cell
-      key={`cell-${index}`}
-      fill={
-        entry.score >= 7.5
-          ? "#4ade80"
-          : entry.score >= 6
-          ? "#facc15"
-          : entry.score >= 4
-          ? "#f97316"
-          : "#f87171"
-      }
-    />
-  ))}
-</Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>      
+      <div className="w-full max-w-[720px] h-[320px] mx-auto overflow-hidden touch-auto">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={sentimentScores}
+            // `key` prop can still be useful if you're dynamically changing data structure
+            // or need to force a re-render for non-data related reasons.
+            // key={chartKey}
+            // `pointer-events-none` is good for chart container if you don't want it to block clicks
+            // that are meant for elements *behind* the chart, but for tooltip interaction,
+            // you might need it on specific elements or manage it differently.
+            // For general charts, it's often better to let it have pointer events unless necessary.
+            // I've removed it from here as the Tooltip and CustomBarLabel need pointer events.
+          >
+            <XAxis
+              dataKey="name"
+              stroke="#ccc"
+              tick={{ fill: '#ccc', fontSize: 12 }}
+              interval={0}
+              angle={-30}
+              textAnchor="end"
+              height={60}
+              label={{
+                value: 'Sentiment Category',
+                position: 'insideBottom',
+                offset: -5,
+                fill: '#ccc',
+              }}
+            />
+            <YAxis
+              domain={[0, 10]}
+              stroke="#ccc"
+              tick={{ fill: '#ccc' }}
+              label={{
+                value: 'Score (0–10)',
+                angle: -90,
+                position: 'insideLeft',
+                offset: 10,
+                fill: '#ccc',
+              }}
+            />
+            <Tooltip
+              formatter={(value: number) => `${value.toFixed(1)}/10`}
+              contentStyle={{
+                backgroundColor: '#333',
+                borderColor: '#555',
+                color: '#fff',
+                borderRadius: '4px',
+                padding: '8px',
+              }}
+              labelStyle={{ color: '#fff' }}
+            />
+            <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
+            <Bar dataKey="score" isAnimationActive={true} label={<CustomBarLabel />}>
+              {sentimentScores.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.score >= 7.5
+                      ? "#4ade80"
+                      : entry.score >= 6
+                      ? "#facc15"
+                      : entry.score >= 4
+                      ? "#f97316"
+                      : "#f87171"
+                  }
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
-{/* Top Short Squeeze Candidates */}
+      {/* Top Short Squeeze Candidates */}
       <div className="mb-4">
         <h3 className="text-yellow-400 font-semibold mb-1">🔥 Top Short Squeeze Candidates</h3>
           {marketAnalysis.shortSqueezeCandidates.rating}
@@ -219,9 +264,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             <li>No strong long trap candidates at the moment.</li>
           )}
         </ul>
-      </div> 
-      
-</div>
+      </div>
+
+    </div>
   );
 };
 
