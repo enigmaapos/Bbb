@@ -12,6 +12,41 @@ import {
 
 import { detectSentimentSignals } from "./signalDetector"; // Assuming you have this import for your signal detector
 
+// REMOVE OR COMMENT OUT THIS DUPLICATE FUNCTION DECLARATION
+// export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
+//   // Defensive: if no data, return a default neutral result
+//   if (!data) {
+//     return getDefaultMarketAnalysisResults(); // Assuming getDefaultMarketAnalysisResults exists elsewhere or needs to be defined
+//   }
+
+//   // Your existing logic
+//   // ...
+
+//   // At the end, always return the final results object
+//   return {
+//     generalBias: { rating: "Neutral", interpretation: "No data", score: 5 },
+//     fundingImbalance: { rating: "Neutral", interpretation: "", score: 5 },
+//     shortSqueezeCandidates: { rating: "Neutral", interpretation: "", score: 5 },
+//     longTrapCandidates: { rating: "Neutral", interpretation: "", score: 5 },
+//     volumeSentiment: { rating: "Neutral", interpretation: "", score: 5 },
+//     liquidationHeatmap: { rating: "Neutral", interpretation: "", score: 5 },
+//     newsSentiment: { rating: "Neutral", interpretation: "", score: 5 },
+//     overallSentimentAccuracy: "N/A",
+//     overallMarketOutlook: { score: 5, tone: "Neutral", strategySuggestion: "No suggestion" },
+//     marketData: data, // or your processed data here
+//     newsData: data.newsArticles || [],
+//     actionableSentimentSignals: [], // if used
+//     actionableSentimentSummary: {
+//       bullishCount: 0,
+//       bearishCount: 0,
+//       tone: "Neutral",
+//       interpretation: "No actionable signals",
+//       score: 5,
+//     },
+//   };
+// }
+
+// KEEP THIS ONE AND ADD 'return results;' at the end
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
     green,
@@ -303,15 +338,13 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
       score: 4,
     };
   } else {
-    results.newsSent
-
-  else {
-      results.newsSentiment = {
-        rating: "Neutral News",
-        interpretation: "News sentiment is balanced or indecisive.",
-        score: 5,
-      };
-    }
+    // This 'else' block was causing the error due to incomplete statement and then another else block
+    results.newsSentiment = {
+      rating: "Neutral News",
+      interpretation: "News sentiment is balanced or indecisive.",
+      score: 5,
+    };
+  }
 
   // --- 8. Actionable Sentiment Signals ---
   const actionableSentimentSignals: SentimentSignal[] = detectSentimentSignals(volumeData);
@@ -402,5 +435,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     strategySuggestion,
   };
 
+  // Ensure to return the results object at the end of the main function body
   return results;
 }
