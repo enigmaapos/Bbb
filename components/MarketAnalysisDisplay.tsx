@@ -119,7 +119,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </span>
       </p>
 
-      {/* CHART FIX STARTS HERE */}
       <h3 className="text-lg font-semibold text-white mb-2 text-center">📊 Sentiment Scores Overview</h3>
       <div className="h-64 mb-6 relative">
         <ResponsiveContainer width="100%" height="100%">
@@ -127,7 +126,11 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             <XAxis
               dataKey="name"
               stroke="#ccc"
-              tick={{ fill: '#ccc' }}
+              tick={{ fill: '#ccc', fontSize: 12 }}
+              interval={0}
+              angle={-30}
+              textAnchor="end"
+              height={60}
               label={{ value: 'Sentiment Category', position: 'insideBottom', offset: -5, fill: '#ccc' }}
             />
             <YAxis
@@ -170,9 +173,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </BarChart>
         </ResponsiveContainer>
       </div>
-      {/* CHART FIX ENDS HERE */}
 
-      {/* ... (keep the rest of your UI as is — it’s already excellent) */}
+      {/* ...keep the rest of your component as-is */}
     </div>
   );
 };
