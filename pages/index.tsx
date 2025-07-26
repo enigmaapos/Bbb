@@ -676,7 +676,6 @@ export default function PriceFundingTracker() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
   <div className="bg-gray dark:bg-gray-900 rounded-2xl shadow-lg p-6 transition-transform hover:scale-[1.01] hover:shadow-xl">
-    </h2>
     <FundingSentimentChart
       greenPositiveFunding={greenPositiveFunding}
       greenNegativeFunding={greenNegativeFunding}
