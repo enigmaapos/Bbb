@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es2015",                  // ✅ Modern JavaScript features
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "es2015", // ✅ Modern JavaScript features
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -13,8 +17,16 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "downlevelIteration": true           // ✅ Enable full iterable support
+    "downlevelIteration": true // ✅ Enable full iterable support
+    ,
+    "incremental": true
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
