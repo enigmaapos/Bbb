@@ -121,7 +121,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
 
       <h3 className="text-lg font-semibold text-white mb-2 text-center">📊 Sentiment Scores Overview</h3>
         <div
-  className="w-full max-w-[720px] h-[320px] mx-auto overflow-visible pointer-events-auto touch-none"
+  className="w-full max-w-[720px] h-[320px] mx-auto overflow-visible pointer-events-auto touch-auto"
   style={{ WebkitOverflowScrolling: 'auto' }}
 >
   <ResponsiveContainer width="100%" height="100%">
@@ -138,7 +138,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           value: 'Sentiment Category',
           position: 'insideBottom',
           offset: -5,
-          fill: '#ccc',
+          fill: '#fff',
         }}
       />
       <YAxis
