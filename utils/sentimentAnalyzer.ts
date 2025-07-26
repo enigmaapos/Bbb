@@ -12,40 +12,6 @@ import {
 
 import { detectSentimentSignals } from "./signalDetector"; // Assuming you have this import for your signal detector
 
-// REMOVE OR COMMENT OUT THIS DUPLICATE FUNCTION DECLARATION
-// export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
-//   // Defensive: if no data, return a default neutral result
-//   if (!data) {
-//     return getDefaultMarketAnalysisResults(); // Assuming getDefaultMarketAnalysisResults exists elsewhere or needs to be defined
-//   }
-
-//   // Your existing logic
-//   // ...
-
-//   // At the end, always return the final results object
-//   return {
-//     generalBias: { rating: "Neutral", interpretation: "No data", score: 5 },
-//     fundingImbalance: { rating: "Neutral", interpretation: "", score: 5 },
-//     shortSqueezeCandidates: { rating: "Neutral", interpretation: "", score: 5 },
-//     longTrapCandidates: { rating: "Neutral", interpretation: "", score: 5 },
-//     volumeSentiment: { rating: "Neutral", interpretation: "", score: 5 },
-//     liquidationHeatmap: { rating: "Neutral", interpretation: "", score: 5 },
-//     newsSentiment: { rating: "Neutral", interpretation: "", score: 5 },
-//     overallSentimentAccuracy: "N/A",
-//     overallMarketOutlook: { score: 5, tone: "Neutral", strategySuggestion: "No suggestion" },
-//     marketData: data, // or your processed data here
-//     newsData: data.newsArticles || [],
-//     actionableSentimentSignals: [], // if used
-//     actionableSentimentSummary: {
-//       bullishCount: 0,
-//       bearishCount: 0,
-//       tone: "Neutral",
-//       interpretation: "No actionable signals",
-//       score: 5,
-//     },
-//   };
-// }
-
 // KEEP THIS ONE AND ADD 'return results;' at the end
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
@@ -347,8 +313,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 8. Actionable Sentiment Signals ---
-  const actionableSentimentSignals: SentimentSignal[] = detectSentimentSignals(volumeData);
-  results.actionableSentimentSignals = actionableSentimentSignals;
+    const actionableSentimentSignals: SentimentSignal[] = detectSentimentSignals(volumeData);
 
   // Count bullish and bearish signals
   const bullishCount = actionableSentimentSignals.filter(
@@ -359,7 +324,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   ).length;
 
   // Evaluate overall tone from counts
-  let tone = "";
+  let tone: "Bullish" | "Bearish" | "Neutral" = "Neutral";
   let interpretation = "";
   let score = 5; // Neutral base
 
@@ -377,7 +342,8 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     score = 5;
   }
 
-  results.actionableSentimentSummary = {
+  // Compose the actionable sentiment summary
+  const actionableSentimentSummary = {
     bullishCount,
     bearishCount,
     tone,
