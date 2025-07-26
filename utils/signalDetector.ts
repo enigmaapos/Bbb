@@ -4,7 +4,12 @@ import { SymbolData } from '../types';
 
 export type SentimentSignal = {
   symbol: string;
-  signal: 'Bullish Opportunity' | 'Early Squeeze Signal' | 'Bearish Risk' | 'Neutral';
+  signal:
+    | 'Bullish Opportunity'
+    | 'Early Squeeze Signal'
+    | 'Bearish Risk'
+    | 'Early Long Trap' // 🔴 NEW
+    | 'Neutral';
   reason: string;
   priceChangePercent: number;
 };
@@ -32,6 +37,21 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
       };
     }
 
+    // 🔴 EARLY LONG TRAP SIGNAL (REVERSE LOGIC OF EARLY SQUEEZE)
+    if (
+      priceChangePercent < 0 &&
+      priceChangePercent > -10 &&
+      volume >= volumeThreshold &&
+      fundingRate > 0
+    ) {
+      return {
+        symbol,
+        signal: 'Early Long Trap',
+        reason: `Moderate price drop (${priceChangePercent.toFixed(1)}%), high volume (${volumeUSD}), and positive funding (${fundingPercent}) suggest a developing long trap scenario.`,
+        priceChangePercent,
+      };
+    }
+
     // 🟢 BULLISH OPPORTUNITY
     if (
       priceChangePercent > 0 &&
@@ -47,7 +67,7 @@ export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
       };
     }
 
-    // 🔴 BEARISH RISK — MIRRORED STRUCTURE
+    // 🔻 BEARISH RISK
     if (
       priceChangePercent < 0 &&
       priceChangePercent > -10 &&
