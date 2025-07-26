@@ -128,8 +128,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     <BarChart data={sentimentScores}>
       <XAxis
         dataKey="name"
-        stroke="#ccc"
-        tick={{ fill: '#ccc', fontSize: 12 }}
+        stroke="#fff"
+        tick={{ fill: '#fff', fontSize: 12 }}
         interval={0}
         angle={-30}
         textAnchor="end"
@@ -143,14 +143,14 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       />
       <YAxis
         domain={[0, 10]}
-        stroke="#ccc"
-        tick={{ fill: '#ccc' }}
+        stroke="#fff"
+        tick={{ fill: '#fff' }}
         label={{
           value: 'Score (0–10)',
           angle: -90,
           position: 'insideLeft',
           offset: 10,
-          fill: '#ccc',
+          fill: '#fff',
         }}
       />
       <Tooltip
@@ -165,7 +165,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         labelStyle={{ color: '#fff' }}
       />
       <Legend wrapperStyle={{ paddingTop: '10px' }} content={<CustomLegend />} />
-      <Bar dataKey="score" isAnimationActive={true}>
+      <Bar dataKey="score" isAnimationActive={false}>
         {sentimentScores.map((entry, index) => (
           <Cell
             key={`cell-${index}`}
