@@ -189,74 +189,47 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </ResponsiveContainer>
     </div>
 
-     <div className="mt-4 text-xs text-gray-300 space-y-1 max-w-[720px] mx-auto">
-  <p><span className="font-semibold text-white">Bias:</span> Overall market direction based on key indicators (bullish or bearish).</p>
-  <p><span className="font-semibold text-white">Funding:</span> Measures how imbalanced the funding rates are (positive = long-heavy, negative = short-heavy).</p>
-  <p><span className="font-semibold text-white">Squeeze:</span> Likelihood of a short squeeze based on funding and price action.</p>
-  <p><span className="font-semibold text-white">Long Trap:</span> Risk of long traders getting trapped due to sudden reversals.</p>
-  <p><span className="font-semibold text-white">Volume:</span> Strength of volume behind recent moves (buy/sell dominance).</p>
-  <p><span className="font-semibold text-white">Liquidation:</span> Analysis of recent long/short liquidations and their impact.</p>
-  <p><span className="font-semibold text-white">News:</span> Sentiment derived from the latest crypto news and media.</p>
-  <p><span className="font-semibold text-white">Actionable:</span> Final summarized signal considering all sentiment data.</p>
-</div> 
+{/* Top Short Squeeze Candidates */}
+      <div className="mb-4">
+        <h3 className="text-yellow-400 font-semibold mb-1">🔥 Top Short Squeeze Candidates</h3>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.shortSqueezeCandidates.rating)}`}>
+          {marketAnalysis.shortSqueezeCandidates.rating} <span className="font-bold">({marketAnalysis.shortSqueezeCandidates.score.toFixed(1)}/10)</span>
+        </p>
+        <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.shortSqueezeCandidates.interpretation}</p>
+        <ul className="list-disc list-inside text-sm text-yellow-100">
+          {fundingImbalanceData.topShortSqueeze.length > 0 ? (
+            fundingImbalanceData.topShortSqueeze.map((d) => (
+              <li key={d.symbol}>
+                <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-green-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-green-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
+              </li>
+            ))
+          ) : (
+            <li>No strong short squeeze candidates at the moment.</li>
+          )}
+        </ul>
+      </div>
 
-{/* Short Squeeze Section */}
-<div className="p-4 bg-gray-700/50 rounded-md">
-  <h3 className="text-green-300 font-semibold text-sm mb-1">📈 Short Squeeze Potential</h3>
+      {/* Top Long Trap Candidates */}
+      <div className="mb-4">
+        <h3 className="text-pink-400 font-semibold mb-1">⚠️ Top Long Trap Candidates</h3>
+        <p className={`text-sm ${getSentimentColor(marketAnalysis.longTrapCandidates.rating)}`}>
+          {marketAnalysis.longTrapCandidates.rating} <span className="font-bold">({marketAnalysis.longTrapCandidates.score.toFixed(1)}/10)</span>
+        </p>
+        <p className="text-xs italic text-gray-400 mb-2">{marketAnalysis.longTrapCandidates.interpretation}</p>
+        <ul className="list-disc list-inside text-sm text-pink-100">
+          {fundingImbalanceData.topLongTrap.length > 0 ? (
+            fundingImbalanceData.topLongTrap.map((d) => (
+              <li key={d.symbol}>
+                <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-red-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-red-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
+              </li>
+            ))
+          ) : (
+            <li>No strong long trap candidates at the moment.</li>
+          )}
+        </ul>
+      </div>     
 
-  <p className="text-green-300 text-base font-medium">
-    {marketAnalysis.shortSqueezeCandidates?.rating || 'N/A'}
-  </p>
 
-  <p className="text-green-200 text-xs mt-1">
-    {marketAnalysis.shortSqueezeCandidates?.interpretation || 'No interpretation available.'}
-  </p>
-
-  {fundingImbalanceData.topShortSqueeze.length > 0 && (
-    <div className="mt-2">
-      <p className="text-green-200 text-xs font-semibold mb-1">Top Short Squeeze Candidates:</p>
-      <ul className="list-disc list-inside space-y-1 text-gray-300 text-xs">
-        {fundingImbalanceData.topShortSqueeze.map((s) => (
-          <li key={s.symbol}>
-            <span className="font-semibold">{s.symbol}</span> — 
-            Change: {s.priceChangePercent.toFixed(1)}% | 
-            Funding: {(s.fundingRate * 100).toFixed(3)}% | 
-            Volume: ${formatVolume(s.volume)}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )}
-</div>
-
-{/* Long Trap Section */}
-<div className="p-4 bg-gray-700/50 rounded-md">
-  <h3 className="text-red-300 font-semibold text-sm mb-1">⚠️ Long Trap Risk</h3>
-
-  <p className="text-red-300 text-base font-medium">
-    {marketAnalysis.longTrapCandidates?.rating || 'N/A'}
-  </p>
-
-  <p className="text-red-200 text-xs mt-1">
-    {marketAnalysis.longTrapCandidates?.interpretation || 'No interpretation available.'}
-  </p>
-
-  {fundingImbalanceData.topLongTrap.length > 0 && (
-    <div className="mt-2">
-      <p className="text-red-200 text-xs font-semibold mb-1">Top Long Trap Candidates:</p>
-      <ul className="list-disc list-inside space-y-1 text-gray-300 text-xs">
-        {fundingImbalanceData.topLongTrap.map((s) => (
-          <li key={s.symbol}>
-            <span className="font-semibold">{s.symbol}</span> — 
-            Change: {s.priceChangePercent.toFixed(1)}% | 
-            Funding: {(s.fundingRate * 100).toFixed(3)}% | 
-            Volume: ${formatVolume(s.volume)}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )}
-</div>
       
     </div>
   );
