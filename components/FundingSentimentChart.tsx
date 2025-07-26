@@ -69,6 +69,7 @@ export default function FundingSentimentChart({
     <div className="mt-6">
       <h2 className="text-white font-bold text-lg mb-2">📊 Funding Sentiment Breakdown</h2>
 
+      <div className="pointer-events-auto select-none">
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data}>
           <XAxis dataKey="category" tick={<CustomCategoryTick />} />
@@ -99,7 +100,8 @@ export default function FundingSentimentChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-
+</div>
+      
       <p className="text-gray-400 text-xs mt-2">
         🟥 Funding ➕ = Longs paying (bearish pressure) | 🟩 Funding ➖ = Shorts paying (bullish pressure)
       </p>
