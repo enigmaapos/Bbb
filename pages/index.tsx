@@ -764,7 +764,7 @@ export default function PriceFundingTracker() {
         )}
         {/* --- END NEW SECTION --- */}
 
-        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishNegativeFundingSignals.length > 0 || earlyLongTrapSignals.length > 0) && ( {/* 🔴 ADDED `earlyLongTrapSignals.length > 0` HERE */}
+        {(bullishPositiveFundingSignals.length > 0 || earlySqueezeSignals.length > 0 || bearishNegativeFundingSignals.length > 0 || earlyLongTrapSignals.length > 0) && (/* 🔴 ADDED `earlyLongTrapSignals.length > 0` HERE */
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
             <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
