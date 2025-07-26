@@ -49,7 +49,9 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   };
 
   const scoreToStars = (score: number) => {
-    const numStars = Math.round(score / 2);
+    // Ensure score is a number before arithmetic operations
+    const safeScore = typeof score === 'number' ? score : 0;
+    const numStars = Math.round(safeScore / 2);
     return "⭐".repeat(numStars) + "☆".repeat(5 - numStars);
   };
 
@@ -123,13 +125,13 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
 
       <p className="text-white text-sm font-bold mb-4">
         🌐 Overall Market Outlook:{" "}
-        <span className={`${getScoreColor(marketAnalysis.overallMarketOutlook.score)} font-bold`}>
-          {marketAnalysis.overallMarketOutlook.tone} (Score: {marketAnalysis.overallMarketOutlook.score.toFixed(1)}/10){" "}
-          {scoreToStars(marketAnalysis.overallMarketOutlook.score)}
+        <span className={`${getScoreColor(marketAnalysis.overallMarketOutlook?.score || 0)} font-bold`}>
+          {marketAnalysis.overallMarketOutlook?.tone || 'N/A'} (Score: {marketAnalysis.overallMarketOutlook?.score?.toFixed(1) || 'N/A'}/10){" "}
+          {scoreToStars(marketAnalysis.overallMarketOutlook?.score || 0)} {/* FIX APPLIED HERE */}
         </span>
         <br />
         <span className="text-gray-400 italic text-xs ml-4">
-          Strategy Suggestion: {marketAnalysis.overallMarketOutlook.strategySuggestion}
+          Strategy Suggestion: {marketAnalysis.overallMarketOutlook?.strategySuggestion || 'No suggestion available.'}
         </span>
       </p>
 
@@ -193,17 +195,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       {/* IMPORTANT: ADD THE FOLLOWING CSS TO YOUR GLOBAL STYLESHEET (e.g., globals.css or index.css) */}
       {/* This will ensure the outer tooltip wrapper also has a dark background */}
       {/*
-      <style jsx global>{`
-        .recharts-tooltip-wrapper {
-          background-color: #333 !important; /* Forces dark background */
-          border: 1px solid #555 !important; /* Consistent border */
-          border-radius: 4px; /* Match inner content border-radius */
-          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5); /* Optional: add shadow */
-          z-index: 1000; /* Ensure it appears on top */
-        }
-      `}</style>
-      */}
-      {/*
         If you are using a global CSS file (like globals.css in Next.js), add these rules directly:
         
         // In your `globals.css` or equivalent global stylesheet:
@@ -218,7 +209,12 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         .recharts-default-tooltip {
             // Ensure consistency, though contentStyle usually handles this part
             background-color: #333;
-            border: none; // contentStyle already sets borderColor, so no need for border on this inner div
+            border: none;
+            padding: 8px;
+        }
+
+        .recharts-tooltip-label {
+            color: #fff;
         }
       */}
 
@@ -226,8 +222,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* General Bias */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-blue-300 mb-1">General Bias</h3>
-          <p className="text-blue-300">{marketAnalysis.generalBias?.rating}</p>
-          <p className="text-blue-200 text-xs mt-1">{marketAnalysis.generalBias?.interpretation}</p>
+          <p className="text-blue-300">{marketAnalysis.generalBias?.rating || 'N/A'}</p>
+          <p className="text-blue-200 text-xs mt-1">{marketAnalysis.generalBias?.interpretation || 'No interpretation available.'}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.generalBias?.score || 0)}`}>
             Score: {marketAnalysis.generalBias?.score?.toFixed(1) || 'N/A'}
           </p>
@@ -236,7 +232,7 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* Funding Imbalance */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance</h3>
-          <p className="text-yellow-200">{marketAnalysis.fundingImbalance?.rating}</p>
+          <p className="text-yellow-200">{marketAnalysis.fundingImbalance?.rating || 'N/A'}</p>
           <p className="text-yellow-100 text-xs mt-1">
             {marketAnalysis.fundingImbalance?.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
           </p>
@@ -248,8 +244,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* Short Squeeze */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-green-300 mb-1">Short Squeeze Potential</h3>
-          <p className="text-green-300">{marketAnalysis.shortSqueezeCandidates?.rating}</p>
-          <p className="text-green-200 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates?.interpretation}</p>
+          <p className="text-green-300">{marketAnalysis.shortSqueezeCandidates?.rating || 'N/A'}</p>
+          <p className="text-green-200 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates?.interpretation || 'No interpretation available.'}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.shortSqueezeCandidates?.score || 0)}`}>
             Score: {marketAnalysis.shortSqueezeCandidates?.score?.toFixed(1) || 'N/A'}
           </p>
@@ -270,8 +266,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* Long Trap */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-red-300 mb-1">Long Trap Risk</h3>
-          <p className="text-red-300">{marketAnalysis.longTrapCandidates?.rating}</p>
-          <p className="text-red-200 text-xs mt-1">{marketAnalysis.longTrapCandidates?.interpretation}</p>
+          <p className="text-red-300">{marketAnalysis.longTrapCandidates?.rating || 'N/A'}</p>
+          <p className="text-red-200 text-xs mt-1">{marketAnalysis.longTrapCandidates?.interpretation || 'No interpretation available.'}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.longTrapCandidates?.score || 0)}`}>
             Score: {marketAnalysis.longTrapCandidates?.score?.toFixed(1) || 'N/A'}
           </p>
@@ -292,8 +288,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* Volume Sentiment */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-purple-300 mb-1">Volume Sentiment</h3>
-          <p className="text-purple-300">{marketAnalysis.volumeSentiment?.rating}</p>
-          <p className="text-purple-200 text-xs mt-1">{marketAnalysis.volumeSentiment?.interpretation}</p>
+          <p className="text-purple-300">{marketAnalysis.volumeSentiment?.rating || 'N/A'}</p>
+          <p className="text-purple-200 text-xs mt-1">{marketAnalysis.volumeSentiment?.interpretation || 'No interpretation available.'}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.volumeSentiment?.score || 0)}`}>
             Score: {marketAnalysis.volumeSentiment?.score?.toFixed(1) || 'N/A'}
           </p>
@@ -302,8 +298,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* Liquidation Heatmap */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-pink-300 mb-1">Liquidation Sentiment</h3>
-          <p className="text-pink-300">{marketAnalysis.liquidationHeatmap?.rating}</p>
-          <p className="text-pink-200 text-xs mt-1">{marketAnalysis.liquidationHeatmap?.interpretation}</p>
+          <p className="text-pink-300">{marketAnalysis.liquidationHeatmap?.rating || 'N/A'}</p>
+          <p className="text-pink-200 text-xs mt-1">{marketAnalysis.liquidationHeatmap?.interpretation || 'No interpretation available.'}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.liquidationHeatmap?.score || 0)}`}>
             Score: {marketAnalysis.liquidationHeatmap?.score?.toFixed(1) || 'N/A'}
           </p>
@@ -312,8 +308,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         {/* News Sentiment */}
         <div className="p-3 bg-gray-700/50 rounded-md">
           <h3 className="font-semibold text-cyan-300 mb-1">📰 News Sentiment</h3>
-          <p className="text-cyan-300">{marketAnalysis.newsSentiment?.rating}</p>
-          <p className="text-cyan-200 text-xs mt-1">{marketAnalysis.newsSentiment?.interpretation}</p>
+          <p className="text-cyan-300">{marketAnalysis.newsSentiment?.rating || 'N/A'}</p>
+          <p className="text-cyan-200 text-xs mt-1">{marketAnalysis.newsSentiment?.interpretation || 'No interpretation available.'}</p>
           <p className={`text-right font-bold ${getScoreColor(marketAnalysis.newsSentiment?.score || 0)}`}>
             Score: {marketAnalysis.newsSentiment?.score?.toFixed(1) || 'N/A'}
           </p>
