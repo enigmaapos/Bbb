@@ -88,12 +88,8 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
     },
   ].filter(Boolean) as { name: string; score: number }[];
 
-
   // Define a custom Legend component to render the payload
-  // This is the recommended approach when direct `payload` prop on <Legend> has type issues
   const CustomLegend = () => {
-    // You can also receive `props` here, like `{ payload } = props;`
-    // but for static legend items, defining them directly is fine.
     const legendItems = [
       { value: 'Strong (7.5-10)', color: '#4ade80' },
       { value: 'Good (6-7.4)', color: '#facc15' },
@@ -112,7 +108,6 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
       </ul>
     );
   };
-
 
   return (
     <div className="mt-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
@@ -161,7 +156,13 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
             />
             <Tooltip
               formatter={(value: number) => `${value.toFixed(1)}/10`}
-              contentStyle={{ backgroundColor: '#333', borderColor: '#555', color: '#fff' }}
+              contentStyle={{
+                backgroundColor: '#333', // Inner tooltip background
+                borderColor: '#555',
+                color: '#fff',
+                borderRadius: '4px', // Add some rounded corners
+                padding: '8px', // Add some padding
+              }}
               labelStyle={{ color: '#fff' }}
             />
             {/* Use the content prop with the custom Legend component */}
@@ -188,6 +189,38 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* IMPORTANT: ADD THE FOLLOWING CSS TO YOUR GLOBAL STYLESHEET (e.g., globals.css or index.css) */}
+      {/* This will ensure the outer tooltip wrapper also has a dark background */}
+      {/*
+      <style jsx global>{`
+        .recharts-tooltip-wrapper {
+          background-color: #333 !important; /* Forces dark background */
+          border: 1px solid #555 !important; /* Consistent border */
+          border-radius: 4px; /* Match inner content border-radius */
+          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5); /* Optional: add shadow */
+          z-index: 1000; /* Ensure it appears on top */
+        }
+      `}</style>
+      */}
+      {/*
+        If you are using a global CSS file (like globals.css in Next.js), add these rules directly:
+        
+        // In your `globals.css` or equivalent global stylesheet:
+        .recharts-tooltip-wrapper {
+          background-color: #333 !important;
+          border: 1px solid #555 !important;
+          border-radius: 4px;
+          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+          z-index: 1000;
+        }
+
+        .recharts-default-tooltip {
+            // Ensure consistency, though contentStyle usually handles this part
+            background-color: #333;
+            border: none; // contentStyle already sets borderColor, so no need for border on this inner div
+        }
+      */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
         {/* General Bias */}
