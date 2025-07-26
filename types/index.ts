@@ -76,6 +76,7 @@ reason: string;
 priceChangePercent: number; // Added priceChangePercent as per the updated signalDetector.ts
    strongBuy?: boolean;
   strongSell?: boolean; 
+    riskReward?: 'Low' | 'Medium' | 'Medium-High' | 'High' | 'Strong'; 
 }
 
 // New interface for actionable sentiment summary (aggregated counts + tone)
