@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* In your `globals.css` or equivalent global stylesheet */
+
+/* If you have these, they might conflict with your custom tooltip.
+   You can keep `border-radius` and `box-shadow` on `recharts-tooltip-wrapper`
+   if you want them on the *default* Recharts tooltip wrapper, but your portal
+   tooltip will apply its own styles. */
+.recharts-tooltip-wrapper {
+  /* background-color: #333 !important; */
+  /* border: 1px solid #555 !important; */
+  /* border-radius: 4px; */
+  /* box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5); */
+  /* z-index: 1000; */
+}
+
+/* These might still be useful if Recharts inserts default text into the wrapper,
+   but your custom tooltip's content is fully controlled by CustomChartTooltip. */
+.recharts-default-tooltip {
+  /* background-color: #333; */
+  border: none;
+  /* padding: 8px; */
+}
+
+.recharts-tooltip-label {
+  /* color: #fff; */
+}
+
+/* Your custom styles for the portal tooltip will come from CustomChartTooltip.tsx's inline style
+   and the `recharts-custom-portal-tooltip` class. You can add more global styles for it here if needed. */
+.recharts-custom-portal-tooltip {
+  /* You can add global styles here, but for demonstration, most styles are inline in the component. */
+  /* For example, if you want specific font sizes or families for all tooltips */
+}
