@@ -1,10 +1,11 @@
-// pages/index.tsx
+// pages/index.tsx (Modified to include SiteADataLoader)
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
+import SiteADataLoader from "../components/SiteADataLoader"; // <--- IMPORT THE NEW COMPONENT
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -22,7 +23,7 @@ import {
   BinancePremiumIndex,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import { detectSentimentSignals } from "../utils/signalDetector"; // Ensure this import is correct
+import { detectSentimentSignals } from "../utils/signalDetector";
 import { fetchCryptoNews } from "../utils/newsFetcher";
 import axios, { AxiosError } from 'axios';
 
@@ -852,6 +853,10 @@ export default function PriceFundingTracker() {
     )}
   </div>
 )} 
+
+        {/* --- ADD THE SITE A DATA LOADER COMPONENT HERE --- */}
+        <SiteADataLoader /> 
+        {/* --- END SITE A DATA LOADER COMPONENT --- */}
 
 
         <div className="my-8 h-px bg-gray-700" />
