@@ -44,7 +44,20 @@ const SiteADataLoader: React.FC = () => {
   };
 
   const getSignalColor = (signal: string): string => {
-    return signal.trim() === "MAX ZONE DUMP" ? "text-yellow-400" : "text-gray-300";
+    switch (signal.trim()) {
+      case "MAX ZONE PUMP":
+        return "text-yellow-300";
+      case "MAX ZONE DUMP":
+        return "text-yellow-400";
+      case "BALANCE ZONE PUMP":
+        return "text-purple-300 font-bold";
+      case "BUY SIGNAL":
+        return "text-green-300";
+      case "SELL SIGNAL":
+        return "text-red-300";
+      default:
+        return "text-gray-300";
+    }
   };
 
   return (
@@ -52,7 +65,7 @@ const SiteADataLoader: React.FC = () => {
       <h2 className="text-xl font-bold text-yellow-300 mb-4">🔗 Site A Signal Data</h2>
 
       {loading ? (
-        <p className="text-gray-400 text-sm">Loading data...</p>
+        <p className="text-gray-400 text-sm animate-pulse">Loading data...</p>
       ) : error ? (
         <div className="bg-red-900/40 border border-red-600 p-3 rounded-md text-red-300 text-sm">
           <p className="font-semibold">Error:</p>
@@ -71,7 +84,9 @@ const SiteADataLoader: React.FC = () => {
             <tbody>
               {siteAData.map((s, i) => (
                 <tr key={i} className="border-b border-gray-700">
-                  <td className="px-3 py-2 text-white font-semibold">{s.symbol}</td>
+                  <td className="px-3 py-2 text-white font-semibold">
+                    {s.symbol.toUpperCase()}
+                  </td>
                   <td className={`px-3 py-2 font-semibold ${getSignalColor(s.signal)}`}>
                     {s.signal}
                   </td>
