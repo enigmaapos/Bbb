@@ -5,9 +5,6 @@ import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
-import SiteADataLoader from "../components/SiteADataLoader";
-import { analyzeDiverging24H, PriceSnapshot, DivergenceResult } from '../utils/divergenceDetector'; // Import the new util
-
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -17,16 +14,15 @@ import {
   MarketAnalysisResults,
   SentimentSignal,
   SentimentArticle,
-  MarketAnalysisResultDetail, // Import MarketAnalysisResultDetail
-} from "../types"; // Adjusted path to src/types
+} from "../types";
 import {
   BinanceExchangeInfoResponse,
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
-} from "../types/binance"; // Assuming binance types are in src/types/binance
+} from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import { detectSentimentSignals } from "../utils/signalDetector";
+import { detectSentimentSignals } from "../utils/signalDetector"; // Ensure this import is correct
 import { fetchCryptoNews } from "../utils/newsFetcher";
 import axios, { AxiosError } from 'axios';
 
@@ -143,13 +139,7 @@ export default function PriceFundingTracker() {
     topLongTrap: [] as SymbolData[],
   });
 
-  // Initialize divergence related states
-  const [divergingCount, setDivergingCount] = useState(0);
-  const [potentialFalseBreakoutCount, setPotentialFalseBreakoutCount] = useState(0);
-  const [topDivergingSymbols, setTopDivergingSymbols] = useState<SymbolData[]>([]);
-
-
-  const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysisResults>(() => ({
+  const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysisResults>({
     generalBias: { rating: "", interpretation: "", score: 0 },
     fundingImbalance: { rating: "", interpretation: "", score: 0 },
     shortSqueezeCandidates: { rating: "", interpretation: "", score: 0 },
@@ -174,15 +164,9 @@ export default function PriceFundingTracker() {
       topLongTrap: [],
       totalLongLiquidationsUSD: 0,
       totalShortLiquidationsUSD: 0,
-      divergingCount: 0,
-      potentialFalseBreakoutCount: 0,
     },
     newsData: [],
-    divergenceAnalysis: { // Initialize divergenceAnalysis
-      rating: "", interpretation: "", score: 0, divergingCount: 0, potentialFalseBreakoutCount: 0, topDivergingSymbols: []
-    }
-  }));
-
+  });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
     return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
@@ -378,23 +362,6 @@ export default function PriceFundingTracker() {
           const funding = fundingData.find((f) => f.symbol === symbol);
           const lastPrice = parseFloat(ticker?.lastPrice || "0");
           const volume = parseFloat(ticker?.quoteVolume || "0");
-          const price24hAgo = parseFloat(ticker?.openPrice || "0"); // Open price is 24h ago price
-
-          // For previousPrice, you would typically need historical minute data.
-          // For a simple mock, we'll assume previousPrice is slightly higher/lower than current for some symbols
-          // Or, for more realism, you'd fetch 1-minute candlestick data.
-          // For now, let's derive it simply for demonstration purposes.
-          const prevClosePrice = parseFloat(ticker?.prevClosePrice || "0"); // Use prevClosePrice as a proxy for 'previousPrice'
-                                                                           // if you don't have real-time minute history.
-
-          // Prepare PriceSnapshot for divergence analysis
-          const snapshot: PriceSnapshot = {
-            currentPrice: lastPrice,
-            previousPrice: prevClosePrice,
-            price24hAgo: price24hAgo,
-          };
-          const divergenceResult = analyzeDiverging24H(snapshot);
-
 
           return {
             symbol,
@@ -402,26 +369,8 @@ export default function PriceFundingTracker() {
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: lastPrice,
             volume: volume,
-            // Add raw prices for divergence calculation
-            previousPrice: prevClosePrice,
-            price24hAgo: price24hAgo,
-            divergence: divergenceResult, // Attach the divergence analysis result
           };
         }).filter((d: SymbolData) => d.volume > 0);
-
-        // Aggregate divergence counts
-        const newDivergingCount = combinedData.filter(d => d.divergence?.isDiverging).length;
-        const newPotentialFalseBreakoutCount = combinedData.filter(d => d.divergence && d.divergence.isDroppingNow && d.divergence.percentChange24h.startsWith('-')).length; // Simplified for now
-
-        setDivergingCount(newDivergingCount);
-        setPotentialFalseBreakoutCount(newPotentialFalseBreakoutCount);
-
-        const topDiverging = combinedData
-        .filter(d => d.divergence?.isDiverging)
-        .sort((a, b) => (b.divergence?.change24h || 0) - (a.divergence?.change24h || 0)) // Sort by 24h change for "top"
-        .slice(0, 5);
-        setTopDivergingSymbols(topDiverging);
-
 
         const allSentimentSignals = detectSentimentSignals(combinedData);
 
@@ -548,42 +497,13 @@ export default function PriceFundingTracker() {
         redPositiveFunding: redPositiveFunding,
         redNegativeFunding: redNegativeFunding,
       },
-      volumeData: rawData, // rawData now includes divergence info
+      volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
       newsArticles: cryptoNews,
-      // Pass divergence counts to sentiment analysis
-      divergingCount: divergingCount,
-      potentialFalseBreakoutCount: potentialFalseBreakoutCount,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
-
-    // Use the state variables for divergence counts here
-    const divergenceAnalysisDetail: MarketAnalysisResultDetail & {
-      divergingCount: number;
-      potentialFalseBreakoutCount: number;
-      topDivergingSymbols: SymbolData[];
-    } = {
-      rating: divergingCount > 0 ? "Potential Reversal" : "Stable", // Use divergingCount state
-      interpretation: divergingCount > 0 // Use divergingCount state
-        ? `A significant number of symbols (${divergingCount}) are showing 24H positive price change but are currently dropping. This indicates potential short-term false breakouts or profit-taking.`
-        : "Most symbols are moving consistently with their 24-hour trend.",
-      score: divergingCount > 0 ? Math.min(10, Math.floor(divergingCount / 5)) : 0, // Use divergingCount state
-      divergingCount: divergingCount, // Use divergingCount state
-      potentialFalseBreakoutCount: potentialFalseBreakoutCount, // Use potentialFalseBreakoutCount state
-      topDivergingSymbols: topDivergingSymbols, // Use topDivergingSymbols state
-    };
-
-    setMarketAnalysis(prev => ({
-      ...prev,
-      ...sentimentResults, // Spread existing sentiment results
-      divergenceAnalysis: divergenceAnalysisDetail, // Add the new divergence analysis
-      marketData: {
-        ...prev.marketData, // Keep existing marketData properties
-        divergingCount: divergingCount, // Use divergingCount state
-        potentialFalseBreakoutCount: potentialFalseBreakoutCount, // Use potentialFalseBreakoutCount state
-      }
-    }));
+    setMarketAnalysis(sentimentResults);
 
   }, [
     rawData,
@@ -591,8 +511,6 @@ export default function PriceFundingTracker() {
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
     cryptoNews,
     priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
-    // These are now directly used from state within this effect, making them appropriate dependencies
-    divergingCount, potentialFalseBreakoutCount, topDivergingSymbols
   ]);
 
 
@@ -702,9 +620,9 @@ export default function PriceFundingTracker() {
 
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-3 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
-        <p className="text-sm text-gray-400 mb-6">Last Updated (Davao City): {formatDavaoTime()}</p>
+        <p className="text-sm text-gray-400 mb-6">Last Updated (Davao City): {lastUpdated}</p>
 
-        {/* --- Price & Funding Summary --- */}
+
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
           <h2 className="text-lg font-bold text-white mb-3">
             📊 Market Summary
@@ -756,17 +674,17 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* --- Funding Sentiment Chart --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-           <FundingSentimentChart
-              greenPositiveFunding={greenPositiveFunding}
-              greenNegativeFunding={greenNegativeFunding}
-              redPositiveFunding={redPositiveFunding}
-              redNegativeFunding={redNegativeFunding}
-            />
-        </div>
+       <FundingSentimentChart
+          greenPositiveFunding={greenPositiveFunding}
+          greenNegativeFunding={greenNegativeFunding}
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding}
+        />
+	</div>
 
-        {/* --- Bullish Divergence & Bearish Trap Sections --- */}
+			
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
@@ -805,7 +723,6 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-        {/* --- Market Analysis Display --- */}
         <MarketAnalysisDisplay
           marketAnalysis={marketAnalysis}
           fundingImbalanceData={fundingImbalanceData}
@@ -814,63 +731,16 @@ export default function PriceFundingTracker() {
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
           redPositiveFunding={redPositiveFunding}
-	redNegativeFunding={redNegativeFunding}	
+          redNegativeFunding={redNegativeFunding}
         />
 
-        {/* --- Divergence Analysis Section --- */}
-        {marketAnalysis.divergenceAnalysis && (
-          <div className="mb-6 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
-            <h2 className="text-lg font-bold text-blue-300 mb-3">
-              🧠 Price Divergence Analysis
-              <span
-                title="Identifies symbols that have positive 24-hour price change but are currently seeing a price drop (potential false breakout/profit-taking)."
-                className="text-sm text-gray-400 ml-2 cursor-help"
-              >
-                ℹ️
-              </span>
-            </h2>
-            <div className="text-sm space-y-2">
-              <p className="text-white">
-                Rating: <span className="font-semibold">{marketAnalysis.divergenceAnalysis.rating}</span> (Score: {marketAnalysis.divergenceAnalysis.score}/10)
-              </p>
-              <p className="text-gray-200">
-                Interpretation: {marketAnalysis.divergenceAnalysis.interpretation}
-              </p>
-              <p className="text-yellow-200">
-                Symbols with 24H Price Up but Current Price Down: <span className="font-bold">{marketAnalysis.divergenceAnalysis.divergingCount}</span>
-              </p>
-              <p className="text-yellow-200">
-                Potential False Breakouts / Weakness: <span className="font-bold">{marketAnalysis.divergenceAnalysis.potentialFalseBreakoutCount}</span>
-              </p>
-
-              {marketAnalysis.divergenceAnalysis.topDivergingSymbols && marketAnalysis.divergenceAnalysis.topDivergingSymbols.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="font-semibold text-blue-200 mb-2">Top Diverging Symbols (24H Green, Currently Red):</h4>
-                  <ul className="list-disc list-inside text-gray-300">
-                    {marketAnalysis.divergenceAnalysis.topDivergingSymbols.map((symbolData, index) => (
-                      <li key={index}>
-                        <span className="font-bold">{symbolData.symbol}</span>: Current: ${symbolData.lastPrice.toFixed(2)}{" "}
-                        (24H %: {symbolData.priceChangePercent.toFixed(2)}%){" "}
-                        <span className="text-gray-400">
-                          ({symbolData.divergence?.reason})
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-	    {/* --- Liquidation Heatmap --- */}
-	    <div className="mb-8">
+	<div className="mb-8">
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
           />
         </div>
 
-	    {/* --- Crypto Macro News --- */}
+	 {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
         {cryptoNews.length > 0 && (
           <section className="mt-6 p-4 bg-gray-800 rounded-lg text-sm border border-gray-700 shadow-md">
             <h3 className="text-white font-semibold mb-3 flex items-center">
@@ -894,98 +764,94 @@ export default function PriceFundingTracker() {
             </ul>
           </section>
         )}
+        {/* --- END NEW SECTION --- */}
 
-       {/* --- Actionable Sentiment Signals --- */}
        {(
-            top5BullishPositiveFundingSignals.length > 0 ||
-            earlySqueezeSignals.length > 0 ||
-            top5BearishNegativeFundingSignals.length > 0 ||
-            earlyLongTrapSignals.length > 0
-          ) && (
-            <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
-              <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
+  top5BullishPositiveFundingSignals.length > 0 ||
+  earlySqueezeSignals.length > 0 ||
+  top5BearishNegativeFundingSignals.length > 0 ||
+  earlyLongTrapSignals.length > 0
+) && (
+  <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
+    <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
 
-              <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
-                <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
-                <br />
-                For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
-                <br />
-                For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
-              </p>
+    <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
+      <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
+      <br />
+      For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
+      <br />
+      For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
+    </p>
 
-              {top5BullishPositiveFundingSignals.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Top 5 Bullish Opportunities</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    {top5BullishPositiveFundingSignals.map((signal, index) => (
-                      <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="font-bold text-green-300">{signal.symbol}</h4>
-                          {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>}
-                        </div>
-                        <p className="text-gray-200 text-xs">{signal.reason}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {earlySqueezeSignals.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    {earlySqueezeSignals.map((signal, index) => (
-                      <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="font-bold text-orange-300">{signal.symbol}</h4>
-                          {signal.strongBuy && <span className="text-xs text-white bg-orange-800 px-2 py-0.5 rounded-md">🚀 Strong Buy</span>}
-                        </div>
-                        <p className="text-gray-200 text-xs">{signal.reason}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {earlyLongTrapSignals.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    {earlyLongTrapSignals.map((signal, index) => (
-                      <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="font-bold text-purple-300">{signal.symbol}</h4>
-                          {signal.strongSell && <span className="text-xs text-white bg-purple-800 px-2 py-0.5 rounded-md">⚠️ Strong Sell</span>}
-                        </div>
-                        <p className="text-gray-200 text-xs">{signal.reason}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {top5BearishNegativeFundingSignals.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Top 5 Bearish Risks</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    {top5BearishNegativeFundingSignals.map((signal, index) => (
-                      <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="font-bold text-red-300">{signal.symbol}</h4>
-                          {signal.strongSell && <span className="text-xs text-white bg-red-800 px-2 py-0.5 rounded-md">🔻 Strong Sell</span>}
-                        </div>
-                        <p className="text-gray-200 text-xs">{signal.reason}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+    {top5BullishPositiveFundingSignals.length > 0 && (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Top 5 Bullish Opportunities</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {top5BullishPositiveFundingSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-green-300">{signal.symbol}</h4>
+                {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>}
+              </div>
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
             </div>
-          )}
+          ))}
+        </div>
+      </div>
+    )}
 
-        {/* --- ADD THE SITE A DATA LOADER COMPONENT HERE --- */}
-        <SiteADataLoader />
-        {/* --- END SITE A DATA LOADER COMPONENT --- */}
+    {earlySqueezeSignals.length > 0 && (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {earlySqueezeSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-orange-300">{signal.symbol}</h4>
+                {signal.strongBuy && <span className="text-xs text-white bg-orange-800 px-2 py-0.5 rounded-md">🚀 Strong Buy</span>}
+              </div>
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {earlyLongTrapSignals.length > 0 && (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {earlyLongTrapSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-purple-300">{signal.symbol}</h4>
+                {signal.strongSell && <span className="text-xs text-white bg-purple-800 px-2 py-0.5 rounded-md">⚠️ Strong Sell</span>}
+              </div>
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {top5BearishNegativeFundingSignals.length > 0 && (
+      <div>
+        <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Top 5 Bearish Risks</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {top5BearishNegativeFundingSignals.map((signal, index) => (
+            <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-red-300">{signal.symbol}</h4>
+                {signal.strongSell && <span className="text-xs text-white bg-red-800 px-2 py-0.5 rounded-md">🔻 Strong Sell</span>}
+              </div>
+              <p className="text-gray-200 text-xs">{signal.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)} 
 
 
         <div className="my-8 h-px bg-gray-700" />
