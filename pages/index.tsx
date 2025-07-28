@@ -558,20 +558,20 @@ export default function PriceFundingTracker() {
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
 
-    // Update the marketAnalysis state with the new divergence analysis details
+    // Use the state variables for divergence counts here
     const divergenceAnalysisDetail: MarketAnalysisResultDetail & {
       divergingCount: number;
       potentialFalseBreakoutCount: number;
       topDivergingSymbols: SymbolData[];
     } = {
-      rating: newDivergingCount > 0 ? "Potential Reversal" : "Stable",
-      interpretation: newDivergingCount > 0
-        ? `A significant number of symbols (${newDivergingCount}) are showing 24H positive price change but are currently dropping. This indicates potential short-term false breakouts or profit-taking.`
+      rating: divergingCount > 0 ? "Potential Reversal" : "Stable", // Use divergingCount state
+      interpretation: divergingCount > 0 // Use divergingCount state
+        ? `A significant number of symbols (${divergingCount}) are showing 24H positive price change but are currently dropping. This indicates potential short-term false breakouts or profit-taking.`
         : "Most symbols are moving consistently with their 24-hour trend.",
-      score: newDivergingCount > 0 ? Math.min(10, Math.floor(newDivergingCount / 5)) : 0, // Simple scoring
-      divergingCount: newDivergingCount,
-      potentialFalseBreakoutCount: newPotentialFalseBreakoutCount,
-      topDivergingSymbols: topDivergingSymbols,
+      score: divergingCount > 0 ? Math.min(10, Math.floor(divergingCount / 5)) : 0, // Use divergingCount state
+      divergingCount: divergingCount, // Use divergingCount state
+      potentialFalseBreakoutCount: potentialFalseBreakoutCount, // Use potentialFalseBreakoutCount state
+      topDivergingSymbols: topDivergingSymbols, // Use topDivergingSymbols state
     };
 
     setMarketAnalysis(prev => ({
@@ -580,8 +580,8 @@ export default function PriceFundingTracker() {
       divergenceAnalysis: divergenceAnalysisDetail, // Add the new divergence analysis
       marketData: {
         ...prev.marketData, // Keep existing marketData properties
-        divergingCount: newDivergingCount,
-        potentialFalseBreakoutCount: newPotentialFalseBreakoutCount,
+        divergingCount: divergingCount, // Use divergingCount state
+        potentialFalseBreakoutCount: potentialFalseBreakoutCount, // Use potentialFalseBreakoutCount state
       }
     }));
 
@@ -591,7 +591,8 @@ export default function PriceFundingTracker() {
     greenCount, redCount, greenPositiveFunding, greenNegativeFunding, redPositiveFunding, redNegativeFunding,
     cryptoNews,
     priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
-    divergingCount, potentialFalseBreakoutCount, topDivergingSymbols // Add new dependencies
+    // These are now directly used from state within this effect, making them appropriate dependencies
+    divergingCount, potentialFalseBreakoutCount, topDivergingSymbols
   ]);
 
 
@@ -701,7 +702,7 @@ export default function PriceFundingTracker() {
 
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-3 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
-        <p className="text-sm text-gray-400 mb-6">Last Updated (Davao City): {lastUpdated}</p>
+        <p className="text-sm text-gray-400 mb-6">Last Updated (Davao City): {formatDavaoTime()}</p>
 
         {/* --- Price & Funding Summary --- */}
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
@@ -812,8 +813,7 @@ export default function PriceFundingTracker() {
           redCount={redCount}
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
+          redPositiveFunding={redNegativeFunding} {/* Fixed: Was redPositiveFunding twice */}
         />
 
         {/* --- Divergence Analysis Section --- */}
