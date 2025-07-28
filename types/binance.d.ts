@@ -42,6 +42,7 @@ export interface BinanceTicker24hr {
   priceChange: string;
   priceChangePercent: string;
   weightedAvgPrice: string;
+  prevClosePrice: string;
   lastPrice: string;
   lastQty: string;
   openPrice: string;
