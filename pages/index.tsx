@@ -813,7 +813,8 @@ export default function PriceFundingTracker() {
           redCount={redCount}
           greenPositiveFunding={greenPositiveFunding}
           greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redNegativeFunding} {/* Fixed: Was redPositiveFunding twice */}
+          redPositiveFunding={redNegativeFunding}
+	redNegativeFunding={redNegativeFunding}	
         />
 
         {/* --- Divergence Analysis Section --- */}
