@@ -18,13 +18,13 @@ import {
   SentimentSignal,
   SentimentArticle,
   MarketAnalysisResultDetail, // Import MarketAnalysisResultDetail
-} from "../src/types"; // Adjusted path to src/types
+} from "../types"; // Adjusted path to src/types
 import {
   BinanceExchangeInfoResponse,
   BinanceSymbol,
   BinanceTicker24hr,
   BinancePremiumIndex,
-} from "../src/types/binance"; // Assuming binance types are in src/types/binance
+} from "../types/binance"; // Assuming binance types are in src/types/binance
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import { detectSentimentSignals } from "../utils/signalDetector";
 import { fetchCryptoNews } from "../utils/newsFetcher";
