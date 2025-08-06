@@ -35,7 +35,6 @@ interface SentimentSignal {
   reason?: string; // Made optional, as it might not always be present
   strongBuy?: boolean; // Made optional
   strongSell?: boolean; // Made optional
-  // Assuming priceChangePercent is a required property based on the error
   priceChangePercent: number; // Added this based on the error message
   // Add any other properties that your actual detectSentimentSignals function might return
   // or that are part of your existing SentimentSignal type in types.ts
@@ -389,9 +388,7 @@ export default function PriceFundingTracker() {
           };
         }).filter((d: SymbolData) => d.volume > 0);
 
-        // --- USING ORIGINAL detectSentimentSignals ---
         const allSentimentSignals = detectSentimentSignals(combinedData);
-        // --- END ORIGINAL detectSentimentSignals ---
 
         combinedData = combinedData.map(d => ({
           ...d,
@@ -490,6 +487,10 @@ export default function PriceFundingTracker() {
       if (wsPingIntervalRef.current) {
         clearInterval(wsPingIntervalRef.current);
         wsPingIntervalRef.current = null;
+      }
+      if (liquidationWsRef.current) {
+        liquidationWsRef.current.close(1000, 'Component Unmounted');
+        liquidationWsRef.current = null;
       }
       if (aggregationTimeoutRef.current) {
         clearTimeout(aggregationTimeoutRef.current);
@@ -605,10 +606,15 @@ export default function PriceFundingTracker() {
     );
   }
 
-  const bullishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bullish Opportunity');
-  const bearishActionableSignals = actionableSentimentSignals.filter(s => s.signal === 'Bearish Risk');
-  const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
-  const earlyLongTrapSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Long Trap');
+  // Filter actionable signals to only include BTCUSDT and ETHUSDT
+  const btcEthActionableSignals = actionableSentimentSignals.filter(s =>
+    s.symbol === 'BTCUSDT' || s.symbol === 'ETHUSDT'
+  );
+
+  const bullishActionableSignals = btcEthActionableSignals.filter(s => s.signal === 'Bullish Opportunity');
+  const bearishActionableSignals = btcEthActionableSignals.filter(s => s.signal === 'Bearish Risk');
+  const earlySqueezeSignals = btcEthActionableSignals.filter(s => s.signal === 'Early Squeeze Signal');
+  const earlyLongTrapSignals = btcEthActionableSignals.filter(s => s.signal === 'Early Long Trap');
 
   // These now correctly filter from actionableSentimentSignals, which should adhere to the new SentimentSignal type
   const top5BullishPositiveFundingSignals = bullishActionableSignals.slice(0, 5);
@@ -774,7 +780,7 @@ export default function PriceFundingTracker() {
           earlyLongTrapSignals.length > 0
         ) && (
           <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
-            <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
+            <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals (BTC & ETH Only)</h2>
             <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
               <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
               <br />
