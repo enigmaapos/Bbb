@@ -1,5 +1,15 @@
 import { useEffect, useState, useMemo } from "react";
 
+// --- Type Definitions ---
+interface Candle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 // --- Utility Functions ---
 /**
  * Calculates the Exponential Moving Average (EMA) for a given dataset.
@@ -309,7 +319,7 @@ export default function SiteADataLoader() {
         return null;
       }
 
-      const candles = raw.map((c: any[]) => ({
+      const candles: Candle[] = raw.map((c: any[]) => ({
         timestamp: c[0],
         open: +c[1],
         high: +c[2],
@@ -354,12 +364,12 @@ export default function SiteADataLoader() {
 
       // Calculate previous session candles and highest volume color
       const { prevSessionStart, prevSessionEnd } = getSessions(interval); // Pass interval to getSessions
-      const candlesPrev = candles.filter(c => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
+      const candlesPrev = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
 
       let highestVolumeColorPrev: 'green' | 'red' | null = null;
       if (candlesPrev.length > 0) {
         let maxVolume = -1;
-        let highestVolumeCandle: { open: number; close: number; volume: number } | null = null;
+        let highestVolumeCandle: Candle | null = null;
         for (const candle of candlesPrev) {
           if (candle.volume > maxVolume) {
             maxVolume = candle.volume;
