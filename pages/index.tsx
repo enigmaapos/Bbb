@@ -986,12 +986,9 @@ export default function PriceFundingTracker() {
                   );
                 })}
             </tbody>
-          </table>
-
-          <SiteADataLoader />
-          
+          </table>   
         </div>
-
+<SiteADataLoader />
         <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 30 seconds | Powered by Binance API & NewsAPI</p>
       </div>
     </div>
