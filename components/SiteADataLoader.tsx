@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import SiteADataLoader from './CryptoSignalsDashboard';
 
 // --- Type Definitions ---
 interface Candle {
