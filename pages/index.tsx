@@ -861,8 +861,6 @@ export default function PriceFundingTracker() {
           </div>
         )}
 
-        <SiteADataLoader />
-
         <div className="my-8 h-px bg-gray-700" />
 
         <div className="mb-8">
@@ -989,6 +987,9 @@ export default function PriceFundingTracker() {
                 })}
             </tbody>
           </table>
+
+          <SiteADataLoader />
+          
         </div>
 
         <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 30 seconds | Powered by Binance API & NewsAPI</p>
