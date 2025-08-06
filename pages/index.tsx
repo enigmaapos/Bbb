@@ -1,11 +1,12 @@
-// pages/index.tsx (Modified to include SiteADataLoader)
+// pages/index.tsx (Combined and Refactored Code)
+
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
-import SiteADataLoader from "../components/SiteADataLoader"; // <--- IMPORT THE NEW COMPONENT
+import SiteADataLoader from "../components/SiteADataLoader";
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -25,22 +26,184 @@ import {
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
 import { detectSentimentSignals } from "../utils/signalDetector";
 import { fetchCryptoNews } from "../utils/newsFetcher";
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError } from "axios";
 
-// Custom type guard for AxiosError
-function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
+// --- Utility Functions ---
+/**
+ * Calculates the Exponential Moving Average (EMA) for a given dataset.
+ * @param data - The array of numbers (e.g., closing prices) to calculate EMA for.
+ * @param period - The period (number of data points) for the EMA calculation.
+ * @returns An array containing the EMA values, with NaN for initial periods.
+ */
+function calculateEMA(data: number[], period: number): number[] {
+  const k = 2 / (period + 1); // Smoothing constant
+  const ema: number[] = [];
+  let previousEma: number | null = null;
+
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      ema.push(NaN);
+      continue;
+    }
+    if (i === period - 1) {
+      const sma = data.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
+      previousEma = sma;
+    }
+    if (previousEma !== null) {
+      const currentEma = data[i] * k + previousEma * (1 - k);
+      ema.push(currentEma);
+      previousEma = currentEma;
+    }
+  }
+  return ema;
+}
+
+/**
+ * Calculates the Relative Strength Index (RSI) for a given set of closing prices.
+ * @param closes - An array of closing prices.
+ * @param period - The period (number of data points) for the RSI calculation.
+ * @returns An array containing the RSI values, with NaN for initial periods.
+ */
+function calculateRSI(closes: number[], period = 3): number[] {
+  if (!Array.isArray(closes) || closes.length <= period) {
+    return [];
+  }
+
+  const rsi: number[] = [];
+  let gains = 0;
+  let losses = 0;
+
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) {
+      gains += diff;
+    } else {
+      losses -= diff;
+    }
+  }
+
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  let rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+  rsi[period] = 100 - 100 / (1 + rs);
+
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+
+    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rsi[i] = 100 - 100 / (1 + rs);
+  }
+
+  for (let i = 0; i < period; i++) {
+    rsi[i] = NaN;
+  }
+
+  return rsi;
+}
+
+/**
+ * Calculates the recent RSI difference (pump/dump strength) over a lookback period.
+ * @param rsi - The array of RSI values.
+ * @param lookback - The number of recent RSI values to consider.
+ * @returns An object containing recent high/low RSI, pump/dump strength, direction, and overall strength, or null if data is insufficient.
+ */
+function getRecentRSIDiff(
+  rsi: number[],
+  lookback = 14
+): {
+  recentHigh: number;
+  recentLow: number;
+  pumpStrength: number;
+  dumpStrength: number;
+  direction: 'pump' | 'dump' | 'neutral';
+  strength: number;
+} | null {
+  if (rsi.length < lookback) return null;
+
+  const recentRSI = rsi.slice(-lookback);
+  let recentHigh = -Infinity;
+  let recentLow = Infinity;
+
+  for (const value of recentRSI) {
+    if (!isNaN(value)) {
+      if (value > recentHigh) recentHigh = value;
+      if (value < recentLow) recentLow = value;
+    }
+  }
+
+  const pumpStrength = recentHigh - recentLow;
+  const dumpStrength = Math.abs(recentLow - recentHigh);
+
+  const startRSI = recentRSI[0];
+  const endRSI = recentRSI[recentRSI.length - 1];
+  const direction = endRSI > startRSI ? 'pump' : endRSI < startRSI ? 'dump' : 'neutral';
+  const strength = Math.abs(endRSI - startRSI);
+
+  return {
+    recentHigh,
+    recentLow,
+    pumpStrength,
+    dumpStrength,
+    direction,
+    strength,
+  };
+}
+
+/**
+ * Determines a trading signal based on RSI pump/dump zones.
+ * @param s - An object containing signal data, specifically `rsi14`.
+ * @returns A string representing the detected signal (e.g., 'MAX ZONE PUMP', 'NO STRONG SIGNAL').
+ */
+const getSignal = (s: { rsi14?: number[] }): string => {
+  const pumpDump = s.rsi14 ? getRecentRSIDiff(s.rsi14, 14) : null;
+  if (!pumpDump) return 'NO DATA';
+
+  const { direction, pumpStrength: pump, dumpStrength: dump } = pumpDump;
+
+  const inRange = (val: number, min: number, max: number) =>
+    val !== undefined && val >= min && val <= max;
+
+  const isAbove30 = (val: number) => val !== undefined && val >= 30;
+
+  const pumpAbove30 = isAbove30(pump);
+  const dumpAbove30 = isAbove30(dump);
+
+  const pumpInRange_21_26 = inRange(pump, 21, 26);
+  const dumpInRange_21_26 = inRange(dump, 21, 26);
+
+  const pumpInRange_1_10 = inRange(pump, 1, 10);
+  const dumpInRange_1_10 = inRange(dump, 1, 10);
+
+  if (direction === 'pump' && pumpAbove30) return 'MAX ZONE PUMP';
+  if (direction === 'dump' && dumpAbove30) return 'MAX ZONE DUMP';
+
+  if (pumpInRange_21_26 && direction === 'pump') return 'BALANCE ZONE PUMP';
+  if (dumpInRange_21_26 && direction === 'dump') return 'BALANCE ZONE DUMP';
+
+  if (pumpInRange_1_10 && direction === 'pump') return 'LOWEST ZONE PUMP';
+  if (dumpInRange_1_10 && direction === 'dump') return 'LOWEST ZONE DUMP';
+
+  return 'NO STRONG SIGNAL';
+};
+
+// --- Main App Component ---
+const BINANCE_API = "https://fapi.binance.com";
+const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr";
+
+function isAxiosErrorTypeGuard(error: any): error is AxiosError {
   return (
     typeof error === 'object' &&
     error !== null &&
     'isAxiosError' in error &&
-    error.isAxiosError === true
+    (error as AxiosError).isAxiosError === true
   );
 }
 
-const BINANCE_API = "https://fapi.binance.com";
-const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr";
-
-// Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
   if (num === 0) return "0";
   const formatter = new Intl.NumberFormat("en-US", {
@@ -52,10 +215,8 @@ const formatVolume = (num: number): string => {
   return formatter.format(num);
 };
 
-// Helper function to format time for Davao City
 const formatDavaoTime = (): string => {
   const now = new Date();
-  // Ensure the timeZone is 'Asia/Manila' for Davao City
   const davaoTime = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
     hour: 'numeric',
@@ -90,7 +251,6 @@ export default function PriceFundingTracker() {
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
-
   const [sortConfig, setSortConfig] = useState<{
     key: "fundingRate" | "priceChangePercent" | "signal" | null;
     direction: "asc" | "desc" | null;
@@ -106,20 +266,15 @@ export default function PriceFundingTracker() {
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  // This state already holds all sentiment signals
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
-
-  // State for news data
   const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
-  // Liquidation data states
   const liquidationEventsRef = useRef<LiquidationEvent[]>([]);
   const [recentLiquidationEvents, setRecentLiquidationEvents] = useState<LiquidationEvent[]>([]);
   const [aggregatedLiquidationForSentiment, setAggregatedLiquidationForSentiment] = useState<
     AggregatedLiquidationData | undefined
   >(undefined);
 
-  // WebSocket specific refs for persistent instances
   const liquidationWsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsPingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -223,10 +378,10 @@ export default function PriceFundingTracker() {
 
     recentEvents.forEach((event) => {
       const volumeUSD = event.price * event.quantity;
-      if (event.side === "SELL") { // SELL means long position liquidated
+      if (event.side === "SELL") {
         totalLongLiquidationsUSD += volumeUSD;
         longLiquidationCount++;
-      } else { // BUY means short position liquidated
+      } else {
         totalShortLiquidationsUSD += volumeUSD;
         shortLiquidationCount++;
       }
@@ -328,7 +483,6 @@ export default function PriceFundingTracker() {
     liquidationWsRef.current = ws;
   }, [aggregateLiquidationEvents]);
 
-  // --- Main Data Fetching and WebSocket Management Effect ---
   useEffect(() => {
     const fetchAllData = async () => {
       if (rawData.length === 0) {
@@ -336,20 +490,19 @@ export default function PriceFundingTracker() {
       }
       setError(null);
       try {
-        // Fetch news concurrently with market data
         const [infoRes, tickerRes, fundingRes, btcNews, ethNews] = await Promise.all([
           axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`),
           axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
-          fetchCryptoNews("bitcoin"), // Fetch Bitcoin news
-          fetchCryptoNews("ethereum"), // Fetch Ethereum news
+          fetchCryptoNews("bitcoin"),
+          fetchCryptoNews("ethereum"),
         ]);
 
         const allFetchedNews: SentimentArticle[] = [
           ...btcNews,
           ...ethNews,
         ];
-        setCryptoNews(allFetchedNews); // Store news in state
+        setCryptoNews(allFetchedNews);
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
@@ -397,7 +550,6 @@ export default function PriceFundingTracker() {
             s.signal === 'Early Long Trap'
         );
         setActionableSentimentSignals(filteredActionableSignals);
-
 
         setRawData(combinedData);
 
@@ -458,7 +610,7 @@ export default function PriceFundingTracker() {
     };
 
     fetchAllData();
-    const interval = setInterval(fetchAllData, 30000); // Increased interval to 30s as news doesn't need 10s refresh
+    const interval = setInterval(fetchAllData, 30000);
 
     connectLiquidationWs();
 
@@ -484,9 +636,7 @@ export default function PriceFundingTracker() {
     };
   }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
 
-  // --- Effect to run Sentiment Analysis when market data or liquidation data or news data changes ---
   useEffect(() => {
-    // Only run sentiment analysis if we have rawData, liquidation data, or news
     if (rawData.length === 0 && !aggregatedLiquidationForSentiment && cryptoNews.length === 0) return;
 
     const marketStatsForAnalysis: MarketStats = {
@@ -513,7 +663,6 @@ export default function PriceFundingTracker() {
     cryptoNews,
     priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
   ]);
-
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
@@ -574,7 +723,6 @@ export default function PriceFundingTracker() {
     });
   }, [sortedData, searchTerm, showFavoritesOnly, favorites]);
 
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen text-white text-lg bg-gray-900">
@@ -601,15 +749,14 @@ export default function PriceFundingTracker() {
       const symbolData = rawData.find(d => d.symbol === signal.symbol);
       return symbolData && symbolData.fundingRate <= 0.0001 && symbolData.priceChangePercent <= 10;
     })
-    .slice(0, 5); // Slice to get top 5
+    .slice(0, 5);
 
   const top5BearishNegativeFundingSignals = bearishActionableSignals
     .filter(signal => {
       const symbolData = rawData.find(d => d.symbol === signal.symbol);
       return symbolData && symbolData.fundingRate >= 0.0001 && symbolData.priceChangePercent >= -10;
     })
-    .slice(0, 5); // Slice to get top 5
-
+    .slice(0, 5);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -622,7 +769,6 @@ export default function PriceFundingTracker() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-3 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
         <p className="text-sm text-gray-400 mb-6">Last Updated (Davao City): {lastUpdated}</p>
-
 
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
           <h2 className="text-lg font-bold text-white mb-3">
@@ -676,15 +822,13 @@ export default function PriceFundingTracker() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-       <FundingSentimentChart
-          greenPositiveFunding={greenPositiveFunding}
-          greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
-        />
-	</div>
-
-			
+          <FundingSentimentChart
+            greenPositiveFunding={greenPositiveFunding}
+            greenNegativeFunding={greenNegativeFunding}
+            redPositiveFunding={redPositiveFunding}
+            redNegativeFunding={redNegativeFunding}
+          />
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
@@ -735,13 +879,12 @@ export default function PriceFundingTracker() {
           redNegativeFunding={redNegativeFunding}
         />
 
-	<div className="mb-8">
+        <div className="mb-8">
           <LiquidationHeatmap
             liquidationEvents={recentLiquidationEvents}
           />
         </div>
 
-	 {/* --- NEW SECTION FOR CRYPTO MACRO NEWS --- */}
         {cryptoNews.length > 0 && (
           <section className="mt-6 p-4 bg-gray-800 rounded-lg text-sm border border-gray-700 shadow-md">
             <h3 className="text-white font-semibold mb-3 flex items-center">
@@ -765,99 +908,94 @@ export default function PriceFundingTracker() {
             </ul>
           </section>
         )}
-        {/* --- END NEW SECTION --- */}
 
-       {(
-  top5BullishPositiveFundingSignals.length > 0 ||
-  earlySqueezeSignals.length > 0 ||
-  top5BearishNegativeFundingSignals.length > 0 ||
-  earlyLongTrapSignals.length > 0
-) && (
-  <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
-    <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
+        {(
+          top5BullishPositiveFundingSignals.length > 0 ||
+          earlySqueezeSignals.length > 0 ||
+          top5BearishNegativeFundingSignals.length > 0 ||
+          earlyLongTrapSignals.length > 0
+        ) && (
+          <div className="mt-8 p-4 border border-blue-700 rounded-lg bg-blue-900/40 shadow-md">
+            <h2 className="text-xl font-bold text-blue-300 mb-4">✨ Actionable Sentiment Signals</h2>
+            <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
+              <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
+              <br />
+              For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
+              <br />
+              For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
+            </p>
 
-    <p className="text-yellow-300 text-sm mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-md">
-      <strong>💡 Strategy Note:</strong> These signals are most effective when the overall market sentiment (as indicated in "Market Analysis") aligns with the signal.
-      <br />
-      For <strong>long opportunities</strong>, consider waiting for pullbacks to the <strong>200 EMA zone</strong> on the daily timeframe for better entry.
-      <br />
-      For <strong>short opportunities</strong>, consider waiting for bounces to <strong>resistance or the 200 EMA zone</strong> before entering.
-    </p>
-
-    {top5BullishPositiveFundingSignals.length > 0 && (
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Top 5 Bullish Opportunities</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {top5BullishPositiveFundingSignals.map((signal, index) => (
-            <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
-              <div className="flex justify-between items-center mb-1">
-                <h4 className="font-bold text-green-300">{signal.symbol}</h4>
-                {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>}
+            {top5BullishPositiveFundingSignals.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-green-400 mb-2">🟢 Top 5 Bullish Opportunities</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {top5BullishPositiveFundingSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="font-bold text-green-300">{signal.symbol}</h4>
+                        {/* {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>} */}
+                      </div>
+                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-gray-200 text-xs">{signal.reason}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+            )}
 
-    {earlySqueezeSignals.length > 0 && (
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {earlySqueezeSignals.map((signal, index) => (
-            <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
-              <div className="flex justify-between items-center mb-1">
-                <h4 className="font-bold text-orange-300">{signal.symbol}</h4>
-                {signal.strongBuy && <span className="text-xs text-white bg-orange-800 px-2 py-0.5 rounded-md">🚀 Strong Buy</span>}
+            {earlySqueezeSignals.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-orange-400 mb-2">🟠 Early Squeeze Signals</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {earlySqueezeSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="font-bold text-orange-300">{signal.symbol}</h4>
+                        {/* {signal.strongBuy && <span className="text-xs text-white bg-orange-800 px-2 py-0.5 rounded-md">🚀 Strong Buy</span>} */}
+                      </div>
+                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-gray-200 text-xs">{signal.reason}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+            )}
 
-    {earlyLongTrapSignals.length > 0 && (
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {earlyLongTrapSignals.map((signal, index) => (
-            <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
-              <div className="flex justify-between items-center mb-1">
-                <h4 className="font-bold text-purple-300">{signal.symbol}</h4>
-                {signal.strongSell && <span className="text-xs text-white bg-purple-800 px-2 py-0.5 rounded-md">⚠️ Strong Sell</span>}
+            {earlyLongTrapSignals.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-purple-400 mb-2">🟣 Early Long Trap Signals</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {earlyLongTrapSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="font-bold text-purple-300">{signal.symbol}</h4>
+                        {/* {signal.strongSell && <span className="text-xs text-white bg-purple-800 px-2 py-0.5 rounded-md">⚠️ Strong Sell</span>} */}
+                      </div>
+                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-gray-200 text-xs">{signal.reason}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+            )}
 
-    {top5BearishNegativeFundingSignals.length > 0 && (
-      <div>
-        <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Top 5 Bearish Risks</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {top5BearishNegativeFundingSignals.map((signal, index) => (
-            <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
-              <div className="flex justify-between items-center mb-1">
-                <h4 className="font-bold text-red-300">{signal.symbol}</h4>
-                {signal.strongSell && <span className="text-xs text-white bg-red-800 px-2 py-0.5 rounded-md">🔻 Strong Sell</span>}
+            {top5BearishNegativeFundingSignals.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-red-400 mb-2">🔴 Top 5 Bearish Risks</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {top5BearishNegativeFundingSignals.map((signal, index) => (
+                    <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="font-bold text-red-300">{signal.symbol}</h4>
+                        {/* {signal.strongSell && <span className="text-xs text-white bg-red-800 px-2 py-0.5 rounded-md">🔻 Strong Sell</span>} */}
+                      </div>
+                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-gray-200 text-xs">{signal.reason}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-)} 
+            )}
+          </div>
+        )}
 
-        {/* --- ADD THE SITE A DATA LOADER COMPONENT HERE --- */}
-        <SiteADataLoader /> 
-        {/* --- END SITE A DATA LOADER COMPONENT --- */}
-
+        <SiteADataLoader />
 
         <div className="my-8 h-px bg-gray-700" />
 
@@ -907,7 +1045,6 @@ export default function PriceFundingTracker() {
           </div>
         </div>
 
-
         <div className="overflow-auto max-h-[480px]">
           <table className="w-full text-sm text-left border border-gray-700">
             <thead className="bg-gray-800 text-gray-300 uppercase text-xs sticky top-0 z-10">
@@ -944,19 +1081,15 @@ export default function PriceFundingTracker() {
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
                       <td className="p-2 flex items-center gap-2">{item.symbol}</td>
-
                       <td className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
                         {item.priceChangePercent.toFixed(2)}%
                       </td>
-
                       <td className="p-2">
                         {formatVolume(item.volume)}
                       </td>
-
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
-
                       <td className="p-2 space-y-1 text-xs text-gray-200">
                         {signal && signal.signal ? (
                           <div className="flex flex-col">
@@ -970,7 +1103,6 @@ export default function PriceFundingTracker() {
                           <span className="text-gray-500">-</span>
                         )}
                       </td>
-
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
                         setFavorites((prev) =>
                           prev.includes(item.symbol)
