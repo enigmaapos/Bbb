@@ -219,7 +219,7 @@ export default function SiteADataLoader() {
       const today8AM_UTC = getUTCMillisFor1d(year, month, date, 8, 0);
       const tomorrow745AM_UTC = getUTCMillisFor1d(year, month, date + 1, 7, 45);
 
-      let sessionStart, sessionEnd;
+      let sessionStart: number, sessionEnd: number;
       if (now.getTime() >= today8AM_UTC) {
         sessionStart = today8AM_UTC;
         sessionEnd = tomorrow745AM_UTC;
@@ -341,7 +341,6 @@ export default function SiteADataLoader() {
       const opens: number[] = candles.map((c: Candle) => c.open);
       const highs: number[] = candles.map((c: Candle) => c.high);
       const lows: number[] = candles.map((c: Candle) => c.low);
-
 
       const ema14 = calculateEMA(closes, 14);
       const ema70 = calculateEMA(closes, 70);
@@ -526,35 +525,36 @@ export default function SiteADataLoader() {
   // Calculate statistics for the "Market Overview" section
   const marketStats = useMemo(() => {
     const greenPriceChangeCount = signals.filter(
-      (t: any) => parseFloat(t.priceChangePercent) > 0
+      (t: { priceChangePercent: string }) => parseFloat(t.priceChangePercent) > 0
     ).length;
 
     const redPriceChangeCount = signals.filter(
-      (t: any) => parseFloat(t.priceChangePercent) < 0
+      (t: { priceChangePercent: string }) => parseFloat(t.priceChangePercent) < 0
     ).length;
 
     const greenVolumeCount = signals.filter(
-      (s: any) => s.highestVolumeColorPrev === 'green'
+      (s: { highestVolumeColorPrev: string }) => s.highestVolumeColorPrev === 'green'
     ).length;
 
     const redVolumeCount = signals.filter(
-      (s: any) => s.highestVolumeColorPrev === 'red'
+      (s: { highestVolumeColorPrev: string }) => s.highestVolumeColorPrev === 'red'
     ).length;
 
     const bullishTrendCount = signals.filter(
-        (s: any) => s.mainTrend && s.mainTrend.trend === 'bullish'
+        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.trend === 'bullish'
     ).length;
 
     const bearishTrendCount = signals.filter(
-        (s: any) => s.mainTrend && s.mainTrend.trend === 'bearish'
+        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.trend === 'bearish'
     ).length;
 
+    // Breakout counts are now specifically based on the previous session's activity
     const bullishBreakoutCount = signals.filter(
-        (s: any) => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend.isDojiAfterBreakout
+        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend.isDojiAfterBreakout
     ).length;
 
     const bearishBreakoutCount = signals.filter(
-        (s: any) => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend.isDojiAfterBreakout
+        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend.isDojiAfterBreakout
     ).length;
 
 
