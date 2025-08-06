@@ -5,7 +5,7 @@ import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
-import SiteADataLoader from "../components/SiteADataLoader"; // <--- IMPORT THE NEW COMPONENT
+import SiteADataLoader from "../components/SiteADataLoader";
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -596,19 +596,9 @@ export default function PriceFundingTracker() {
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
   const earlyLongTrapSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Long Trap');
 
-  const top5BullishPositiveFundingSignals = bullishActionableSignals
-    .filter(signal => {
-      const symbolData = rawData.find(d => d.symbol === signal.symbol);
-      return symbolData && symbolData.fundingRate <= 0.0001 && symbolData.priceChangePercent <= 10;
-    })
-    .slice(0, 5);
-
-  const top5BearishNegativeFundingSignals = bearishActionableSignals
-    .filter(signal => {
-      const symbolData = rawData.find(d => d.symbol === signal.symbol);
-      return symbolData && symbolData.fundingRate >= 0.0001 && symbolData.priceChangePercent >= -10;
-    })
-    .slice(0, 5);
+  // Simplified filtering for these arrays to ensure data is displayed if available in actionableSentimentSignals
+  const top5BullishPositiveFundingSignals = bullishActionableSignals.slice(0, 5);
+  const top5BearishNegativeFundingSignals = bearishActionableSignals.slice(0, 5);
 
 
   return (
@@ -787,9 +777,9 @@ export default function PriceFundingTracker() {
                     <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
                       <div className="flex justify-between items-center mb-1">
                         <h4 className="font-bold text-green-300">{signal.symbol}</h4>
-                        {/* {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>} */}
+                        {/* Removed signal.strongBuy as it's not defined on SentimentSignal */}
                       </div>
-                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                      {/* Removed signal.reason as it's not defined on SentimentSignal */}
                     </div>
                   ))}
                 </div>
@@ -804,9 +794,9 @@ export default function PriceFundingTracker() {
                     <div key={index} className="p-3 rounded-md bg-orange-700/40 border border-orange-500">
                       <div className="flex justify-between items-center mb-1">
                         <h4 className="font-bold text-orange-300">{signal.symbol}</h4>
-                        {/* {signal.strongBuy && <span className="text-xs text-white bg-orange-800 px-2 py-0.5 rounded-md">🚀 Strong Buy</span>} */}
+                        {/* Removed signal.strongBuy */}
                       </div>
-                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                      {/* Removed signal.reason */}
                     </div>
                   ))}
                 </div>
@@ -821,9 +811,9 @@ export default function PriceFundingTracker() {
                     <div key={index} className="p-3 rounded-md bg-purple-700/40 border border-purple-500">
                       <div className="flex justify-between items-center mb-1">
                         <h4 className="font-bold text-purple-300">{signal.symbol}</h4>
-                        {/* {signal.strongSell && <span className="text-xs text-white bg-purple-800 px-2 py-0.5 rounded-md">⚠️ Strong Sell</span>} */}
+                        {/* Removed signal.strongSell */}
                       </div>
-                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                      {/* Removed signal.reason */}
                     </div>
                   ))}
                 </div>
@@ -838,9 +828,9 @@ export default function PriceFundingTracker() {
                     <div key={index} className="p-3 rounded-md bg-red-700/50 border border-red-500">
                       <div className="flex justify-between items-center mb-1">
                         <h4 className="font-bold text-red-300">{signal.symbol}</h4>
-                        {/* {signal.strongSell && <span className="text-xs text-white bg-red-800 px-2 py-0.5 rounded-md">🔻 Strong Sell</span>} */}
+                        {/* Removed signal.strongSell */}
                       </div>
-                      <p className="text-gray-200 text-xs">{/* {signal.reason} */}</p>
+                      {/* Removed signal.reason */}
                     </div>
                   ))}
                 </div>
@@ -849,10 +839,7 @@ export default function PriceFundingTracker() {
           </div>
         )}
 
-        {/* --- ADD THE SITE A DATA LOADER COMPONENT HERE --- */}
         <SiteADataLoader />
-        {/* --- END SITE A DATA LOADER COMPONENT --- */}
-
 
         <div className="my-8 h-px bg-gray-700" />
 
