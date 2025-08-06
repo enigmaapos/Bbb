@@ -155,7 +155,7 @@ const calculateMetrics = (candles, timeframe) => {
 };
 
 // Main component starts here
-const SiteADataLoader = () => {
+const CryptoSignalsDashboard = () => {
   const [symbolsData, setSymbolsData] = useState({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
@@ -361,4 +361,4 @@ const SiteADataLoader = () => {
   );
 };
 
-export default SiteADataLoader;
+export default CryptoSignalsDashboard;
