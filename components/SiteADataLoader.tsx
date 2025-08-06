@@ -13,10 +13,10 @@ interface Candle {
 interface MainTrend {
   trend: 'bullish' | 'bearish' | 'neutral';
   type: 'support' | 'resistance' | 'none';
-  crossoverPrice: number;
-  breakout: 'bullish' | 'bearish' | null;
+  crossoverPrice: number; // Still relevant for EMA context
+  breakout: 'bullish' | 'bearish' | null; // Now for new high/low breakout
   isNear: boolean;
-  isDojiAfterBreakout: boolean;
+  isDojiAfterBreakout: boolean; // Applies to the new breakout
 }
 
 // --- Utility Functions ---
@@ -359,54 +359,6 @@ export default function SiteADataLoader() {
 
       const priceChangePercent = parseFloat(ticker24h.priceChangePercent);
 
-      const lastClose: number | undefined = closes.at(-1);
-      const secondLastClose: number | undefined = closes.at(-2);
-      const lastOpen: number | undefined = opens.at(-1);
-      const lastHigh: number | undefined = highs.at(-1);
-      const lastLow: number | undefined = lows.at(-1);
-
-      const lastEma70: number | undefined = ema70.at(-1);
-      const lastEma200: number | undefined = ema200.at(-1);
-
-      let mainTrend: MainTrend = {
-        trend: 'neutral',
-        type: 'none',
-        crossoverPrice: 0,
-        breakout: null,
-        isNear: false,
-        isDojiAfterBreakout: false,
-      };
-
-      if (lastEma70 !== undefined && lastEma200 !== undefined) {
-        if (lastEma70 > lastEma200) {
-          mainTrend.trend = 'bullish';
-          mainTrend.type = 'support';
-        } else if (lastEma70 < lastEma200) {
-          mainTrend.trend = 'bearish';
-          mainTrend.type = 'resistance';
-        }
-
-        // Check for breakout
-        if (lastClose !== undefined && secondLastClose !== undefined && lastOpen !== undefined && lastHigh !== undefined && lastLow !== undefined) {
-          if (mainTrend.trend === 'bullish' && lastClose > lastEma70 && secondLastClose <= lastEma70) {
-            mainTrend.breakout = 'bullish';
-            // Simple doji check: small body relative to total range
-            const bodySize = Math.abs(lastClose - lastOpen);
-            const totalRange = lastHigh - lastLow;
-            if (totalRange > 0 && bodySize / totalRange < 0.2) { // 20% body size as a threshold for doji-like candle
-              mainTrend.isDojiAfterBreakout = true;
-            }
-          } else if (mainTrend.trend === 'bearish' && lastClose < lastEma70 && secondLastClose >= lastEma70) {
-            mainTrend.breakout = 'bearish';
-            const bodySize = Math.abs(lastClose - lastOpen);
-            const totalRange = lastHigh - lastLow;
-            if (totalRange > 0 && bodySize / totalRange < 0.2) {
-              mainTrend.isDojiAfterBreakout = true;
-            }
-          }
-        }
-      }
-
       // Calculate previous session candles and highest volume color
       const { prevSessionStart, prevSessionEnd } = getSessions(interval); // Pass interval to getSessions
       const candlesPrev = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
@@ -436,6 +388,58 @@ export default function SiteADataLoader() {
         prevClosedRed = prevCandle.close < prevCandle.open;
       }
 
+      // Initialize mainTrend object
+      let mainTrend: MainTrend = {
+        trend: 'neutral',
+        type: 'none',
+        crossoverPrice: 0,
+        breakout: null,
+        isNear: false,
+        isDojiAfterBreakout: false,
+      };
+
+      // Determine overall trend based on CURRENT EMA values (from full 500 candles)
+      const lastEma70Full = ema70.at(-1);
+      const lastEma200Full = ema200.at(-1);
+
+      if (lastEma70Full !== undefined && lastEma200Full !== undefined) {
+        if (lastEma70Full > lastEma200Full) {
+          mainTrend.trend = 'bullish';
+          mainTrend.type = 'support';
+        } else if (lastEma70Full < lastEma200Full) {
+          mainTrend.trend = 'bearish';
+          mainTrend.type = 'resistance';
+        }
+      }
+
+      // Calculate today's highest high and lowest low from current session candles
+      const todaysHighestHigh = candles.reduce((max, c) => Math.max(max, c.high), -Infinity);
+      const todaysLowestLow = candles.reduce((min, c) => Math.min(min, c.low), Infinity);
+
+      // Calculate previous session's highest high and lowest low
+      const prevSessionHigh = candlesPrev.reduce((max, c) => Math.max(max, c.high), -Infinity);
+      const prevSessionLow = candlesPrev.reduce((min, c) => Math.min(min, c.low), Infinity);
+
+      // New Breakout Logic: Today's high/low vs. Previous Session's high/low
+      const bullishBreakout = todaysHighestHigh !== -Infinity && prevSessionHigh !== -Infinity && todaysHighestHigh > prevSessionHigh;
+      const bearishBreakout = todaysLowestLow !== Infinity && prevSessionLow !== Infinity && todaysLowestLow < prevSessionLow;
+
+      // Set mainTrend.breakout based on the new logic
+      if (bullishBreakout) {
+        mainTrend.breakout = 'bullish';
+      } else if (bearishBreakout) {
+        mainTrend.breakout = 'bearish';
+      }
+
+      // Check for doji after breakout (applies to the new breakout)
+      if (mainTrend.breakout && candles.length > 0) {
+        const lastCandle = candles[candles.length - 1];
+        const bodySize = Math.abs(lastCandle.close - lastCandle.open);
+        const totalRange = lastCandle.high - lastCandle.low;
+        if (totalRange > 0 && bodySize / totalRange < 0.2) { // 20% body size as a threshold for doji-like candle
+          mainTrend.isDojiAfterBreakout = true;
+        }
+      }
 
       return {
         symbol,
@@ -446,9 +450,6 @@ export default function SiteADataLoader() {
         prevClosedGreen,
         prevClosedRed,
         highestVolumeColorPrev, // Add the calculated highest volume color
-        // Add other properties as needed by getSignal or for display
-        // For simplicity, many complex indicators from original code are omitted here
-        // as they are not directly used by getSignal for MAX ZONE PUMP.
       };
     };
 
@@ -462,13 +463,11 @@ export default function SiteADataLoader() {
         // Fetch all symbols once
         try {
           const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
-          // If exchangeInfo is null, it means there was a critical error fetching it, or it was an invalid symbol (unlikely for this endpoint)
           if (exchangeInfo === null) {
             console.error('Failed to fetch exchange info, cannot proceed.');
             setLoading(false);
             return;
           }
-          // Add a check here to ensure exchangeInfo.symbols is an array before mapping
           if (exchangeInfo && Array.isArray(exchangeInfo.symbols)) {
             symbols = exchangeInfo.symbols.map((s: { symbol: string }) => s.symbol).filter((s: string) => s.endsWith('USDT'));
           } else {
@@ -495,9 +494,9 @@ export default function SiteADataLoader() {
         setLastUpdated(new Date().toLocaleTimeString());
 
         if (currentIndex < symbols.length) {
-            setTimeout(processBatch, INTERVAL_MS);
+          setTimeout(processBatch, INTERVAL_MS);
         } else {
-            setLoading(false); // All symbols processed
+          setLoading(false); // All symbols processed
         }
       }
     };
