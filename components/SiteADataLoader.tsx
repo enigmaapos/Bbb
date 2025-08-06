@@ -19,6 +19,17 @@ interface MainTrend {
   isDojiAfterBreakout: boolean; // Applies to the new breakout
 }
 
+interface SignalData {
+  symbol: string;
+  closes: number[];
+  rsi14: number[];
+  priceChangePercent: number;
+  mainTrend: MainTrend;
+  prevClosedGreen: boolean | null;
+  prevClosedRed: boolean | null;
+  highestVolumeColorPrev: 'green' | 'red' | null;
+}
+
 // --- Utility Functions ---
 /**
  * Calculates the Exponential Moving Average (EMA) for a given dataset.
@@ -187,7 +198,7 @@ const getSignal = (s: { rsi14?: number[] }): string => {
 
 // --- SiteADataLoader Component ---
 export default function SiteADataLoader() {
-  const [signals, setSignals] = useState<any[]>([]);
+  const [signals, setSignals] = useState<SignalData[]>([]); // Explicitly type signals
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('1d'); // Default to 1d
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -317,7 +328,7 @@ export default function SiteADataLoader() {
      * @param interval - The candlestick interval (e.g., "15m", "4h", "1d").
      * @returns An object containing analyzed signal data for the symbol, or null if an error occurs.
      */
-    const fetchAndAnalyze = async (symbol: string, interval: string) => {
+    const fetchAndAnalyze = async (symbol: string, interval: string): Promise<SignalData | null> => {
       // Fetch klines data
       const raw = await fetchWithRetry(
         `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=500`
@@ -360,14 +371,16 @@ export default function SiteADataLoader() {
       const priceChangePercent = parseFloat(ticker24h.priceChangePercent);
 
       // Calculate previous session candles and highest volume color
-      const { prevSessionStart, prevSessionEnd } = getSessions(interval); // Pass interval to getSessions
-      const candlesPrev = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
+      const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(interval); // Get current session times too
+
+      const candlesCurrentSession = candles.filter((c: Candle) => c.timestamp >= sessionStart && c.timestamp <= sessionEnd);
+      const candlesPrevSession = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
 
       let highestVolumeColorPrev: 'green' | 'red' | null = null;
-      if (candlesPrev.length > 0) {
+      if (candlesPrevSession.length > 0) {
         let maxVolume = -1;
         let highestVolumeCandle: Candle | null = null;
-        for (const candle of candlesPrev) {
+        for (const candle of candlesPrevSession) {
           if (candle.volume > maxVolume) {
             maxVolume = candle.volume;
             highestVolumeCandle = candle;
@@ -413,16 +426,18 @@ export default function SiteADataLoader() {
       }
 
       // Calculate today's highest high and lowest low from current session candles
-      const todaysHighestHigh = candles.reduce((max, c) => Math.max(max, c.high), -Infinity);
-      const todaysLowestLow = candles.reduce((min, c) => Math.min(min, c.low), Infinity);
+      // Ensure there are candles in the current session before reducing
+      const todaysHighestHigh = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const todaysLowestLow = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
       // Calculate previous session's highest high and lowest low
-      const prevSessionHigh = candlesPrev.reduce((max, c) => Math.max(max, c.high), -Infinity);
-      const prevSessionLow = candlesPrev.reduce((min, c) => Math.min(min, c.low), Infinity);
+      // Ensure there are candles in the previous session before reducing
+      const prevSessionHigh = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const prevSessionLow = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
       // New Breakout Logic: Today's high/low vs. Previous Session's high/low
-      const bullishBreakout = todaysHighestHigh !== -Infinity && prevSessionHigh !== -Infinity && todaysHighestHigh > prevSessionHigh;
-      const bearishBreakout = todaysLowestLow !== Infinity && prevSessionLow !== Infinity && todaysLowestLow < prevSessionLow;
+      const bullishBreakout = todaysHighestHigh !== null && prevSessionHigh !== null && todaysHighestHigh > prevSessionHigh;
+      const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && todaysLowestLow < prevSessionLow;
 
       // Set mainTrend.breakout based on the new logic
       if (bullishBreakout) {
@@ -432,10 +447,10 @@ export default function SiteADataLoader() {
       }
 
       // Check for doji after breakout (applies to the new breakout)
-      if (mainTrend.breakout && candles.length > 0) {
-        const lastCandle = candles[candles.length - 1];
-        const bodySize = Math.abs(lastCandle.close - lastCandle.open);
-        const totalRange = lastCandle.high - lastCandle.low;
+      if (mainTrend.breakout && candlesCurrentSession.length > 0) {
+        const lastCandleCurrentSession = candlesCurrentSession[candlesCurrentSession.length - 1];
+        const bodySize = Math.abs(lastCandleCurrentSession.close - lastCandleCurrentSession.open);
+        const totalRange = lastCandleCurrentSession.high - lastCandleCurrentSession.low;
         if (totalRange > 0 && bodySize / totalRange < 0.2) { // 20% body size as a threshold for doji-like candle
           mainTrend.isDojiAfterBreakout = true;
         }
@@ -487,7 +502,7 @@ export default function SiteADataLoader() {
       );
 
       if (isMounted) {
-        setSignals((prev) => [...prev, ...newSignals.filter(Boolean)]); // filter(Boolean) removes null entries
+        setSignals((prev) => [...prev, ...newSignals.filter(Boolean) as SignalData[]]); // filter(Boolean) removes null entries
         currentIndex += BATCH_SIZE;
 
         // Update last updated timestamp after processing a batch
@@ -521,40 +536,45 @@ export default function SiteADataLoader() {
     return signals.filter(s => getSignal(s) === 'MAX ZONE PUMP');
   }, [signals]);
 
+  // Filter signals for bullish and bearish breakouts
+  const bullishBreakoutSymbols = useMemo(() => {
+    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend.isDojiAfterBreakout);
+  }, [signals]);
+
+  const bearishBreakoutSymbols = useMemo(() => {
+    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend.isDojiAfterBreakout);
+  }, [signals]);
+
+
   // Calculate statistics for the "Market Overview" section
   const marketStats = useMemo(() => {
     const greenPriceChangeCount = signals.filter(
-      (t: { priceChangePercent: string }) => parseFloat(t.priceChangePercent) > 0
+      (t) => parseFloat(String(t.priceChangePercent)) > 0
     ).length;
 
     const redPriceChangeCount = signals.filter(
-      (t: { priceChangePercent: string }) => parseFloat(t.priceChangePercent) < 0
+      (t) => parseFloat(String(t.priceChangePercent)) < 0
     ).length;
 
     const greenVolumeCount = signals.filter(
-      (s: { highestVolumeColorPrev: string }) => s.highestVolumeColorPrev === 'green'
+      (s) => s.highestVolumeColorPrev === 'green'
     ).length;
 
     const redVolumeCount = signals.filter(
-      (s: { highestVolumeColorPrev: string }) => s.highestVolumeColorPrev === 'red'
+      (s) => s.highestVolumeColorPrev === 'red'
     ).length;
 
     const bullishTrendCount = signals.filter(
-        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.trend === 'bullish'
+        (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
     ).length;
 
     const bearishTrendCount = signals.filter(
-        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.trend === 'bearish'
+        (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
     ).length;
 
     // Breakout counts are now specifically based on the previous session's activity
-    const bullishBreakoutCount = signals.filter(
-        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend.isDojiAfterBreakout
-    ).length;
-
-    const bearishBreakoutCount = signals.filter(
-        (s: { mainTrend: MainTrend }) => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend.isDojiAfterBreakout
-    ).length;
+    const bullishBreakoutCount = bullishBreakoutSymbols.length;
+    const bearishBreakoutCount = bearishBreakoutSymbols.length;
 
 
     return {
@@ -567,7 +587,7 @@ export default function SiteADataLoader() {
       bullishBreakoutCount,
       bearishBreakoutCount,
     };
-  }, [signals]);
+  }, [signals, bullishBreakoutSymbols, bearishBreakoutSymbols]);
 
 
   return (
@@ -649,13 +669,99 @@ export default function SiteADataLoader() {
           </div>
         )}
 
+        {/* Display Bullish Breakout Symbols */}
+        {!loading && bullishBreakoutSymbols.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-green-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-5 text-center">
+              Bullish Breakouts ({bullishBreakoutSymbols.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                      Symbol
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Current Price
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                      24h Change (%)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {bullishBreakoutSymbols.map((s) => (
+                    <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-green-200">
+                        {s.symbol}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                        ${s.closes && s.closes.length > 0 ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Display Bearish Breakout Symbols */}
+        {!loading && bearishBreakoutSymbols.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-red-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-red-300 mb-5 text-center">
+              Bearish Breakouts ({bearishBreakoutSymbols.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                      Symbol
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Current Price
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                      24h Change (%)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {bearishBreakoutSymbols.map((s) => (
+                    <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-red-200">
+                        {s.symbol}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                        ${s.closes && s.closes.length > 0 ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {!loading && maxPumpZoneSignals.length === 0 && (
           <div className="text-center text-lg text-gray-400 mt-10">
             No "MAX ZONE PUMP" signals found for the selected timeframe.
           </div>
         )}
 
-        {/* Display MAX ZONE PUMP Signals */}
+        {/* Display MAX ZONE PUMP Signals (kept for completeness as it was in your original code) */}
         {!loading && maxPumpZoneSignals.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
             <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
@@ -683,7 +789,7 @@ export default function SiteADataLoader() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {maxPumpZoneSignals.map((s: any) => { // Added any for simplicity, ideally would type 's'
+                  {maxPumpZoneSignals.map((s) => {
                     const pumpDump = getRecentRSIDiff(s.rsi14, 14);
                     const currentPrice = s.closes ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
                     return (
