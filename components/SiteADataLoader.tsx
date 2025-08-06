@@ -820,8 +820,8 @@ export default function SiteADataLoader() {
                 </tbody>
               </table>
             </div>
-            < CryptoSignalsDashboard />
           </div>
+      < CryptoSignalsDashboard />
         )}
       </div>
     </div>
