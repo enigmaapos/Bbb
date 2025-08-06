@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
-// Use this for clipboard functionality
+// A utility function to copy text to the clipboard.
+// This is a browser-safe implementation for a sandboxed environment.
 const copyToClipboard = (text) => {
   const el = document.createElement('textarea');
   el.value = text;
@@ -10,6 +11,7 @@ const copyToClipboard = (text) => {
   document.body.removeChild(el);
 };
 
+// Helper function to convert a timeframe string to milliseconds.
 const getMillis = (timeframe) => {
   switch (timeframe) {
     case '15m': return 15 * 60 * 1000;
@@ -19,6 +21,8 @@ const getMillis = (timeframe) => {
   }
 };
 
+// Calculates the start timestamps for the current and previous trading sessions
+// based on the selected timeframe.
 const getSessions = (timeframe, nowMillis) => {
   const tfMillis = getMillis(timeframe);
   let currentSessionStart;
@@ -40,15 +44,20 @@ const getSessions = (timeframe, nowMillis) => {
   return { currentSessionStart, prevSessionStart };
 };
 
+// Determines if a candle is a "doji" based on body size relative to total range.
 const isDoji = (candle) => {
   const bodySize = Math.abs(candle.close - candle.open);
   const totalRange = candle.high - candle.low;
   return totalRange > 0 && (bodySize / totalRange) < 0.2;
 };
 
+// Determines if a candle is bullish.
 const isBullish = (candle) => candle.close > candle.open;
+
+// Determines if a candle is bearish.
 const isBearish = (candle) => candle.close < candle.open;
 
+// Calculates various technical metrics (EMAs, RSI, breakouts) from candle data.
 const calculateMetrics = (candles, timeframe) => {
   if (!candles || candles.length < 2) return null;
 
@@ -87,6 +96,7 @@ const calculateMetrics = (candles, timeframe) => {
     mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
   }
 
+  // Calculates Exponential Moving Average (EMA)
   const ema = (candles, period) => {
     if (candles.length < period) return [];
     const alpha = 2 / (period + 1);
@@ -109,6 +119,7 @@ const calculateMetrics = (candles, timeframe) => {
   const lastEma20 = ema20[ema20.length - 1];
   const lastEma50 = ema50[ema50.length - 1];
 
+  // Calculates Relative Strength Index (RSI)
   const getRSI = (candles, period = 14) => {
     if (candles.length < period) return null;
     let gains = 0;
@@ -154,20 +165,25 @@ const calculateMetrics = (candles, timeframe) => {
   };
 };
 
-// Main component starts here
+// Main component for the Crypto Signals Dashboard
 const CryptoSignalsDashboard = () => {
+  // State to hold the fetched data and UI status
   const [symbolsData, setSymbolsData] = useState({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState(null);
+  
+  // Refs for managing intervals and timeouts
   const fetchIntervalRef = useRef(null);
   const timeoutRef = useRef(null);
 
+  // List of cryptocurrency symbols to track
   const symbols = useMemo(() => [
     'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', '1000SHIBUSDT', 'DOTUSDT', 'LINKUSDT',
     'AVAXUSDT', 'TRXUSDT', 'POLYXUSDT', 'BCHUSDT', 'LTCUSDT', 'UNIUSDT', 'ICPUSDT', 'ETCUSDT', 'APTUSDT', 'XLMUSDT'
   ], []);
 
+  // Function to fetch data from the Binance Futures API
   const fetchData = async () => {
     try {
       setErrorMessage(null);
@@ -177,6 +193,7 @@ const CryptoSignalsDashboard = () => {
       const startTime = nowMillis - (100 * tfMillis);
       
       for (const symbol of symbols) {
+        // Fetching data from Binance Futures API for perpetual USDT pairs
         const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
         const response = await fetch(url);
         const data = await response.json();
@@ -207,6 +224,7 @@ const CryptoSignalsDashboard = () => {
     }
   };
 
+  // useEffect to handle data fetching and refreshing
   useEffect(() => {
     setLoading(true);
     fetchData();
@@ -223,8 +241,9 @@ const CryptoSignalsDashboard = () => {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [timeframe]);
+  }, [timeframe]); // Re-run effect when timeframe changes
 
+  // Memoized lists for different signals
   const bullFlagSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol].metrics;
@@ -245,22 +264,23 @@ const CryptoSignalsDashboard = () => {
     });
   }, [symbolsData]);
 
-  // The condition has been updated here to remove the Doji check
   const bullishBreakoutSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol].metrics;
+      // Note: The original code correctly removed the Doji check here.
       return s && s.mainTrend && s.mainTrend.breakout === 'bullish';
     });
   }, [symbolsData]);
 
-  // The condition has been updated here to remove the Doji check
   const bearishBreakoutSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol].metrics;
+      // Note: The original code correctly removed the Doji check here.
       return s && s.mainTrend && s.mainTrend.breakout === 'bearish';
     });
   }, [symbolsData]);
   
+  // Helper component to render a list of symbols
   const renderSymbolsList = (title, symbols, color) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
@@ -290,6 +310,7 @@ const CryptoSignalsDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
+      <script src="https://cdn.tailwindcss.com"></script>
       <style>{`
         ::-webkit-scrollbar {
           width: 8px;
@@ -310,7 +331,7 @@ const CryptoSignalsDashboard = () => {
           <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
             Site A DataLoader Dashboard
           </h1>
-          <p className="text-gray-400 text-lg">Real-time market analysis for top cryptocurrencies.</p>
+          <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
         </header>
 
         <div className="flex justify-center mb-8">
