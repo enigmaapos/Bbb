@@ -539,11 +539,11 @@ export default function SiteADataLoader() {
 
   // Filter signals for bullish and bearish breakouts
   const bullishBreakoutSymbols = useMemo(() => {
-    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend.isDojiAfterBreakout);
+    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend);
   }, [signals]);
 
   const bearishBreakoutSymbols = useMemo(() => {
-    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend.isDojiAfterBreakout);
+    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend);
   }, [signals]);
 
 
