@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
-// A utility function to copy text to the clipboard.
-// This is a browser-safe implementation for a sandboxed environment.
-const copyToClipboard = (text) => {
+// Use this for clipboard functionality
+// FIX: Added type annotation for the 'text' parameter to resolve the TypeScript error.
+const copyToClipboard = (text: string) => {
   const el = document.createElement('textarea');
   el.value = text;
   document.body.appendChild(el);
@@ -11,8 +11,7 @@ const copyToClipboard = (text) => {
   document.body.removeChild(el);
 };
 
-// Helper function to convert a timeframe string to milliseconds.
-const getMillis = (timeframe) => {
+const getMillis = (timeframe: string) => {
   switch (timeframe) {
     case '15m': return 15 * 60 * 1000;
     case '4h': return 4 * 60 * 60 * 1000;
@@ -21,9 +20,33 @@ const getMillis = (timeframe) => {
   }
 };
 
-// Calculates the start timestamps for the current and previous trading sessions
-// based on the selected timeframe.
-const getSessions = (timeframe, nowMillis) => {
+interface Candle {
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+interface Metrics {
+  price: number;
+  prevSessionHigh: number;
+  prevSessionLow: number;
+  todaysHighestHigh: number;
+  todaysLowestLow: number;
+  ema5: number;
+  ema10: number;
+  ema20: number;
+  ema50: number;
+  rsi: number;
+  mainTrend: {
+    breakout: 'bullish' | 'bearish' | null;
+    isDojiAfterBreakout: boolean;
+  };
+}
+
+const getSessions = (timeframe: string, nowMillis: number) => {
   const tfMillis = getMillis(timeframe);
   let currentSessionStart;
   
@@ -44,21 +67,16 @@ const getSessions = (timeframe, nowMillis) => {
   return { currentSessionStart, prevSessionStart };
 };
 
-// Determines if a candle is a "doji" based on body size relative to total range.
-const isDoji = (candle) => {
+const isDoji = (candle: Candle) => {
   const bodySize = Math.abs(candle.close - candle.open);
   const totalRange = candle.high - candle.low;
   return totalRange > 0 && (bodySize / totalRange) < 0.2;
 };
 
-// Determines if a candle is bullish.
-const isBullish = (candle) => candle.close > candle.open;
+const isBullish = (candle: Candle) => candle.close > candle.open;
+const isBearish = (candle: Candle) => candle.close < candle.open;
 
-// Determines if a candle is bearish.
-const isBearish = (candle) => candle.close < candle.open;
-
-// Calculates various technical metrics (EMAs, RSI, breakouts) from candle data.
-const calculateMetrics = (candles, timeframe) => {
+const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
   if (!candles || candles.length < 2) return null;
 
   const nowMillis = Date.now();
@@ -80,7 +98,7 @@ const calculateMetrics = (candles, timeframe) => {
   const prevLastCandle = candles[lastCandleIndex - 1];
 
   const mainTrend = {
-    breakout: null,
+    breakout: null as 'bullish' | 'bearish' | null,
     isDojiAfterBreakout: false,
   };
 
@@ -96,11 +114,10 @@ const calculateMetrics = (candles, timeframe) => {
     mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
   }
 
-  // Calculates Exponential Moving Average (EMA)
-  const ema = (candles, period) => {
+  const ema = (candles: Candle[], period: number) => {
     if (candles.length < period) return [];
     const alpha = 2 / (period + 1);
-    const emaValues = [candles[0].close];
+    const emaValues: number[] = [candles[0].close];
     for (let i = 1; i < candles.length; i++) {
       const prevEma = emaValues[i - 1];
       const newEma = (candles[i].close - prevEma) * alpha + prevEma;
@@ -119,8 +136,7 @@ const calculateMetrics = (candles, timeframe) => {
   const lastEma20 = ema20[ema20.length - 1];
   const lastEma50 = ema50[ema50.length - 1];
 
-  // Calculates Relative Strength Index (RSI)
-  const getRSI = (candles, period = 14) => {
+  const getRSI = (candles: Candle[], period = 14) => {
     if (candles.length < period) return null;
     let gains = 0;
     let losses = 0;
@@ -160,46 +176,40 @@ const calculateMetrics = (candles, timeframe) => {
     ema10: lastEma10,
     ema20: lastEma20,
     ema50: lastEma50,
-    rsi,
+    rsi: rsi!, // Non-null assertion, as we check for length
     mainTrend,
   };
 };
 
-// Main component for the Crypto Signals Dashboard
+// Main component starts here
 const CryptoSignalsDashboard = () => {
-  // State to hold the fetched data and UI status
-  const [symbolsData, setSymbolsData] = useState({});
+  const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
-  const [errorMessage, setErrorMessage] = useState(null);
-  
-  // Refs for managing intervals and timeouts
-  const fetchIntervalRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const fetchIntervalRef = useRef<number | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
-  // List of cryptocurrency symbols to track
   const symbols = useMemo(() => [
     'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', '1000SHIBUSDT', 'DOTUSDT', 'LINKUSDT',
     'AVAXUSDT', 'TRXUSDT', 'POLYXUSDT', 'BCHUSDT', 'LTCUSDT', 'UNIUSDT', 'ICPUSDT', 'ETCUSDT', 'APTUSDT', 'XLMUSDT'
   ], []);
 
-  // Function to fetch data from the Binance Futures API
   const fetchData = async () => {
     try {
       setErrorMessage(null);
-      const newSymbolsData = {};
+      const newSymbolsData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
       const startTime = nowMillis - (100 * tfMillis);
       
       for (const symbol of symbols) {
-        // Fetching data from Binance Futures API for perpetual USDT pairs
         const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
         const response = await fetch(url);
         const data = await response.json();
         
         if (data && Array.isArray(data) && data.length > 0) {
-          const candles = data.map(d => ({
+          const candles = data.map((d: any[]) => ({
             openTime: d[0],
             open: parseFloat(d[1]),
             high: parseFloat(d[2]),
@@ -224,26 +234,24 @@ const CryptoSignalsDashboard = () => {
     }
   };
 
-  // useEffect to handle data fetching and refreshing
   useEffect(() => {
     setLoading(true);
     fetchData();
     if (fetchIntervalRef.current) {
       clearInterval(fetchIntervalRef.current);
     }
-    fetchIntervalRef.current = setInterval(fetchData, 60000); // Refresh every 60 seconds
+    fetchIntervalRef.current = window.setInterval(fetchData, 60000); // Refresh every 60 seconds
 
     return () => {
       if (fetchIntervalRef.current) {
-        clearInterval(fetchIntervalRef.current);
+        window.clearInterval(fetchIntervalRef.current);
       }
       if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+        window.clearTimeout(timeoutRef.current);
       }
     };
-  }, [timeframe]); // Re-run effect when timeframe changes
+  }, [timeframe]);
 
-  // Memoized lists for different signals
   const bullFlagSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol].metrics;
@@ -267,7 +275,6 @@ const CryptoSignalsDashboard = () => {
   const bullishBreakoutSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol].metrics;
-      // Note: The original code correctly removed the Doji check here.
       return s && s.mainTrend && s.mainTrend.breakout === 'bullish';
     });
   }, [symbolsData]);
@@ -275,13 +282,11 @@ const CryptoSignalsDashboard = () => {
   const bearishBreakoutSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol].metrics;
-      // Note: The original code correctly removed the Doji check here.
       return s && s.mainTrend && s.mainTrend.breakout === 'bearish';
     });
   }, [symbolsData]);
   
-  // Helper component to render a list of symbols
-  const renderSymbolsList = (title, symbols, color) => (
+  const renderSymbolsList = (title: string, symbols: string[], color: string) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-2xl font-bold">{title} ({symbols.length})</h3>
