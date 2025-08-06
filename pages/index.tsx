@@ -13,9 +13,9 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults,
-  SentimentSignal, // Ensure this type includes reason, strongBuy, strongSell if used in JSX
+  // SentimentSignal, // Removed import from types.ts temporarily to define locally
   SentimentArticle,
-} from "../types"; // Make sure your types.ts defines SentimentSignal with reason, strongBuy, strongSell
+} from "../types";
 import {
   BinanceExchangeInfoResponse,
   BinanceSymbol,
@@ -23,40 +23,24 @@ import {
   BinancePremiumIndex,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-// import { detectSentimentSignals } from "../utils/signalDetector"; // Temporarily commented out for debugging
+import { detectSentimentSignals } from "../utils/signalDetector"; // Re-enabled original import
 import axios, { AxiosError } from 'axios';
 import { fetchCryptoNews } from "../utils/newsFetcher";
 
-
-// --- TEMPORARY DUMMY FUNCTION FOR DEBUGGING ---
-// This function is here to ensure the UI section for actionable signals can render.
-// Replace this with your actual detectSentimentSignals logic from ../utils/signalDetector.ts
-const dummyDetectSentimentSignals = (data: SymbolData[]): SentimentSignal[] => {
-  const signals: SentimentSignal[] = [];
-
-  // Add some sample bullish opportunities (matching your example output)
-  signals.push({ symbol: 'TRXUSDT', signal: 'Bullish Opportunity', reason: 'Funding negative, price rising.', strongBuy: true });
-  signals.push({ symbol: 'WAVESUSDT', signal: 'Bullish Opportunity', reason: 'High volume, potential reversal.' });
-  signals.push({ symbol: 'RENUSDT', signal: 'Bullish Opportunity', reason: 'Strong buying pressure detected.' });
-  signals.push({ symbol: 'OGUSDT', signal: 'Bullish Opportunity', reason: 'Accumulation phase observed.' });
-  signals.push({ symbol: 'SKATEUSDT', signal: 'Bullish Opportunity', reason: 'Breakout from resistance.' });
-
-  // Add some sample early squeeze signals
-  signals.push({ symbol: 'ILVUSDT', signal: 'Early Squeeze Signal', reason: 'Short interest increasing, price stable.' });
-  signals.push({ symbol: 'OMUSDT', signal: 'Early Squeeze Signal', reason: 'Volume spike on short positions.' });
-  signals.push({ symbol: 'SPKUSDT', signal: 'Early Squeeze Signal', reason: 'Open interest divergence.' });
-
-  // Add some sample early long trap signals
-  signals.push({ symbol: 'BTCUSDT', signal: 'Early Long Trap', reason: 'Price dropping, longs still paying.', strongSell: true });
-  signals.push({ symbol: 'ETHUSDT', signal: 'Early Long Trap', reason: 'Weak support, high funding.' });
-  signals.push({ symbol: 'BCHUSDT', signal: 'Early Long Trap', reason: 'Bearish divergence on indicators.' });
-  signals.push({ symbol: 'XRPUSDT', signal: 'Early Long Trap', reason: 'Failed retest of resistance.' });
-  signals.push({ symbol: 'LTCUSDT', signal: 'Early Long Trap', reason: 'Distribution pattern observed.' });
-  signals.push({ symbol: 'ETCUSDT', signal: 'Early Long Trap', reason: 'Low volume on bounce attempts.' });
-
-  return signals;
-};
-// --- END TEMPORARY DUMMY FUNCTION ---
+// --- TEMPORARY SentimentSignal DEFINITION ---
+// YOU SHOULD MOVE THIS TO YOUR types.ts FILE
+interface SentimentSignal {
+  symbol: string;
+  signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Early Squeeze Signal' | 'Early Long Trap' | string;
+  reason?: string; // Made optional, as it might not always be present
+  strongBuy?: boolean; // Made optional
+  strongSell?: boolean; // Made optional
+  // Assuming priceChangePercent is a required property based on the error
+  priceChangePercent: number; // Added this based on the error message
+  // Add any other properties that your actual detectSentimentSignals function might return
+  // or that are part of your existing SentimentSignal type in types.ts
+}
+// --- END TEMPORARY SentimentSignal DEFINITION ---
 
 
 // Custom type guard for AxiosError
@@ -405,9 +389,9 @@ export default function PriceFundingTracker() {
           };
         }).filter((d: SymbolData) => d.volume > 0);
 
-        // --- USING DUMMY SIGNALS FOR DEBUGGING ---
-        const allSentimentSignals = dummyDetectSentimentSignals(combinedData);
-        // --- END DUMMY SIGNALS ---
+        // --- USING ORIGINAL detectSentimentSignals ---
+        const allSentimentSignals = detectSentimentSignals(combinedData);
+        // --- END ORIGINAL detectSentimentSignals ---
 
         combinedData = combinedData.map(d => ({
           ...d,
@@ -506,10 +490,6 @@ export default function PriceFundingTracker() {
       if (wsPingIntervalRef.current) {
         clearInterval(wsPingIntervalRef.current);
         wsPingIntervalRef.current = null;
-      }
-      if (liquidationWsRef.current) {
-        liquidationWsRef.current.close(1000, 'Component Unmounted');
-        liquidationWsRef.current = null;
       }
       if (aggregationTimeoutRef.current) {
         clearTimeout(aggregationTimeoutRef.current);
@@ -630,8 +610,7 @@ export default function PriceFundingTracker() {
   const earlySqueezeSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Squeeze Signal');
   const earlyLongTrapSignals = actionableSentimentSignals.filter(s => s.signal === 'Early Long Trap');
 
-  // Simplified filtering for these arrays to ensure data is displayed if available in actionableSentimentSignals
-  // The dummy data now provides these, so they should show up.
+  // These now correctly filter from actionableSentimentSignals, which should adhere to the new SentimentSignal type
   const top5BullishPositiveFundingSignals = bullishActionableSignals.slice(0, 5);
   const top5BearishNegativeFundingSignals = bearishActionableSignals.slice(0, 5);
 
@@ -812,9 +791,11 @@ export default function PriceFundingTracker() {
                     <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
                       <div className="flex justify-between items-center mb-1">
                         <h4 className="font-bold text-green-300">{signal.symbol}</h4>
+                        {/* Render strongBuy only if it exists and is true */}
                         {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>}
                       </div>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                      {/* Render reason only if it exists */}
+                      {signal.reason && <p className="text-gray-200 text-xs">{signal.reason}</p>}
                     </div>
                   ))}
                 </div>
@@ -831,7 +812,7 @@ export default function PriceFundingTracker() {
                         <h4 className="font-bold text-orange-300">{signal.symbol}</h4>
                         {signal.strongBuy && <span className="text-xs text-white bg-orange-800 px-2 py-0.5 rounded-md">🚀 Strong Buy</span>}
                       </div>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                      {signal.reason && <p className="text-gray-200 text-xs">{signal.reason}</p>}
                     </div>
                   ))}
                 </div>
@@ -848,7 +829,7 @@ export default function PriceFundingTracker() {
                         <h4 className="font-bold text-purple-300">{signal.symbol}</h4>
                         {signal.strongSell && <span className="text-xs text-white bg-purple-800 px-2 py-0.5 rounded-md">⚠️ Strong Sell</span>}
                       </div>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                      {signal.reason && <p className="text-gray-200 text-xs">{signal.reason}</p>}
                     </div>
                   ))}
                 </div>
@@ -865,7 +846,7 @@ export default function PriceFundingTracker() {
                         <h4 className="font-bold text-red-300">{signal.symbol}</h4>
                         {signal.strongSell && <span className="text-xs text-white bg-red-800 px-2 py-0.5 rounded-md">🔻 Strong Sell</span>}
                       </div>
-                      <p className="text-gray-200 text-xs">{signal.reason}</p>
+                      {signal.reason && <p className="text-gray-200 text-xs">{signal.reason}</p>}
                     </div>
                   ))}
                 </div>
