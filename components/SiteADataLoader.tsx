@@ -10,7 +10,7 @@ import { useEffect, useState, useMemo } from "react";
 function calculateEMA(data: number[], period: number): number[] {
   const k = 2 / (period + 1); // Smoothing constant
   const ema: number[] = [];
-  let previousEma: number | null = null;
+  let previousEma: number | null = null; // Explicitly type as number or null
 
   for (let i = 0; i < data.length; i++) {
     // For the initial periods before enough data for SMA, push NaN
@@ -25,7 +25,7 @@ function calculateEMA(data: number[], period: number): number[] {
     }
     // Calculate EMA using the formula: CurrentPrice * K + PreviousEMA * (1 - K)
     if (previousEma !== null) {
-      const currentEma = data[i] * k + previousEma * (1 - k);
+      const currentEma: number = data[i] * k + previousEma * (1 - k); // Explicitly type as number
       ema.push(currentEma);
       previousEma = currentEma;
     }
