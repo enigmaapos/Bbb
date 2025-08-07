@@ -39,6 +39,7 @@ interface SignalData {
   prevClosedGreen: boolean | null;
   prevClosedRed: boolean | null;
   highestVolumeColorPrev: 'green' | 'red' | null;
+  signal: string; // New property for the flag signal
 }
 
 interface Metrics {
@@ -79,31 +80,104 @@ function calculateEMA(data: number[], period: number): number[] {
 /**
  * Calculates the Relative Strength Index (RSI).
  */
-function calculateRSI(data: number[], period: number): number[] {
-  const rsi: number[] = [];
-  const gains: number[] = [];
-  const losses: number[] = [];
-
-  for (let i = 1; i < data.length; i++) {
-    const change = data[i] - data[i - 1];
-    gains[i - 1] = change > 0 ? change : 0;
-    losses[i - 1] = change < 0 ? -change : 0;
+function calculateRSI(closes: number[], period = 14): number[] {
+  if (!Array.isArray(closes) || closes.length <= period) {
+    return [];
   }
-  let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
-
-  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-  rsi[period] = 100 - (100 / (1 + rs));
-
-  for (let i = period + 1; i < data.length; i++) {
-    avgGain = ((avgGain * (period - 1)) + gains[i - 1]) / period;
-    avgLoss = ((avgLoss * (period - 1)) + losses[i - 1]) / period;
-
-    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-    rsi[i] = 100 - (100 / (1 + rs));
+  const rsi: number[] = [];
+  let gains = 0;
+  let losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) {
+      gains += diff;
+    } else {
+      losses -= diff;
+    }
+  }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  let rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+  rsi[period] = 100 - 100 / (1 + rs);
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rsi[i] = 100 - 100 / (1 + rs);
+  }
+  for (let i = 0; i < period; i++) {
+    rsi[i] = NaN;
   }
   return rsi;
 }
+
+/**
+ * Calculates the recent RSI difference (pump/dump strength) over a lookback period.
+ */
+function getRecentRSIDiff(
+  rsi: number[],
+  lookback = 14
+): {
+  recentHigh: number;
+  recentLow: number;
+  pumpStrength: number;
+  dumpStrength: number;
+  direction: 'pump' | 'dump' | 'neutral';
+  strength: number;
+} | null {
+  if (rsi.length < lookback) return null;
+  const recentRSI = rsi.slice(-lookback);
+  let recentHigh = -Infinity;
+  let recentLow = Infinity;
+  for (const value of recentRSI) {
+    if (!isNaN(value)) {
+      if (value > recentHigh) recentHigh = value;
+      if (value < recentLow) recentLow = value;
+    }
+  }
+  const pumpStrength = recentHigh - recentLow;
+  const dumpStrength = Math.abs(recentLow - recentHigh);
+  const startRSI = recentRSI[0];
+  const endRSI = recentRSI[recentRSI.length - 1];
+  const direction = endRSI > startRSI ? 'pump' : endRSI < startRSI ? 'dump' : 'neutral';
+  const strength = Math.abs(endRSI - startRSI);
+  return {
+    recentHigh,
+    recentLow,
+    pumpStrength,
+    dumpStrength,
+    direction,
+    strength,
+  };
+}
+
+/**
+ * Determines a trading signal based on RSI pump/dump zones.
+ */
+const getSignal = (s: { rsi14?: number[] }): string => {
+  const pumpDump = s.rsi14 ? getRecentRSIDiff(s.rsi14, 14) : null;
+  if (!pumpDump) return 'NO DATA';
+  const { direction, pumpStrength: pump, dumpStrength: dump } = pumpDump;
+  const inRange = (val: number, min: number, max: number) =>
+    val !== undefined && val >= min && val <= max;
+  const isAbove30 = (val: number) => val !== undefined && val >= 30;
+  const pumpAbove30 = isAbove30(pump);
+  const dumpAbove30 = isAbove30(dump);
+  const pumpInRange_21_26 = inRange(pump, 21, 26);
+  const dumpInRange_21_26 = inRange(dump, 21, 26);
+  const pumpInRange_1_10 = inRange(pump, 1, 10);
+  const dumpInRange_1_10 = inRange(dump, 1, 10);
+  if (direction === 'pump' && pumpAbove30) return 'MAX ZONE PUMP';
+  if (direction === 'dump' && dumpAbove30) return 'MAX ZONE DUMP';
+  if (pumpInRange_21_26 && direction === 'pump') return 'BALANCE ZONE PUMP';
+  if (dumpInRange_21_26 && direction === 'dump') return 'BALANCE ZONE DUMP';
+  if (pumpInRange_1_10 && direction === 'pump') return 'LOWEST ZONE PUMP';
+  if (dumpInRange_1_10 && direction === 'dump') return 'LOWEST ZONE DUMP';
+  return 'NO STRONG SIGNAL';
+};
 
 // --- Utility Functions from FlagSignalsDashboard.tsx ---
 const getMillis = (timeframe: string) => {
@@ -143,40 +217,29 @@ const isDoji = (candle: Candle) => {
 
 const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
   if (!candles || candles.length < 2) return null;
-
   const nowMillis = Date.now();
   const { currentSessionStart, prevSessionStart } = getSessions(timeframe, nowMillis);
-
   const prevSessionCandles = candles.filter(c => c.openTime >= prevSessionStart && c.openTime < currentSessionStart);
   const currentSessionCandles = candles.filter(c => c.openTime >= currentSessionStart);
-
   if (prevSessionCandles.length === 0 || currentSessionCandles.length === 0) return null;
-
   const prevSessionHigh = Math.max(...prevSessionCandles.map(c => c.high));
   const prevSessionLow = Math.min(...prevSessionCandles.map(c => c.low));
-  
   const todaysHighestHigh = Math.max(...currentSessionCandles.map(c => c.high));
   const todaysLowestLow = Math.min(...currentSessionCandles.map(c => c.low));
-  
   const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
-
   const mainTrend = {
     breakout: null as 'bullish' | 'bearish' | null,
     isDojiAfterBreakout: false,
   };
-
   const isDojiAfterBreakout = isDoji(lastCandle);
-  
   if (todaysHighestHigh > prevSessionHigh) {
     mainTrend.breakout = 'bullish';
     mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
   }
-  
   if (todaysLowestLow < prevSessionLow) {
     mainTrend.breakout = 'bearish';
     mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
   }
-
   const ema = (candles: Candle[], period: number) => {
     if (candles.length < period) return [];
     const alpha = 2 / (period + 1);
@@ -190,22 +253,18 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
     }
     return emaValues;
   };
-  
   const ema5 = ema(candles, 5);
   const ema10 = ema(candles, 10);
   const ema20 = ema(candles, 20);
   const ema50 = ema(candles, 50);
-  
   const lastEma5 = ema5[ema5.length - 1];
   const lastEma10 = ema10[ema10.length - 1];
   const lastEma20 = ema20[ema20.length - 1];
   const lastEma50 = ema50[ema50.length - 1];
-
   const getRSI = (candles: Candle[], period = 14) => {
     if (candles.length < period) return null;
     let gains = 0;
     let losses = 0;
-  
     for (let i = 1; i < period; i++) {
       const change = candles[i].close - candles[i - 1].close;
       if (change > 0) {
@@ -214,23 +273,18 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
         losses -= change;
       }
     }
-  
     let avgGain = gains / period;
     let avgLoss = losses / period;
-  
     for (let i = period; i < candles.length; i++) {
       const change = candles[i].close - candles[i - 1].close;
       avgGain = ((avgGain * (period - 1)) + (change > 0 ? change : 0)) / period;
       avgLoss = ((avgLoss * (period - 1)) + (change < 0 ? -change : 0)) / period;
     }
-  
     const rs = avgLoss === 0 ? 999 : avgGain / avgLoss;
     const rsi = 100 - (100 / (1 + rs));
     return rsi;
   };
-
   const rsi = getRSI(candles, 14);
-
   return {
     price: lastCandle.close,
     prevSessionHigh,
@@ -246,18 +300,13 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   };
 };
 
+
 // --- Mock API functions to replace the real ones ---
-/**
- * Mocks fetching a list of perpetual USDT symbols.
- */
 const mockFetchFuturesSymbols = async (): Promise<string[]> => {
   await new Promise(resolve => setTimeout(resolve, 500));
   return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT'];
 };
 
-/**
- * Mocks fetching candle data for a given list of symbols and timeframe.
- */
 const mockFetchData = async (symbolsToFetch: string[], timeframe: string) => {
   await new Promise(resolve => setTimeout(resolve, 1000));
   const newSymbolsData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
@@ -277,7 +326,7 @@ const mockFetchData = async (symbolsToFetch: string[], timeframe: string) => {
         low,
         close,
         volume: 100000 + Math.random() * 1000000,
-        timestamp: Date.now() - (100 - i) * intervalMillis, // For SiteADataLoader
+        timestamp: Date.now() - (100 - i) * intervalMillis,
       });
     }
     return candles;
@@ -304,7 +353,6 @@ const FlagSignalsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const fetchIntervalRef = useRef<number | null>(null);
   
-  // Replaces the original fetchData with the mock version
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
@@ -436,7 +484,6 @@ const FlagSignalsDashboard = () => {
           </h1>
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
         </header>
-
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
           <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
             <button
@@ -458,8 +505,6 @@ const FlagSignalsDashboard = () => {
               1d
             </button>
           </div>
-
-          {/* Search Input */}
           <div className="relative w-full md:w-64">
             <input
               type="text"
@@ -480,7 +525,6 @@ const FlagSignalsDashboard = () => {
             )}
           </div>
         </div>
-
         {loading ? (
           <div className="flex justify-center items-center h-[50vh]">
             <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
@@ -497,7 +541,6 @@ const FlagSignalsDashboard = () => {
             {renderSymbolsList('Bear Flags', filterSymbols(bearFlagSymbols), 'bg-orange-600 hover:bg-orange-500')}
           </div>
         )}
-
         <footer className="mt-8 text-center text-gray-500 text-sm">
           <p>Data provided by Binance Futures API (mocked for this environment).</p>
         </footer>
@@ -507,58 +550,11 @@ const FlagSignalsDashboard = () => {
 };
 
 
-// --- SiteADataLoader (renamed CryptoPricesTable) Component ---
+// --- CryptoPricesTable Component ---
 const CryptoPricesTable = () => {
   const [symbols] = useState<string[]>(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
   const [signals, setSignals] = useState<SignalData[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Function to process a single symbol's data
-  const processSymbolData = async (symbol: string): Promise<SignalData | null> => {
-    try {
-      const candles = await mockFetchCandleData(symbol);
-      const closes = candles.map(c => c.close);
-      const rsi14 = calculateRSI(closes, 14);
-      
-      if (candles.length < 2) return null;
-
-      const latestCandle = candles[candles.length - 1];
-      const previousCandle = candles[candles.length - 2];
-      
-      const priceChangePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;
-
-      const mainTrend: MainTrend = {
-        trend: 'neutral',
-        type: 'none',
-        crossoverPrice: 0,
-        breakout: null,
-        isNear: false,
-        isDojiAfterBreakout: false,
-      };
-
-      const prevClosedGreen = previousCandle.close > previousCandle.open;
-      const prevClosedRed = previousCandle.close < previousCandle.open;
-
-      const highestVolumeColorPrev: 'green' | 'red' | null = 
-        previousCandle.volume > candles[candles.length - 3].volume
-        ? (previousCandle.close > previousCandle.open ? 'green' : 'red')
-        : null;
-
-      return {
-        symbol,
-        closes,
-        rsi14,
-        priceChangePercent,
-        mainTrend,
-        prevClosedGreen,
-        prevClosedRed,
-        highestVolumeColorPrev,
-      };
-    } catch (error) {
-      console.error(`Error processing data for ${symbol}:`, error);
-      return null;
-    }
-  };
 
   // Mock function to replace the original fetchCandleData from SiteADataLoader
   async function mockFetchCandleData(symbol: string): Promise<Candle[]> {
@@ -586,6 +582,55 @@ const CryptoPricesTable = () => {
     return mockCandles;
   }
 
+  // Function to process a single symbol's data
+  const processSymbolData = async (symbol: string): Promise<SignalData | null> => {
+    try {
+      const candles = await mockFetchCandleData(symbol);
+      const closes = candles.map(c => c.close);
+      const rsi14 = calculateRSI(closes, 14);
+      
+      if (candles.length < 2) return null;
+
+      const latestCandle = candles[candles.length - 1];
+      const previousCandle = candles[candles.length - 2];
+      
+      const priceChangePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;
+      const signal = getSignal({ rsi14 });
+
+      const mainTrend: MainTrend = {
+        trend: 'neutral',
+        type: 'none',
+        crossoverPrice: 0,
+        breakout: null,
+        isNear: false,
+        isDojiAfterBreakout: false,
+      };
+
+      const prevClosedGreen = previousCandle.close > previousCandle.open;
+      const prevClosedRed = previousCandle.close < previousCandle.open;
+
+      const highestVolumeColorPrev: 'green' | 'red' | null = 
+        previousCandle.volume > candles[candles.length - 3].volume
+        ? (previousCandle.close > previousCandle.open ? 'green' : 'red')
+        : null;
+
+      return {
+        symbol,
+        closes,
+        rsi14,
+        priceChangePercent,
+        mainTrend,
+        prevClosedGreen,
+        prevClosedRed,
+        highestVolumeColorPrev,
+        signal, // Add the new signal here
+      };
+    } catch (error) {
+      console.error(`Error processing data for ${symbol}:`, error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -603,7 +648,6 @@ const CryptoPricesTable = () => {
   const signalTable = useMemo(() => {
     return signals.map(s => {
       const currentPrice = s.closes[s.closes.length - 1]?.toFixed(2) || 'N/A';
-      
       const pumpDump = {
         pumpStrength: s.closes[s.closes.length - 1] > s.closes[s.closes.length - 10]
           ? (s.closes[s.closes.length - 1] / s.closes[s.closes.length - 10]) * 100
@@ -630,6 +674,9 @@ const CryptoPricesTable = () => {
             <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ? 'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
               {s.highestVolumeColorPrev ? s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
             </span>
+          </td>
+          <td className="px-4 py-4 whitespace-nowrap text-sm text-yellow-300 font-medium">
+            {s.signal}
           </td>
         </tr>
       );
@@ -665,6 +712,9 @@ const CryptoPricesTable = () => {
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Prev Volume Color
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Flag Signal
                     </th>
                   </tr>
                 </thead>
