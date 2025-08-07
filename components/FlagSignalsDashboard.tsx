@@ -30,8 +30,8 @@ interface Candle {
 
 interface Metrics {
   price: number;
-  prevSessionHigh: number;
-  prevSessionLow: number;
+  prevSessionHigh: number | null;
+  prevSessionLow: number | null;
   todaysHighestHigh: number;
   todaysLowestLow: number;
   ema5: number;
@@ -153,7 +153,7 @@ const fetchWithRetry = async (url: string, retries = 5, delay = 1000) => {
         const errorBody = await response.json();
         if (errorBody.code === -1003) {
           console.warn(`Binance IP ban detected. Retrying in ${delay * Math.pow(2, i) / 1000}s...`);
-          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+          await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         } else if (errorBody.code === -1121 || errorBody.msg === "Invalid symbol." || errorBody.msg === "Invalid symbol status.") {
           console.warn(`Invalid symbol encountered for URL: ${url}. Skipping this symbol.`);
@@ -226,7 +226,13 @@ const FlagSignalsDashboard: React.FC = () => {
         const isBearFlag = (ema5.at(-1)! < ema10.at(-1)! && ema10.at(-1)! < ema20.at(-1)! && ema20.at(-1)! < ema50.at(-1)! && rsi < 50);
 
         const now = new Date();
-        const { prevSessionHigh, prevSessionLow, sessionStart, sessionEnd } = getSessions(timeframe, now);
+        const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(timeframe, now);
+        
+        // Calculate previous session's high and low from the candles
+        const candlesPrevSession = candles.filter(c => c.openTime >= prevSessionStart && c.openTime <= prevSessionEnd);
+        const prevSessionHigh = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+        const prevSessionLow = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+
         const todaysCandles = candles.filter(c => c.openTime >= sessionStart && c.openTime <= sessionEnd);
         const todaysHighestHigh = Math.max(...todaysCandles.map(c => c.high));
         const todaysLowestLow = Math.min(...todaysCandles.map(c => c.low));
@@ -240,8 +246,8 @@ const FlagSignalsDashboard: React.FC = () => {
         if (ema5.at(-1)! > ema10.at(-1)!) mainTrend.trend = 'bullish';
         else if (ema5.at(-1)! < ema10.at(-1)!) mainTrend.trend = 'bearish';
 
-        if (todaysHighestHigh > prevSessionHigh) mainTrend.breakout = 'bullish';
-        else if (todaysLowestLow < prevSessionLow) mainTrend.breakout = 'bearish';
+        if (todaysHighestHigh > (prevSessionHigh ?? -Infinity)) mainTrend.breakout = 'bullish';
+        else if (todaysLowestLow < (prevSessionLow ?? Infinity)) mainTrend.breakout = 'bearish';
 
         return {
           symbol,
