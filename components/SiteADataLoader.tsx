@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import FlagSignalsDashboard from './FlagSignalsDashboard';
 
+// --- Type Definitions ---
 interface Candle {
   timestamp: number;
   open: number;
@@ -13,10 +14,10 @@ interface Candle {
 interface MainTrend {
   trend: 'bullish' | 'bearish' | 'neutral';
   type: 'support' | 'resistance' | 'none';
-  crossoverPrice: number;
-  breakout: 'bullish' | 'bearish' | null;
+  crossoverPrice: number; // Still relevant for EMA context
+  breakout: 'bullish' | 'bearish' | null; // Now for new high/low breakout
   isNear: boolean;
-  isDojiAfterBreakout: boolean;
+  isDojiAfterBreakout: boolean; // Applies to the new breakout
 }
 
 interface SignalData {
@@ -30,147 +31,178 @@ interface SignalData {
   highestVolumeColorPrev: 'green' | 'red' | null;
 }
 
+// --- Utility Functions ---
+/**
+ * Calculates the Exponential Moving Average (EMA) for a given dataset.
+ * @param data - The array of numbers (e.g., closing prices) to calculate EMA for.
+ * @param period - The period (number of data points) for the EMA calculation.
+ * @returns An array containing the EMA values, with NaN for initial periods.
+ */
 function calculateEMA(data: number[], period: number): number[] {
-  const k = 2 / (period + 1);
+  const k = 2 / (period + 1); // Smoothing constant
   const ema: number[] = [];
   let previousEma: number | null = null;
+
   for (let i = 0; i < data.length; i++) {
+    // For the initial periods before enough data for SMA, push NaN
     if (i < period - 1) {
       ema.push(NaN);
       continue;
     }
+    // Calculate initial Simple Moving Average (SMA) for the first EMA point
     if (i === period - 1) {
       const sma = data.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
       previousEma = sma;
     }
-      if (previousEma !== null) {
+    // Calculate EMA using the formula: CurrentPrice * K + PreviousEMA * (1 - K)
+    if (previousEma !== null) {
       const currentEma: number = data[i] * k + previousEma * (1 - k);
       ema.push(currentEma);
       previousEma = currentEma;
-    } else {
-      ema.push(NaN); // fallback for safety
     }
   }
-
-  return ema; // ✅ always returns an array
+  return ema;
 }
 
-function calculateRSI(closes: number[], period = 14): number[] {
-  if (!Array.isArray(closes) || closes.length <= period) return [];
+/**
+ * Calculates the Relative Strength Index (RSI) for a given set of closing prices.
+ * @param closes - An array of closing prices.
+ * @param period - The period (number of data points) for the RSI calculation.
+ * @returns An array containing the RSI values, with NaN for initial periods.
+ */
+function calculateRSI(closes: number[], period = 3): number[] {
+  if (!Array.isArray(closes) || closes.length <= period) {
+    return [];
+  }
+
   const rsi: number[] = [];
   let gains = 0;
   let losses = 0;
+
   for (let i = 1; i <= period; i++) {
     const diff = closes[i] - closes[i - 1];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
+    if (diff > 0) {
+      gains += diff;
+    } else {
+      losses -= diff;
+    }
   }
+
   let avgGain = gains / period;
   let avgLoss = losses / period;
   let rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
   rsi[period] = 100 - 100 / (1 + rs);
+
   for (let i = period + 1; i < closes.length; i++) {
     const diff = closes[i] - closes[i - 1];
     const gain = diff > 0 ? diff : 0;
     const loss = diff < 0 ? -diff : 0;
+
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
+
     rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
     rsi[i] = 100 - 100 / (1 + rs);
   }
-  for (let i = 0; i < period; i++) rsi[i] = NaN;
+
+  for (let i = 0; i < period; i++) {
+    rsi[i] = NaN;
+  }
+
   return rsi;
 }
 
-function getRecentRSIDiff(rsi: number[], lookback = 14) {
+/**
+ * Calculates the recent RSI difference (pump/dump strength) over a lookback period.
+ * @param rsi - The array of RSI values.
+ * @param lookback - The number of recent RSI values to consider.
+ * @returns An object containing recent high/low RSI, pump/dump strength, direction, and overall strength, or null if data is insufficient.
+ */
+function getRecentRSIDiff(
+  rsi: number[],
+  lookback = 14
+): {
+  recentHigh: number;
+  recentLow: number;
+  pumpStrength: number;
+  dumpStrength: number;
+  direction: 'pump' | 'dump' | 'neutral';
+  strength: number;
+} | null {
   if (rsi.length < lookback) return null;
+
   const recentRSI = rsi.slice(-lookback);
-  let recentHigh = -Infinity, recentLow = Infinity;
+  let recentHigh = -Infinity;
+  let recentLow = Infinity;
+
   for (const value of recentRSI) {
     if (!isNaN(value)) {
       if (value > recentHigh) recentHigh = value;
       if (value < recentLow) recentLow = value;
     }
   }
+
   const pumpStrength = recentHigh - recentLow;
   const dumpStrength = Math.abs(recentLow - recentHigh);
+
   const startRSI = recentRSI[0];
   const endRSI = recentRSI[recentRSI.length - 1];
   const direction = endRSI > startRSI ? 'pump' : endRSI < startRSI ? 'dump' : 'neutral';
   const strength = Math.abs(endRSI - startRSI);
-  return { recentHigh, recentLow, pumpStrength, dumpStrength, direction, strength };
+
+  return {
+    recentHigh,
+    recentLow,
+    pumpStrength,
+    dumpStrength,
+    direction,
+    strength,
+  };
 }
 
+/**
+ * Determines a trading signal based on RSI pump/dump zones.
+ * @param s - An object containing signal data, specifically `rsi14`.
+ * @returns A string representing the detected signal (e.g., 'MAX ZONE PUMP', 'NO STRONG SIGNAL').
+ */
 const getSignal = (s: { rsi14?: number[] }): string => {
   const pumpDump = s.rsi14 ? getRecentRSIDiff(s.rsi14, 14) : null;
   if (!pumpDump) return 'NO DATA';
-  const { direction, pumpStrength: pump, dumpStrength: dump } = pumpDump;
-  const inRange = (val: number, min: number, max: number) => val >= min && val <= max;
-  const isAbove30 = (val: number) => val >= 30;
-  if (direction === 'pump' && isAbove30(pump)) return 'MAX ZONE PUMP';
-  if (direction === 'dump' && isAbove30(dump)) return 'MAX ZONE DUMP';
-  if (inRange(pump, 21, 26) && direction === 'pump') return 'BALANCE ZONE PUMP';
-  if (inRange(dump, 21, 26) && direction === 'dump') return 'BALANCE ZONE DUMP';
-  if (inRange(pump, 1, 10) && direction === 'pump') return 'LOWEST ZONE PUMP';
-  if (inRange(dump, 1, 10) && direction === 'dump') return 'LOWEST ZONE DUMP';
-  return 'NO STRONG SIGNAL';
-};
 
-const getFlagSignal = (s: SignalData): 'BULL FLAG' | 'BEAR FLAG' | 'NONE' => {
-  if (!s.closes || s.closes.length < 50) return 'NONE';
-  const ema5 = calculateEMA(s.closes, 5).at(-1) || 0;
-  const ema10 = calculateEMA(s.closes, 10).at(-1) || 0;
-  const ema20 = calculateEMA(s.closes, 20).at(-1) || 0;
-  const ema50 = calculateEMA(s.closes, 50).at(-1) || 0;
-  const rsi = s.rsi14?.at(-1) || 0;
-  const isBull = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
-  const isBear = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
-  if (isBull) return 'BULL FLAG';
-  if (isBear) return 'BEAR FLAG';
-  return 'NONE';
+  const { direction, pumpStrength: pump, dumpStrength: dump } = pumpDump;
+
+  const inRange = (val: number, min: number, max: number) =>
+    val !== undefined && val >= min && val <= max;
+
+  const isAbove30 = (val: number) => val !== undefined && val >= 30;
+
+  const pumpAbove30 = isAbove30(pump);
+  const dumpAbove30 = isAbove30(dump);
+
+  const pumpInRange_21_26 = inRange(pump, 21, 26);
+  const dumpInRange_21_26 = inRange(dump, 21, 26);
+
+  const pumpInRange_1_10 = inRange(pump, 1, 10);
+  const dumpInRange_1_10 = inRange(dump, 1, 10);
+
+  if (direction === 'pump' && pumpAbove30) return 'MAX ZONE PUMP';
+  if (direction === 'dump' && dumpAbove30) return 'MAX ZONE DUMP';
+
+  if (pumpInRange_21_26 && direction === 'pump') return 'BALANCE ZONE PUMP';
+  if (dumpInRange_21_26 && direction === 'dump') return 'BALANCE ZONE DUMP';
+
+  if (pumpInRange_1_10 && direction === 'pump') return 'LOWEST ZONE PUMP';
+  if (dumpInRange_1_10 && direction === 'dump') return 'LOWEST ZONE DUMP';
+
+  return 'NO STRONG SIGNAL';
 };
 
 // --- SiteADataLoader Component ---
 export default function SiteADataLoader() {
   const [signals, setSignals] = useState<SignalData[]>([]); // Explicitly type signals
   const [loading, setLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState('15m'); // Default to 15m
+  const [timeframe, setTimeframe] = useState('1d'); // Default to 1d
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [signals1D, setSignals1D] = useState<SignalData[]>([]);
-
-  const [signals1D, setSignals1D] = useState<SignalData[]>([]);
-
-useEffect(() => {
-  let isMounted = true;
-
-  const fetch1DSignals = async () => {
-    try {
-      const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
-      const symbols = exchangeInfo.symbols
-        .map((s: { symbol: string }) => s.symbol)
-        .filter((s: string) => s.endsWith('USDT'));
-
-      const fetchedSignals = await Promise.all(
-        symbols.slice(0, 100).map((symbol: string) => fetchAndAnalyze(symbol, '1d'))
-      );
-
-      if (isMounted) {
-        const valid = fetchedSignals.filter(Boolean) as SignalData[];
-        setSignals1D(valid);
-        console.log('✅ Loaded signals1D:', valid.length);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching 1D signals:', error);
-    }
-  };
-
-  fetch1DSignals();
-
-  return () => {
-    isMounted = false;
-  };
-}, []);
-  
 
   // Utility to generate UTC timestamp at specific hour
   const getUTCMillis = (year: number, month: number, date: number, hour: number, minute: number): number => {
@@ -514,71 +546,50 @@ useEffect(() => {
     return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend);
   }, [signals]);
 
-  const bullishBreakoutSymbols1D = useMemo(() => {
-  return signals1D.filter(s => s.mainTrend?.breakout === 'bullish');
-}, [signals1D]);
-
-const bearishBreakoutSymbols1D = useMemo(() => {
-  return signals1D.filter(s => s.mainTrend?.breakout === 'bearish');
-}, [signals1D]);
-
-
 
   // Calculate statistics for the "Market Overview" section
   const marketStats = useMemo(() => {
-  const greenPriceChangeCount = signals.filter(
-    (t) => parseFloat(String(t.priceChangePercent)) > 0
-  ).length;
+    const greenPriceChangeCount = signals.filter(
+      (t) => parseFloat(String(t.priceChangePercent)) > 0
+    ).length;
 
-  const redPriceChangeCount = signals.filter(
-    (t) => parseFloat(String(t.priceChangePercent)) < 0
-  ).length;
+    const redPriceChangeCount = signals.filter(
+      (t) => parseFloat(String(t.priceChangePercent)) < 0
+    ).length;
 
-  const greenVolumeCount = signals.filter(
-    (s) => s.highestVolumeColorPrev === 'green'
-  ).length;
+    const greenVolumeCount = signals.filter(
+      (s) => s.highestVolumeColorPrev === 'green'
+    ).length;
 
-  const redVolumeCount = signals.filter(
-    (s) => s.highestVolumeColorPrev === 'red'
-  ).length;
+    const redVolumeCount = signals.filter(
+      (s) => s.highestVolumeColorPrev === 'red'
+    ).length;
 
-  const bullishTrendCount = signals.filter(
-    (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
-  ).length;
+    const bullishTrendCount = signals.filter(
+        (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
+    ).length;
 
-  const bearishTrendCount = signals.filter(
-    (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
-  ).length;
+    const bearishTrendCount = signals.filter(
+        (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
+    ).length;
 
-  // Current timeframe breakout counts
-  const bullishBreakoutCount = bullishBreakoutSymbols.length;
-  const bearishBreakoutCount = bearishBreakoutSymbols.length;
+    // Breakout counts are now specifically based on the previous session's activity
+    const bullishBreakoutCount = bullishBreakoutSymbols.length;
+    const bearishBreakoutCount = bearishBreakoutSymbols.length;
 
-  // ✅ You need access to 1D timeframe data separately
-  // For this, assume you have these already loaded or passed:
-  // signals1D, bullishBreakoutSymbols1D, bearishBreakoutSymbols1D
-  const bullishBreakoutCount1D = bullishBreakoutSymbols1D.length;
-  const bearishBreakoutCount1D = bearishBreakoutSymbols1D.length;
 
-  return {
-    greenPriceChangeCount,
-    redPriceChangeCount,
-    greenVolumeCount,
-    redVolumeCount,
-    bullishTrendCount,
-    bearishTrendCount,
-    bullishBreakoutCount,
-    bearishBreakoutCount,
-    bullishBreakoutCount1D,
-    bearishBreakoutCount1D,
-  };
-}, [
-  signals,
-  bullishBreakoutSymbols,
-  bearishBreakoutSymbols,
-  bullishBreakoutSymbols1D,
-  bearishBreakoutSymbols1D,
-]);
+    return {
+      greenPriceChangeCount,
+      redPriceChangeCount,
+      greenVolumeCount,
+      redVolumeCount,
+      bullishTrendCount,
+      bearishTrendCount,
+      bullishBreakoutCount,
+      bearishBreakoutCount,
+    };
+  }, [signals, bullishBreakoutSymbols, bearishBreakoutSymbols]);
+
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
@@ -641,22 +652,19 @@ const bearishBreakoutSymbols1D = useMemo(() => {
                     <p className="text-sm text-gray-400">Bearish Trend</p>
                     <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
                 </div>
-  {/* New: Bullish/Bearish Breakout Counts */}             
-  {/* Always show 1D Breakout Counts */}
-<>
-  <div className="p-3 bg-gray-700 rounded-lg">  
-    <p className="text-sm text-gray-400">Bullish Breakout (1D)</p>  
-    <p className="text-lg font-semibold text-green-400">
-      {marketStats.bullishBreakoutCount1D}
-    </p>  
-  </div>  
-  <div className="p-3 bg-gray-700 rounded-lg">  
-    <p className="text-sm text-gray-400">Bearish Breakout (1D)</p>  
-    <p className="text-lg font-semibold text-red-400">
-      {marketStats.bearishBreakoutCount1D}
-    </p>  
-  </div>  
-</>
+                {/* New: Bullish/Bearish Breakout Counts */}
+                {timeframe === '1d' && (
+  <>
+    <div className="p-3 bg-gray-700 rounded-lg">
+      <p className="text-sm text-gray-400">Bullish Breakout</p>
+      <p className="text-lg font-semibold text-green-400">{marketStats.bullishBreakoutCount}</p>
+    </div>
+    <div className="p-3 bg-gray-700 rounded-lg">
+      <p className="text-sm text-gray-400">Bearish Breakout</p>
+      <p className="text-lg font-semibold text-red-400">{marketStats.bearishBreakoutCount}</p>
+    </div>
+  </>
+)}
             </div>
         </div>
 
@@ -685,7 +693,6 @@ const bearishBreakoutSymbols1D = useMemo(() => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
                       24h Change (%)
                     </th>
-                    <th>Flag Signal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
@@ -702,7 +709,6 @@ const bearishBreakoutSymbols1D = useMemo(() => {
                           {s.priceChangePercent?.toFixed(2) || 'N/A'}%
                         </span>
                       </td>
-                      <td>{getFlagSignal(s)}</td>
                     </tr>
                   ))}
                 </tbody>
