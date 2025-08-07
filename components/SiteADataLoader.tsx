@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import CryptoSignalsDashboard from './CryptoSignalsDashboard';
+import FlagSignalsDashboard from './FlagSignalsDashboard';
 
 // --- Type Definitions ---
 interface Candle {
@@ -827,7 +827,7 @@ export default function SiteADataLoader() {
           </div>
         )}
       </div>
-      < CryptoSignalsDashboard />
+      < FlagSignalsDashboard />
     </div>
   );
 }
