@@ -136,7 +136,8 @@ export default function SiteADataLoader() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m'); // Default to 15m
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const marketStats1D = data['1d'];           // fixed stats for 1D
+  const marketStats = data[timeframe];        // changing with dropdown
+const marketStats1D = data['1d'];           // fixed stats for 1D
 
   // Utility to generate UTC timestamp at specific hour
   const getUTCMillis = (year: number, month: number, date: number, hour: number, minute: number): number => {
