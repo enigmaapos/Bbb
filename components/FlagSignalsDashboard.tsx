@@ -525,6 +525,41 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           </div>
         )}
 
+      <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
+        <h2 className="text-lg font-semibold text-white mb-2">📘 Flag + Funding Interpretation Guide</h2>
+        <table className="w-full text-sm text-left text-gray-300">
+          <thead className="text-gray-400">
+            <tr>
+              <th className="py-1 pr-4">Flag Type</th>
+              <th className="py-1 pr-4">Funding Bias</th>
+              <th className="py-1">Interpretation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="py-1 pr-4">Bull Flag</td>
+              <td className="py-1 pr-4">Shorts Paying ➖</td>
+              <td className="py-1">✅ Strong Bull Setup</td>
+            </tr>
+            <tr>
+              <td className="py-1 pr-4">Bull Flag</td>
+              <td className="py-1 pr-4">Longs Paying ➕</td>
+              <td className="py-1">🚨 Bull Trap Risk</td>
+            </tr>
+            <tr>
+              <td className="py-1 pr-4">Bear Flag</td>
+              <td className="py-1 pr-4">Longs Paying ➕</td>
+              <td className="py-1">✅ Strong Bear Setup</td>
+            </tr>
+            <tr>
+              <td className="py-1 pr-4">Bear Flag</td>
+              <td className="py-1 pr-4">Shorts Paying ➖</td>
+              <td className="py-1">⚠️ Bear Trap / Weakness</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
         <footer className="mt-8 text-center text-gray-500 text-sm">
           <p>Data provided by Binance Futures API.</p>
         </footer>
