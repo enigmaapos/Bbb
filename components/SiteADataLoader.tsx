@@ -520,8 +520,8 @@ const marketStats1D = data['1d'];           // fixed stats for 1D
       redVolumeCount,
       bullishTrendCount,
       bearishTrendCount,
-      bullishBreakoutCount1D,
-      bearishBreakoutCount1D,
+      bullishBreakoutCount,
+      bearishBreakoutCount,
     };
   }, [signals, bullishBreakoutSymbols, bearishBreakoutSymbols]);
 
