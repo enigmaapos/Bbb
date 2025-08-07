@@ -535,13 +535,7 @@ candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
   const maxPumpZoneSignals = useMemo(() => {
     return signals.filter(s => getSignal(s) === 'MAX ZONE PUMP');
   }, [signals]);
-// Filter signals for bullish and bearish breakouts
-  const bullishBreakoutSymbols = useMemo(() => {
-    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend);
-  }, [signals]);
-  const bearishBreakoutSymbols = useMemo(() => {
-    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend);
-  }, [signals]);
+
 // Calculate bull and bear flag signals
   const bullFlagSymbols = useMemo(() => {
   return signals.filter(s => {
@@ -599,10 +593,6 @@ const bearFlagSymbols = useMemo(() => {
     const bearishTrendCount = signals.filter(
         (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
     ).length;
-
-    // Breakout counts are now specifically based on the previous session's activity
-    const bullishBreakoutCount = bullishBreakoutSymbols.length;
-    const bearishBreakoutCount = bearishBreakoutSymbols.length;
     const bullFlagCount = bullFlagSymbols.length;
     const bearFlagCount = bearFlagSymbols.length;
     
@@ -613,12 +603,10 @@ const bearFlagSymbols = useMemo(() => {
       redVolumeCount,
       bullishTrendCount,
       bearishTrendCount,
-      bullishBreakoutCount,
-      bearishBreakoutCount,
       bullFlagCount,
       bearFlagCount,
     };
-  }, [signals, bullishBreakoutSymbols, bearishBreakoutSymbols, bullFlagSymbols, bearFlagSymbols]);
+  }, [signals, bullFlagSymbols, bearFlagSymbols]);
 
 
   return (
@@ -691,19 +679,7 @@ const bearFlagSymbols = useMemo(() => {
                     <p className="text-sm text-gray-400">Bearish Trend</p>
                     <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
                 </div>
-                {/* New: Bullish/Bearish Breakout Counts */}              
-  <>
-    
- <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bullish Breakout</p>
-      <p className="text-lg font-semibold text-green-400">{marketStats.bullishBreakoutCount}</p>
-    </div>
-    <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bearish Breakout</p>
-      <p className="text-lg font-semibold text-red-400">{marketStats.bearishBreakoutCount}</p>
-    </div>
-  </>
-  {/* New: Bull/Bear Flag Counts */}
+                {/* New: Bull/Bear Flag Counts */}
   <>
     <div className="p-3 bg-gray-700 rounded-lg">
       <p className="text-sm text-gray-400">Bull Flag</p>
@@ -725,112 +701,6 @@ mt-10">
           </div>
         )}
 
-        {/* Display Bullish Breakout Symbols */}
-        {!loading && bullishBreakoutSymbols.length > 0 && (
-          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-green-700">
-            <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-5 text-center">
-              Bullish Breakouts ({bullishBreakoutSymbols.length})
-   
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium 
-text-gray-300 uppercase tracking-wider rounded-tl-lg">
-                      Symbol
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Current Price
-    
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
-                      24h Change (%)
-                    </th>
-           
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {bullishBreakoutSymbols.map((s) => (
-                    <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
-               
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-green-200">
-                        {s.symbol}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-              
-                        ${s.closes && s.closes.length > 0 ?
-s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <span className={`font-semibold ${s.priceChangePercent > 0 ?
-'text-green-400' : 'text-red-400'}`}>
-                          {s.priceChangePercent?.toFixed(2) ||
-'N/A'}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                
-                  </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Display Bearish Breakout Symbols */}
-        {!loading && bearishBreakoutSymbols.length > 0 && (
-          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-red-700">
-           
-            <h2 className="text-2xl sm:text-3xl font-bold text-red-300 mb-5 text-center">
-              Bearish Breakouts ({bearishBreakoutSymbols.length})
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
-                      Symbol
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
- 
-                      Current Price
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
-                      24h Change (%)
-     
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {bearishBreakoutSymbols.map((s) => (
-             
-                    <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-red-200">
-                        {s.symbol}
-                      </td>
-               
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                        ${s.closes && s.closes.length > 0 ?
-s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <span className={`font-semibold ${s.priceChangePercent > 0 ?
-'text-green-400' : 'text-red-400'}`}>
-                          {s.priceChangePercent?.toFixed(2) ||
-'N/A'}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                
-                  </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {/* Display Bull Flag Signals */}
         {!loading && bullFlagSymbols.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
@@ -841,9 +711,9 @@ s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">Symbol</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">24h Change (%)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
@@ -874,9 +744,9 @@ s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">Symbol</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">24h Change (%)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
