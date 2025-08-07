@@ -653,7 +653,7 @@ export default function SiteADataLoader() {
                     <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
                 </div>
                 {/* New: Bullish/Bearish Breakout Counts */}
-                {selectedTimeframe === '1d' && (
+                {timeframe === '1d' && (
   <>
     <div className="p-3 bg-gray-700 rounded-lg">
       <p className="text-sm text-gray-400">Bullish Breakout</p>
@@ -825,9 +825,9 @@ export default function SiteADataLoader() {
               </table>
             </div>
           </div>
-      < CryptoSignalsDashboard />
         )}
       </div>
+      < CryptoSignalsDashboard />
     </div>
   );
 }
