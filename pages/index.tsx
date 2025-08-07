@@ -867,6 +867,8 @@ export default function PriceFundingTracker() {
           <LeverageProfitCalculator />
         </div>
 
+        <SiteADataLoader />
+
         <div className="my-8 h-px bg-gray-700" />
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
@@ -988,7 +990,6 @@ export default function PriceFundingTracker() {
             </tbody>
           </table>   
         </div>
-<SiteADataLoader />
         <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 30 seconds | Powered by Binance API & NewsAPI</p>
       </div>
     </div>
