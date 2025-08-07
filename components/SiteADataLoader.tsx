@@ -136,6 +136,7 @@ export default function SiteADataLoader() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m'); // Default to 15m
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [signals1D, setSignals1D] = useState<SignalData[]>([]);
   
 
   // Utility to generate UTC timestamp at specific hour
@@ -479,6 +480,15 @@ export default function SiteADataLoader() {
   const bearishBreakoutSymbols = useMemo(() => {
     return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend);
   }, [signals]);
+
+  const bullishBreakoutSymbols1D = useMemo(() => {
+  return signals1D.filter(s => s.mainTrend?.breakout === 'bullish');
+}, [signals1D]);
+
+const bearishBreakoutSymbols1D = useMemo(() => {
+  return signals1D.filter(s => s.mainTrend?.breakout === 'bearish');
+}, [signals1D]);
+
 
 
   // Calculate statistics for the "Market Overview" section
