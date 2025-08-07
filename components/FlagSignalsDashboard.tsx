@@ -30,8 +30,8 @@ interface Candle {
 
 interface Metrics {
   price: number;
-  prevSessionHigh: number | null;
-  prevSessionLow: number | null;
+  prevSessionHigh: number;
+  prevSessionLow: number;
   todaysHighestHigh: number;
   todaysLowestLow: number;
   ema5: number;
@@ -40,335 +40,385 @@ interface Metrics {
   ema50: number;
   rsi: number;
   mainTrend: {
-    trend: 'bullish' | 'bearish' | 'neutral';
     breakout: 'bullish' | 'bearish' | null;
-    isNear: boolean;
+    isDojiAfterBreakout: boolean;
   };
-  isBullFlag: boolean;
-  isBearFlag: boolean;
 }
 
-interface SymbolData {
-  symbol: string;
-  metrics: Metrics | null;
-}
-
-// Utility functions
-const calculateEMA = (data: number[], period: number): number[] => {
-  const k = 2 / (period + 1);
-  const emaArray: number[] = [];
-  let previousEma: number | undefined;
-
-  for (let i = 0; i < data.length; i++) {
-    if (i < period) {
-      // For the initial data points, we don't have enough history for an EMA
-      emaArray.push(NaN);
-      continue;
-    }
-
-    if (i === period) {
-      // Calculate the initial SMA for the first EMA value
-      const sma = data.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
-      previousEma = sma;
-      emaArray.push(sma);
-      continue;
-    }
-
-    if (previousEma !== undefined) {
-      const currentEma = (data[i] - previousEma) * k + previousEma;
-      emaArray.push(currentEma);
-      previousEma = currentEma;
-    }
-  }
-
-  return emaArray;
-};
-
-const calculateRSI = (closes: number[], period: number): number => {
-  if (closes.length < period + 1) {
-    return NaN;
-  }
-  const lastPeriodCloses = closes.slice(-period - 1);
-  const changes: number[] = lastPeriodCloses.slice(1).map((price, index) => price - lastPeriodCloses[index]);
-  const gains = changes.filter(c => c > 0).reduce((sum, c) => sum + c, 0) / period;
-  const losses = changes.filter(c => c < 0).reduce((sum, c) => sum + Math.abs(c), 0) / period;
-  if (losses === 0) return 100;
-  const rs = gains / losses;
-  return 100 - (100 / (1 + rs));
-};
-
-const getSessions = (timeframe: string, now: Date) => {
+const getSessions = (timeframe: string, nowMillis: number) => {
+  const tfMillis = getMillis(timeframe);
+  let currentSessionStart;
+  
   if (timeframe === '1d') {
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth();
-    const date = now.getUTCDate();
-
-    const getUTCMillisFor1d = (y: number, m: number, d: number, hPH: number, min: number) =>
-      Date.UTC(y, m, d, hPH - 8, min);
-
-    const today8AM_UTC = getUTCMillisFor1d(year, month, date, 8, 0);
-    const tomorrow745AM_UTC = getUTCMillisFor1d(year, month, date + 1, 7, 45);
-
-    let sessionStart: number, sessionEnd: number;
-    if (now.getTime() >= today8AM_UTC) {
-      sessionStart = today8AM_UTC;
-      sessionEnd = tomorrow745AM_UTC;
-    } else {
-      const yesterday8AM_UTC = getUTCMillisFor1d(year, month, date - 1, 8, 0);
-      const today745AM_UTC = getUTCMillisFor1d(year, month, date, 7, 45);
-      sessionStart = yesterday8AM_UTC;
-      sessionEnd = today745AM_UTC;
+    // Custom daily session starting at 8 AM Philippine Time (UTC+8)
+    const phTimeOffset = 8 * 60 * 60 * 1000;
+    const today = new Date(nowMillis + phTimeOffset);
+    today.setUTCHours(8, 0, 0, 0);
+    currentSessionStart = today.getTime() - phTimeOffset;
+    if (nowMillis < currentSessionStart) {
+      currentSessionStart -= 24 * 60 * 60 * 1000;
     }
-
-    const prevSessionStart = getUTCMillisFor1d(year, month, date - 1, 8, 0);
-    const prevSessionEnd = getUTCMillisFor1d(year, month, date, 7, 45);
-    return { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd };
   } else {
-    const nowMillis = now.getTime();
-    const MILLISECONDS: { [key: string]: number } = {
-      '15m': 15 * 60 * 1000,
-      '4h': 4 * 60 * 60 * 1000,
-    };
-    const tfMillis = MILLISECONDS[timeframe];
-    const sessionStart = Math.floor(nowMillis / tfMillis) * tfMillis;
-    const sessionEnd = sessionStart + tfMillis;
-    const prevSessionStart = sessionStart - tfMillis;
-    const prevSessionEnd = sessionStart;
-    return { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd };
+    currentSessionStart = Math.floor(nowMillis / tfMillis) * tfMillis;
   }
+
+  const prevSessionStart = currentSessionStart - tfMillis;
+  return { currentSessionStart, prevSessionStart };
 };
 
-const fetchWithRetry = async (url: string, retries = 5, delay = 1000) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(url);
-      if (response.status === 429 || response.status === 418) {
-        const retryAfter = response.headers.get('Retry-After');
-        const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : delay * Math.pow(2, i);
-        console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
-      }
-      if (!response.ok) {
-        const errorBody = await response.json();
-        if (errorBody.code === -1003) {
-          console.warn(`Binance IP ban detected. Retrying in ${delay * Math.pow(2, i) / 1000}s...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          continue;
-        } else if (errorBody.code === -1121 || errorBody.msg === "Invalid symbol." || errorBody.msg === "Invalid symbol status.") {
-          console.warn(`Invalid symbol encountered for URL: ${url}. Skipping this symbol.`);
-          return null;
-        }
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorBody.msg || response.statusText}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error(`Attempt ${i + 1} failed for ${url}:`, error);
-      if (i < retries - 1) {
-        const waitTime = delay * Math.pow(2, i);
-        console.log(`Retrying in ${waitTime / 1000}s...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+const isDoji = (candle: Candle) => {
+  const bodySize = Math.abs(candle.close - candle.open);
+  const totalRange = candle.high - candle.low;
+  return totalRange > 0 && (bodySize / totalRange) < 0.2;
+};
+
+const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
+  if (!candles || candles.length < 2) return null;
+
+  const nowMillis = Date.now();
+  const { currentSessionStart, prevSessionStart } = getSessions(timeframe, nowMillis);
+
+  const prevSessionCandles = candles.filter(c => c.openTime >= prevSessionStart && c.openTime < currentSessionStart);
+  const currentSessionCandles = candles.filter(c => c.openTime >= currentSessionStart);
+
+  if (prevSessionCandles.length === 0 || currentSessionCandles.length === 0) return null;
+
+  const prevSessionHigh = Math.max(...prevSessionCandles.map(c => c.high));
+  const prevSessionLow = Math.min(...prevSessionCandles.map(c => c.low));
+  
+  const todaysHighestHigh = Math.max(...currentSessionCandles.map(c => c.high));
+  const todaysLowestLow = Math.min(...currentSessionCandles.map(c => c.low));
+  
+  const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
+
+  const mainTrend = {
+    breakout: null as 'bullish' | 'bearish' | null,
+    isDojiAfterBreakout: false,
+  };
+
+  const isDojiAfterBreakout = isDoji(lastCandle);
+  
+  if (todaysHighestHigh > prevSessionHigh) {
+    mainTrend.breakout = 'bullish';
+    mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
+  }
+  
+  if (todaysLowestLow < prevSessionLow) {
+    mainTrend.breakout = 'bearish';
+    mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
+  }
+
+  const ema = (candles: Candle[], period: number) => {
+    if (candles.length < period) return [];
+    const alpha = 2 / (period + 1);
+    let emaValues: number[] = [];
+    // Calculate initial SMA for the first EMA
+    const initialSMA = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period;
+    emaValues.push(initialSMA);
+    for (let i = period; i < candles.length; i++) {
+      const prevEma = emaValues[i - period];
+      const newEma = (candles[i].close - prevEma) * alpha + prevEma;
+      emaValues.push(newEma);
+    }
+    return emaValues;
+  };
+  
+  const ema5 = ema(candles, 5);
+  const ema10 = ema(candles, 10);
+  const ema20 = ema(candles, 20);
+  const ema50 = ema(candles, 50);
+  
+  const lastEma5 = ema5[ema5.length - 1];
+  const lastEma10 = ema10[ema10.length - 1];
+  const lastEma20 = ema20[ema20.length - 1];
+  const lastEma50 = ema50[ema50.length - 1];
+
+  const getRSI = (candles: Candle[], period = 14) => {
+    if (candles.length < period) return null;
+    let gains = 0;
+    let losses = 0;
+  
+    for (let i = 1; i < period; i++) {
+      const change = candles[i].close - candles[i - 1].close;
+      if (change > 0) {
+        gains += change;
       } else {
-        throw error;
+        losses -= change;
       }
     }
-  }
-  return null;
+  
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+  
+    for (let i = period; i < candles.length; i++) {
+      const change = candles[i].close - candles[i - 1].close;
+      avgGain = ((avgGain * (period - 1)) + (change > 0 ? change : 0)) / period;
+      avgLoss = ((avgLoss * (period - 1)) + (change < 0 ? -change : 0)) / period;
+    }
+  
+    const rs = avgLoss === 0 ? 999 : avgGain / avgLoss;
+    const rsi = 100 - (100 / (1 + rs));
+    return rsi;
+  };
+
+  const rsi = getRSI(candles, 14);
+
+  return {
+    price: lastCandle.close,
+    prevSessionHigh,
+    prevSessionLow,
+    todaysHighestHigh,
+    todaysLowestLow,
+    ema5: lastEma5,
+    ema10: lastEma10,
+    ema20: lastEma20,
+    ema50: lastEma50,
+    rsi: rsi!, // Non-null assertion, as we check for length
+    mainTrend,
+  };
 };
 
-// Main component
-const FlagSignalsDashboard: React.FC = () => {
-  const [timeframe, setTimeframe] = useState('1d');
+// Function to fetch all perpetual USDT symbols
+interface BinanceSymbol {
+  symbol: string;
+  contractType: string;
+  quoteAsset: string;
+}
+
+const fetchFuturesSymbols = async (): Promise<string[]> => {
+  const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  const data: { symbols: BinanceSymbol[] } = await res.json();
+
+  return data.symbols
+    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+    .map((s) => s.symbol);
+};
+
+
+// Main component starts here
+const FlagSignalsDashboard = () => {
   const [symbols, setSymbols] = useState<string[]>([]);
-  const [data, setData] = useState<SymbolData[]>([]);
+  const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [timeframe, setTimeframe] = useState('15m');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const fetchIntervalRef = useRef<number | null>(null);
 
-  const allSignals = useMemo(() => data.filter(d => d.metrics?.isBullFlag || d.metrics?.isBearFlag), [data]);
-  const bullishSignals = useMemo(() => allSignals.filter(s => s.metrics?.isBullFlag), [allSignals]);
-  const bearishSignals = useMemo(() => allSignals.filter(s => s.metrics?.isBearFlag), [allSignals]);
-
-  const fetchSignals = useRef(async () => {
-    setLoading(true);
-    setErrorMessage('');
+  // This function fetches the candle data for the given symbols
+  const fetchData = async (symbolsToFetch: string[]) => {
     try {
-      const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
-      const symbolsToFetch: string[] = exchangeInfo.symbols
-        .filter((s: any) => s.quoteAsset === 'USDT' && s.status === 'TRADING')
-        .map((s: any) => s.symbol)
-        .slice(0, 50);
-
-      const fetchedDataPromises = symbolsToFetch.map(async (symbol) => {
-        const klines = await fetchWithRetry(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100`);
-
-        if (!klines) return { symbol, metrics: null };
-
-        const candles: Candle[] = klines.map((k: any) => ({
-          openTime: k[0],
-          open: parseFloat(k[1]),
-          high: parseFloat(k[2]),
-          low: parseFloat(k[3]),
-          close: parseFloat(k[4]),
-          volume: parseFloat(k[5]),
-        }));
-
-        const closes = candles.map(c => c.close);
-        const lastClose = closes[closes.length - 1];
-
-        const ema5 = calculateEMA(closes, 5);
-        const ema10 = calculateEMA(closes, 10);
-        const ema20 = calculateEMA(closes, 20);
-        const ema50 = calculateEMA(closes, 50);
-        const rsi = calculateRSI(closes, 14);
-
-        const isBullFlag = (ema5.at(-1)! > ema10.at(-1)! && ema10.at(-1)! > ema20.at(-1)! && ema20.at(-1)! > ema50.at(-1)! && rsi > 50);
-        const isBearFlag = (ema5.at(-1)! < ema10.at(-1)! && ema10.at(-1)! < ema20.at(-1)! && ema20.at(-1)! < ema50.at(-1)! && rsi < 50);
-
-        const now = new Date();
-        const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(timeframe, now);
-        
-        // Calculate previous session's high and low from the candles
-        const candlesPrevSession = candles.filter(c => c.openTime >= prevSessionStart && c.openTime <= prevSessionEnd);
-        const prevSessionHigh = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-        const prevSessionLow = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
-
-        const todaysCandles = candles.filter(c => c.openTime >= sessionStart && c.openTime <= sessionEnd);
-        const todaysHighestHigh = Math.max(...todaysCandles.map(c => c.high));
-        const todaysLowestLow = Math.min(...todaysCandles.map(c => c.low));
-
-        const mainTrend = {
-          trend: 'neutral',
-          breakout: null as 'bullish' | 'bearish' | null,
-          isNear: false,
-        };
-
-        if (ema5.at(-1)! > ema10.at(-1)!) mainTrend.trend = 'bullish';
-        else if (ema5.at(-1)! < ema10.at(-1)!) mainTrend.trend = 'bearish';
-
-        if (todaysHighestHigh > (prevSessionHigh ?? -Infinity)) mainTrend.breakout = 'bullish';
-        else if (todaysLowestLow < (prevSessionLow ?? Infinity)) mainTrend.breakout = 'bearish';
-
-        return {
-          symbol,
-          metrics: {
-            price: lastClose,
-            prevSessionHigh,
-            prevSessionLow,
-            todaysHighestHigh,
-            todaysLowestLow,
-            ema5: ema5.at(-1)!,
-            ema10: ema10.at(-1)!,
-            ema20: ema20.at(-1)!,
-            ema50: ema50.at(-1)!,
-            rsi,
-            mainTrend,
-            isBullFlag: isBullFlag && !isNaN(isBullFlag),
-            isBearFlag: isBearFlag && !isNaN(isBearFlag)
-          }
-        };
-      });
-
-      const fetchedData = await Promise.all(fetchedDataPromises);
-      setData(fetchedData.filter(d => d.metrics !== null) as SymbolData[]);
+      setErrorMessage(null);
+      const newSymbolsData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
+      const nowMillis = Date.now();
+      const tfMillis = getMillis(timeframe);
+      const startTime = nowMillis - (100 * tfMillis);
+      
+      for (const symbol of symbolsToFetch) {
+        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data && Array.isArray(data) && data.length > 0) {
+          const candles = data.map((d: any[]) => ({
+            openTime: d[0],
+            open: parseFloat(d[1]),
+            high: parseFloat(d[2]),
+            low: parseFloat(d[3]),
+            close: parseFloat(d[4]),
+            volume: parseFloat(d[5]),
+          }));
+          newSymbolsData[symbol] = {
+            candles,
+            metrics: calculateMetrics(candles, timeframe)
+          };
+        } else {
+          console.error(`Failed to fetch data for ${symbol}. Data:`, data);
+        }
+      }
+      setSymbolsData(newSymbolsData);
       setLoading(false);
-      setLastUpdated(new Date().toLocaleTimeString());
     } catch (error) {
-      console.error("Error fetching data:", error);
-      setErrorMessage('Failed to fetch data. Please try again later.');
+      console.error('Error fetching data:', error);
+      setErrorMessage('Failed to fetch data. Please check your connection or try again later.');
       setLoading(false);
     }
-  });
+  };
+
 
   useEffect(() => {
-    fetchSignals.current();
-    const interval = setInterval(() => {
-      fetchSignals.current();
-    }, getMillis(timeframe));
-    return () => clearInterval(interval);
-  }, [timeframe]);
+    // Async function to handle the fetching logic
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // First, fetch the list of symbols
+        const fetchedSymbols = await fetchFuturesSymbols();
+        setSymbols(fetchedSymbols);
 
-  const handleTimeframeChange = (newTimeframe: string) => {
-    setTimeframe(newTimeframe);
+        // Then, fetch the candle data for those symbols
+        await fetchData(fetchedSymbols);
+
+        // Clear any existing interval
+        if (fetchIntervalRef.current) {
+          clearInterval(fetchIntervalRef.current);
+        }
+
+        // Set up a new interval to refresh data every 60 seconds
+        fetchIntervalRef.current = window.setInterval(() => fetchData(fetchedSymbols), 60000);
+      } catch (error) {
+        console.error('Initial data load failed:', error);
+        setErrorMessage('Failed to load initial data. Please try again.');
+        setLoading(false);
+      }
+    };
+
+    loadData();
+
+    // Cleanup function for the interval
+    return () => {
+      if (fetchIntervalRef.current) {
+        window.clearInterval(fetchIntervalRef.current);
+      }
+    };
+  }, [timeframe]); // Rerun effect when timeframe changes
+
+  // The useMemo hooks now compute the full lists without filtering.
+  const bullFlagSymbols = useMemo(() => {
+    return Object.keys(symbolsData).filter(symbol => {
+      const s = symbolsData[symbol].metrics;
+      if (!s) return false;
+      const { ema5, ema10, ema20, ema50, rsi } = s;
+      const isBullishEma = ema5 > ema10 && ema10 > ema20 && ema20 > ema50;
+      return isBullishEma && rsi > 50;
+    });
+  }, [symbolsData]);
+
+  const bearFlagSymbols = useMemo(() => {
+    return Object.keys(symbolsData).filter(symbol => {
+      const s = symbolsData[symbol].metrics;
+      if (!s) return false;
+      const { ema5, ema10, ema20, ema50, rsi } = s;
+      const isBearishEma = ema5 < ema10 && ema10 < ema20 && ema20 < ema50;
+      return isBearishEma && rsi < 50;
+    });
+  }, [symbolsData]);
+
+  const bullishBreakoutSymbols = useMemo(() => {
+    return Object.keys(symbolsData).filter(symbol => {
+      const s = symbolsData[symbol].metrics;
+      return s && s.mainTrend && s.mainTrend.breakout === 'bullish';
+    });
+  }, [symbolsData]);
+
+  const bearishBreakoutSymbols = useMemo(() => {
+    return Object.keys(symbolsData).filter(symbol => {
+      const s = symbolsData[symbol].metrics;
+      return s && s.mainTrend && s.mainTrend.breakout === 'bearish';
+    });
+  }, [symbolsData]);
+
+  // Helper function to filter the symbol lists based on the search term
+  const filterSymbols = (symbols: string[]) => {
+    return symbols.filter(symbol =>
+      symbol.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   };
-
-  const renderSignalTable = (signals: SymbolData[], title: string) => (
-    <div className="mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className={`text-2xl font-bold ${title.includes('Bullish') ? 'text-green-400' : 'text-red-400'}`}>{title}</h3>
+  
+  const renderSymbolsList = (title: string, symbols: string[], color: string) => (
+    <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-2xl font-bold">{title} ({symbols.length})</h3>
+        <button
+          onClick={() => copyToClipboard(symbols.join(', '))}
+          className="text-gray-400 hover:text-white transition-colors duration-200"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" />
+          </svg>
+        </button>
       </div>
-      <div className="overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
-        <table className="min-w-full divide-y divide-gray-700">
-          <thead className="bg-gray-700">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Symbol</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Price</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">RSI</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Trend</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Breakout</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-gray-800 divide-y divide-gray-700">
-            {signals.map(s => (
-              <tr key={s.symbol} className="hover:bg-gray-700 transition-colors duration-150">
-                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-white">{s.symbol}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                  ${s.metrics?.price.toFixed(2)}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {s.metrics?.rsi.toFixed(2)}
-                </td>
-                <td className={`px-4 py-4 whitespace-nowrap text-sm font-semibold ${s.metrics?.mainTrend.trend === 'bullish' ? 'text-green-400' : s.metrics?.mainTrend.trend === 'bearish' ? 'text-red-400' : 'text-gray-400'}`}>
-                  {s.metrics?.mainTrend.trend.toUpperCase()}
-                </td>
-                <td className={`px-4 py-4 whitespace-nowrap text-sm font-semibold ${s.metrics?.mainTrend.breakout === 'bullish' ? 'text-green-400' : s.metrics?.mainTrend.breakout === 'bearish' ? 'text-red-400' : 'text-gray-400'}`}>
-                  {s.metrics?.mainTrend.breakout ? s.metrics.mainTrend.breakout.toUpperCase() : 'N/A'}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                  <button
-                    onClick={() => copyToClipboard(s.symbol)}
-                    className="text-gray-400 hover:text-white transition-colors duration-200"
-                    title="Copy symbol to clipboard"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                      <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 2 2 0 01-2 2H8a2 2 0 01-2-2zM11 11a1 1 0 100 2h1a1 1 0 100-2h-1z" />
-                    </svg>
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="overflow-y-auto max-h-[300px] space-y-2">
+        {symbols.length > 0 ? (
+          symbols.map(symbol => (
+            <div key={symbol} className={`px-4 py-2 rounded-lg text-lg font-medium text-white ${color}`}>
+              {symbol}
+            </div>
+          ))
+        ) : (
+          <p className="text-gray-500">No symbols found.</p>
+        )}
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 font-sans">
+    <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
+      <script src="https://cdn.tailwindcss.com"></script>
+      <style>{`
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #2d3748;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #4a5568;
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #718096;
+        }
+      `}</style>
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-center text-teal-400">Flag Signals Dashboard</h1>
+        <header className="mb-8 text-center">
+          <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
+            Flag Signal Dashboard
+          </h1>
+          <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
+        </header>
 
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex space-x-2">
-            {['15m', '4h', '1d'].map(tf => (
-              <button
-                key={tf}
-                onClick={() => handleTimeframeChange(tf)}
-                className={`py-2 px-4 rounded-lg font-semibold transition-colors duration-200 ${
-                  timeframe === tf
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                }`}
-              >
-                {tf}
-              </button>
-            ))}
+        <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
+          <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
+            <button
+              onClick={() => setTimeframe('15m')}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '15m' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+            >
+              15m
+            </button>
+            <button
+              onClick={() => setTimeframe('4h')}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '4h' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+            >
+              4h
+            </button>
+            <button
+              onClick={() => setTimeframe('1d')}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+            >
+              1d
+            </button>
           </div>
-          {lastUpdated && (
-            <div className="text-sm text-gray-400">Last Updated: {lastUpdated}</div>
-          )}
+
+          {/* Search Input */}
+          <div className="relative w-full md:w-64">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search symbols..."
+              className="w-full pl-4 pr-10 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -376,20 +426,21 @@ const FlagSignalsDashboard: React.FC = () => {
             <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
           </div>
         ) : errorMessage ? (
-          <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-md flex items-center justify-between">
+          <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
             <p>{errorMessage}</p>
-            <button onClick={() => setErrorMessage('')}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {renderSignalTable(bullishSignals, 'Bullish Flag Signals')}
-            {renderSignalTable(bearishSignals, 'Bearish Flag Signals')}
+            {renderSymbolsList('Bullish Breakouts', filterSymbols(bullishBreakoutSymbols), 'bg-green-600 hover:bg-green-500')}
+            {renderSymbolsList('Bearish Breakouts', filterSymbols(bearishBreakoutSymbols), 'bg-red-600 hover:bg-red-500')}
+            {renderSymbolsList('Bull Flags', filterSymbols(bullFlagSymbols), 'bg-blue-600 hover:bg-blue-500')}
+            {renderSymbolsList('Bear Flags', filterSymbols(bearFlagSymbols), 'bg-orange-600 hover:bg-orange-500')}
           </div>
         )}
+
+        <footer className="mt-8 text-center text-gray-500 text-sm">
+          <p>Data provided by Binance Futures API.</p>
+        </footer>
       </div>
     </div>
   );
