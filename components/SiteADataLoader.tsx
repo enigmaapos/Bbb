@@ -201,7 +201,7 @@ const getSignal = (s: { rsi14?: number[] }): string => {
 export default function SiteADataLoader() {
   const [signals, setSignals] = useState<SignalData[]>([]); // Explicitly type signals
   const [loading, setLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState('1d'); // Default to 1d
+  const [timeframe, setTimeframe] = useState('15m'); // Default to 15m
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   // Utility to generate UTC timestamp at specific hour
