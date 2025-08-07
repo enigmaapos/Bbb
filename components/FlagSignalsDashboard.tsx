@@ -72,9 +72,6 @@ const isDoji = (candle: Candle) => {
   return totalRange > 0 && (bodySize / totalRange) < 0.2;
 };
 
-const isBullish = (candle: Candle) => candle.close > candle.open;
-const isBearish = (candle: Candle) => candle.close < candle.open;
-
 const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
   if (!candles || candles.length < 2) return null;
 
@@ -93,8 +90,6 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   const todaysLowestLow = Math.min(...currentSessionCandles.map(c => c.low));
   
   const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
-  const lastCandleIndex = candles.findIndex(c => c.openTime === lastCandle.openTime);
-  const prevLastCandle = candles[lastCandleIndex - 1];
 
   const mainTrend = {
     breakout: null as 'bullish' | 'bearish' | null,
@@ -116,9 +111,12 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   const ema = (candles: Candle[], period: number) => {
     if (candles.length < period) return [];
     const alpha = 2 / (period + 1);
-    const emaValues: number[] = [candles[0].close];
-    for (let i = 1; i < candles.length; i++) {
-      const prevEma = emaValues[i - 1];
+    let emaValues: number[] = [];
+    // Calculate initial SMA for the first EMA
+    const initialSMA = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period;
+    emaValues.push(initialSMA);
+    for (let i = period; i < candles.length; i++) {
+      const prevEma = emaValues[i - period];
       const newEma = (candles[i].close - prevEma) * alpha + prevEma;
       emaValues.push(newEma);
     }
@@ -204,6 +202,7 @@ const FlagSignalsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const fetchIntervalRef = useRef<number | null>(null);
 
   // This function fetches the candle data for the given symbols
@@ -283,6 +282,7 @@ const FlagSignalsDashboard = () => {
     };
   }, [timeframe]); // Rerun effect when timeframe changes
 
+  // The useMemo hooks now compute the full lists without filtering.
   const bullFlagSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol].metrics;
@@ -316,6 +316,13 @@ const FlagSignalsDashboard = () => {
       return s && s.mainTrend && s.mainTrend.breakout === 'bearish';
     });
   }, [symbolsData]);
+
+  // Helper function to filter the symbol lists based on the search term
+  const filterSymbols = (symbols: string[]) => {
+    return symbols.filter(symbol =>
+      symbol.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
   
   const renderSymbolsList = (title: string, symbols: string[], color: string) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
@@ -370,7 +377,7 @@ const FlagSignalsDashboard = () => {
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
         </header>
 
-        <div className="flex justify-center mb-8">
+        <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
           <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
             <button
               onClick={() => setTimeframe('15m')}
@@ -391,6 +398,27 @@ const FlagSignalsDashboard = () => {
               1d
             </button>
           </div>
+
+          {/* Search Input */}
+          <div className="relative w-full md:w-64">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search symbols..."
+              className="w-full pl-4 pr-10 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -403,10 +431,10 @@ const FlagSignalsDashboard = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {renderSymbolsList('Bullish Breakouts', bullishBreakoutSymbols, 'bg-green-600 hover:bg-green-500')}
-            {renderSymbolsList('Bearish Breakouts', bearishBreakoutSymbols, 'bg-red-600 hover:bg-red-500')}
-            {renderSymbolsList('Bull Flags', bullFlagSymbols, 'bg-blue-600 hover:bg-blue-500')}
-            {renderSymbolsList('Bear Flags', bearFlagSymbols, 'bg-orange-600 hover:bg-orange-500')}
+            {renderSymbolsList('Bullish Breakouts', filterSymbols(bullishBreakoutSymbols), 'bg-green-600 hover:bg-green-500')}
+            {renderSymbolsList('Bearish Breakouts', filterSymbols(bearishBreakoutSymbols), 'bg-red-600 hover:bg-red-500')}
+            {renderSymbolsList('Bull Flags', filterSymbols(bullFlagSymbols), 'bg-blue-600 hover:bg-blue-500')}
+            {renderSymbolsList('Bear Flags', filterSymbols(bearFlagSymbols), 'bg-orange-600 hover:bg-orange-500')}
           </div>
         )}
 
