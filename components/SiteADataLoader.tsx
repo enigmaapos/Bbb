@@ -101,8 +101,7 @@ function calculateRSI(closes: number[], period = 3): number[] {
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-    rs = avgLoss === 0 ?
-Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
     rsi[i] = 100 - 100 / (1 + rs);
   }
 
