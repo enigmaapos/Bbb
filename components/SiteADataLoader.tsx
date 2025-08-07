@@ -302,14 +302,14 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
 // --- Live API Functions ---
 // Assuming these are your original, working functions
 const fetchFuturesSymbols = async (): Promise<string[]> => {
-  const response = await fetch('YOUR_BINANCE_API_ENDPOINT_FOR_SYMBOLS');
+  const response = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
   const data = await response.json();
   // Process the data to extract and return an array of symbols
   return data.symbols;
 };
 
 const fetchCandleData = async (symbol: string, interval: string): Promise<Candle[]> => {
-  const response = await fetch(`YOUR_BINANCE_API_ENDPOINT_FOR_KLINE_DATA?symbol=${symbol}&interval=${interval}`);
+  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=1000`);
   const data = await response.json();
   // Process the data to return an array of Candle objects
   return data.map((d: any[]) => ({
