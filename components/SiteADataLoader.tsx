@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
-// Use this for clipboard functionality
+// --- Utility Functions ---
 const copyToClipboard = (text: string) => {
   const el = document.createElement('textarea');
   el.value = text;
@@ -39,7 +39,7 @@ interface SignalData {
   prevClosedGreen: boolean | null;
   prevClosedRed: boolean | null;
   highestVolumeColorPrev: 'green' | 'red' | null;
-  flagSignal: 'Bull Flag' | 'Bear Flag' | 'Neutral' | null; // New property for the flag signal
+  flagSignal: 'Bull Flag' | 'Bear Flag' | 'Neutral' | null;
 }
 
 interface Metrics {
@@ -59,7 +59,69 @@ interface Metrics {
   };
 }
 
-// --- Utility Functions ---
+// --- API Fetching with Rate Limiting and Exponential Backoff ---
+const throttle = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
+
+const fetchWithRateLimit = async (
+  url: string,
+  retries = 3,
+  delay = 1000
+): Promise<Response> => {
+  try {
+    const response = await fetch(url);
+    if (response.status === 429 && retries > 0) {
+      console.warn(`Rate limit hit, retrying in ${delay}ms...`);
+      await throttle(delay);
+      return fetchWithRateLimit(url, retries - 1, delay * 2);
+    }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      console.warn(`Fetch failed, retrying in ${delay}ms...`);
+      await throttle(delay);
+      return fetchWithRateLimit(url, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+};
+
+const fetchFuturesSymbols = async (): Promise<string[]> => {
+  const response = await fetchWithRateLimit('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  const data = await response.json();
+  const usdtPerpetualSymbols = data.symbols
+    .filter(
+      (s: any) =>
+        s.contractType === 'PERPETUAL' &&
+        s.quoteAsset === 'USDT' &&
+        s.status === 'TRADING'
+    )
+    .map((s: any) => s.symbol);
+  return usdtPerpetualSymbols;
+};
+
+const fetchCandleData = async (
+  symbol: string,
+  interval: string
+): Promise<Candle[]> => {
+  const response = await fetchWithRateLimit(
+    `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=1000`
+  );
+  const data = await response.json();
+  return data.map((d: any[]) => ({
+    timestamp: d[0],
+    open: parseFloat(d[1]),
+    high: parseFloat(d[2]),
+    low: parseFloat(d[3]),
+    close: parseFloat(d[4]),
+    volume: parseFloat(d[5]),
+    openTime: d[0],
+  }));
+};
+
+// --- Analytic Utility Functions ---
 /**
  * Calculates the Exponential Moving Average (EMA).
  */
@@ -299,40 +361,6 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   };
 };
 
-// --- Live API Functions ---
-const fetchFuturesSymbols = async (): Promise<string[]> => {
-  const response = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
-  const data = await response.json();
-  const usdtPerpetualSymbols = data.symbols
-    .filter(
-      (s: any) =>
-        s.contractType === 'PERPETUAL' &&
-        s.quoteAsset === 'USDT' &&
-        s.status === 'TRADING'
-    )
-    .map((s: any) => s.symbol);
-  return usdtPerpetualSymbols;
-};
-
-const fetchCandleData = async (
-  symbol: string,
-  interval: string
-): Promise<Candle[]> => {
-  const response = await fetch(
-    `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=1000`
-  );
-  const data = await response.json();
-  return data.map((d: any[]) => ({
-    timestamp: d[0],
-    open: parseFloat(d[1]),
-    high: parseFloat(d[2]),
-    low: parseFloat(d[3]),
-    close: parseFloat(d[4]),
-    volume: parseFloat(d[5]),
-    openTime: d[0],
-  }));
-};
-
 const checkBullFlag = (candles: Candle[]): boolean => {
   if (candles.length < 50) return false;
   const closes = candles.map(c => c.close);
@@ -364,7 +392,6 @@ const checkBearFlag = (candles: Candle[]): boolean => {
 
   return lastEma5 < lastEma10 && lastEma10 < lastEma20 && lastEma20 < lastEma50;
 };
-
 
 // --- Main App Component that combines both dashboards ---
 export default function App() {
@@ -448,23 +475,31 @@ export default function App() {
 
   // Fetch data for the flag dashboard
   const fetchDataForFlags = async (symbolsToFetch: string[]) => {
-    try {
-      setErrorMessage(null);
-      const data: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
-      await Promise.all(symbolsToFetch.map(async symbol => {
-        const candles = await fetchCandleData(symbol, timeframe);
-        data[symbol] = {
-          candles,
-          metrics: calculateMetrics(candles, timeframe)
-        };
+    setLoading(true);
+    setErrorMessage(null);
+    const newData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
+    const batchSize = 10;
+    const delay = 1000;
+    for (let i = 0; i < symbolsToFetch.length; i += batchSize) {
+      const batch = symbolsToFetch.slice(i, i + batchSize);
+      await Promise.all(batch.map(async symbol => {
+        try {
+          const candles = await fetchCandleData(symbol, timeframe);
+          newData[symbol] = {
+            candles,
+            metrics: calculateMetrics(candles, timeframe)
+          };
+        } catch (error) {
+          console.error(`Error fetching data for ${symbol}:`, error);
+          setErrorMessage(`Failed to fetch data for some symbols. It's likely a rate-limit issue. Please try again later.`);
+        }
       }));
-      setSymbolsData(data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      setErrorMessage('Failed to fetch data. Please check your connection or try again later.');
-      setLoading(false);
+      setSymbolsData(prevData => ({ ...prevData, ...newData }));
+      if (i + batchSize < symbolsToFetch.length) {
+        await throttle(delay);
+      }
     }
+    setLoading(false);
   };
 
   useEffect(() => {
