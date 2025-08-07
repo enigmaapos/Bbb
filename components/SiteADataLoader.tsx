@@ -313,8 +313,8 @@ null> => {
   };
   useEffect(() => {
     let isMounted = true;
-    const BATCH_SIZE = 10;
-    const INTERVAL_MS = 1000; // Base interval between batches
+    const BATCH_SIZE = 20;
+    const INTERVAL_MS = 500; // Base interval between batches
     let currentIndex = 0;
     let symbols: string[] = [];
 
