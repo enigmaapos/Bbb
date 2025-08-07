@@ -39,7 +39,7 @@ interface SignalData {
   prevClosedGreen: boolean | null;
   prevClosedRed: boolean | null;
   highestVolumeColorPrev: 'green' | 'red' | null;
-  signal: string;
+  signal: string; // New property for the flag signal
 }
 
 interface Metrics {
@@ -175,7 +175,7 @@ const getSignal = (s: { rsi14?: number[] }): string => {
   if (pumpInRange_21_26 && direction === 'pump') return 'BALANCE ZONE PUMP';
   if (dumpInRange_21_26 && direction === 'dump') return 'BALANCE ZONE DUMP';
   if (pumpInRange_1_10 && direction === 'pump') return 'LOWEST ZONE PUMP';
-  if (dumpInRange_1_10 && direction === 'dump') return 'LOWEST ZONE DUMP';
+  if (dumpInRange_21_26 && direction === 'dump') return 'LOWEST ZONE DUMP';
   return 'NO STRONG SIGNAL';
 };
 
@@ -299,89 +299,117 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   };
 };
 
-// --- MOCK API FUNCTIONS (REPLACE THESE WITH YOUR LIVE DATA FETCHING FUNCTIONS) ---
-const mockFetchFuturesSymbols = async (): Promise<string[]> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT'];
+// --- Live API Functions ---
+// Assuming these are your original, working functions
+const fetchFuturesSymbols = async (): Promise<string[]> => {
+  const response = await fetch('YOUR_BINANCE_API_ENDPOINT_FOR_SYMBOLS');
+  const data = await response.json();
+  // Process the data to extract and return an array of symbols
+  return data.symbols;
 };
 
-const mockFetchData = async (symbolsToFetch: string[], timeframe: string) => {
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  const newSymbolsData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
-  
-  const getMockCandles = (symbol: string, intervalMillis: number): Candle[] => {
-    const candles: Candle[] = [];
-    let close = 100 + Math.random() * 50;
-    for (let i = 0; i < 100; i++) {
-      const open = close + (Math.random() - 0.5) * 2;
-      const high = Math.max(open, close) + Math.random() * 2;
-      const low = Math.min(open, close) - Math.random() * 2;
-      close = low + Math.random() * (high - low);
-      candles.push({
-        openTime: Date.now() - (100 - i) * intervalMillis,
-        open,
-        high,
-        low,
-        close,
-        volume: 100000 + Math.random() * 1000000,
-        timestamp: Date.now() - (100 - i) * intervalMillis,
-      });
-    }
-    return candles;
-  };
-  
-  for (const symbol of symbolsToFetch) {
-    const candles = getMockCandles(symbol, getMillis(timeframe));
-    newSymbolsData[symbol] = {
-      candles,
-      metrics: calculateMetrics(candles, timeframe)
-    };
-  }
-  return newSymbolsData;
+const fetchCandleData = async (symbol: string, interval: string): Promise<Candle[]> => {
+  const response = await fetch(`YOUR_BINANCE_API_ENDPOINT_FOR_KLINE_DATA?symbol=${symbol}&interval=${interval}`);
+  const data = await response.json();
+  // Process the data to return an array of Candle objects
+  return data.map((d: any[]) => ({
+    timestamp: d[0],
+    open: parseFloat(d[1]),
+    high: parseFloat(d[2]),
+    low: parseFloat(d[3]),
+    close: parseFloat(d[4]),
+    volume: parseFloat(d[5]),
+    openTime: d[0], // openTime and timestamp are the same in this context
+  }));
 };
 
-// Mock function to replace the original fetchCandleData from SiteADataLoader
-async function mockFetchCandleData(symbol: string): Promise<Candle[]> {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  const mockCandles: Candle[] = [];
-  let currentPrice = 100 + Math.random() * 50;
-  for (let i = 0; i < 100; i++) {
-    const open = currentPrice;
-    const high = open + Math.random() * 5;
-    const low = open - Math.random() * 5;
-    const close = low + Math.random() * (high - low);
-    const volume = 1000 + Math.random() * 5000;
-    
-    mockCandles.push({
-      timestamp: Date.now() - (100 - i) * 60000,
-      open,
-      high,
-      low,
-      close,
-      volume,
-      openTime: Date.now() - (100 - i) * 60000,
-    });
-    currentPrice = close;
-  }
-  return mockCandles;
-}
-// --- END OF MOCK API FUNCTIONS ---
-
-
-// --- FlagSignalsDashboard Component ---
-const FlagSignalsDashboard = () => {
+// --- Main App Component that combines both dashboards ---
+export default function App() {
   const [symbols, setSymbols] = useState<string[]>([]);
+  const [signals, setSignals] = useState<SignalData[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const fetchIntervalRef = useRef<number | null>(null);
-  
-  const fetchData = async (symbolsToFetch: string[]) => {
+
+  // Function to process a single symbol's data for the table
+  const processSymbolData = async (symbol: string): Promise<SignalData | null> => {
+    try {
+      const candles = await fetchCandleData(symbol, '15m'); // Use a default interval for this table
+      const closes = candles.map(c => c.close);
+      const rsi14 = calculateRSI(closes, 14);
+      
+      if (candles.length < 2) return null;
+
+      const latestCandle = candles[candles.length - 1];
+      const previousCandle = candles[candles.length - 2];
+      
+      const priceChangePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;
+      const signal = getSignal({ rsi14 });
+
+      const mainTrend: MainTrend = {
+        trend: 'neutral',
+        type: 'none',
+        crossoverPrice: 0,
+        breakout: null,
+        isNear: false,
+        isDojiAfterBreakout: false,
+      };
+
+      const prevClosedGreen = previousCandle.close > previousCandle.open;
+      const prevClosedRed = previousCandle.close < previousCandle.open;
+
+      const highestVolumeColorPrev: 'green' | 'red' | null = 
+        previousCandle.volume > candles[candles.length - 3]?.volume
+        ? (previousCandle.close > previousCandle.open ? 'green' : 'red')
+        : null;
+
+      return {
+        symbol,
+        closes,
+        rsi14,
+        priceChangePercent,
+        mainTrend,
+        prevClosedGreen,
+        prevClosedRed,
+        highestVolumeColorPrev,
+        signal,
+      };
+    } catch (error) {
+      console.error(`Error processing data for ${symbol}:`, error);
+      return null;
+    }
+  };
+
+  // Fetch data for the main table
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const processedSignals = await Promise.all(['BTCUSDT', 'ETHUSDT', 'SOLUSDT'].map(processSymbolData));
+      const filteredSignals = processedSignals.filter((s): s is SignalData => s !== null);
+      setSignals(filteredSignals);
+      setLoading(false);
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch data for the flag dashboard
+  const fetchDataForFlags = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
-      const data = await mockFetchData(symbolsToFetch, timeframe);
+      const data: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
+      await Promise.all(symbolsToFetch.map(async symbol => {
+        const candles = await fetchCandleData(symbol, timeframe);
+        data[symbol] = {
+          candles,
+          metrics: calculateMetrics(candles, timeframe)
+        };
+      }));
       setSymbolsData(data);
       setLoading(false);
     } catch (error) {
@@ -395,14 +423,14 @@ const FlagSignalsDashboard = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const fetchedSymbols = await mockFetchFuturesSymbols();
+        const fetchedSymbols = await fetchFuturesSymbols();
         setSymbols(fetchedSymbols);
-        await fetchData(fetchedSymbols);
+        await fetchDataForFlags(fetchedSymbols);
 
         if (fetchIntervalRef.current) {
           clearInterval(fetchIntervalRef.current);
         }
-        fetchIntervalRef.current = window.setInterval(() => fetchData(fetchedSymbols), 60000);
+        fetchIntervalRef.current = window.setInterval(() => fetchDataForFlags(fetchedSymbols), 60000);
       } catch (error) {
         console.error('Initial data load failed:', error);
         setErrorMessage('Failed to load initial data. Please try again.');
@@ -484,165 +512,6 @@ const FlagSignalsDashboard = () => {
     </div>
   );
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
-      <script src="https://cdn.tailwindcss.com"></script>
-      <style>{`
-        ::-webkit-scrollbar {
-          width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-          background: #2d3748;
-        }
-        ::-webkit-scrollbar-thumb {
-          background: #4a5568;
-          border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: #718096;
-        }
-      `}</style>
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-8 text-center">
-          <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
-            Flag Signal Dashboard
-          </h1>
-          <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
-        </header>
-        <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
-          <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
-            <button
-              onClick={() => setTimeframe('15m')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '15m' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-            >
-              15m
-            </button>
-            <button
-              onClick={() => setTimeframe('4h')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '4h' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-            >
-              4h
-            </button>
-            <button
-              onClick={() => setTimeframe('1d')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-            >
-              1d
-            </button>
-          </div>
-          <div className="relative w-full md:w-64">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search symbols..."
-              className="w-full pl-4 pr-10 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-        {loading ? (
-          <div className="flex justify-center items-center h-[50vh]">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
-          </div>
-        ) : errorMessage ? (
-          <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
-            <p>{errorMessage}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {renderSymbolsList('Bullish Breakouts', filterSymbols(bullishBreakoutSymbols), 'bg-green-600 hover:bg-green-500')}
-            {renderSymbolsList('Bearish Breakouts', filterSymbols(bearishBreakoutSymbols), 'bg-red-600 hover:bg-red-500')}
-            {renderSymbolsList('Bull Flags', filterSymbols(bullFlagSymbols), 'bg-blue-600 hover:bg-blue-500')}
-            {renderSymbolsList('Bear Flags', filterSymbols(bearFlagSymbols), 'bg-orange-600 hover:bg-orange-500')}
-          </div>
-        )}
-        <footer className="mt-8 text-center text-gray-500 text-sm">
-          <p>Data provided by Binance Futures API (mocked for this environment).</p>
-        </footer>
-      </div>
-    </div>
-  );
-};
-
-// --- CryptoPricesTable Component ---
-const CryptoPricesTable = () => {
-  const [symbols] = useState<string[]>(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
-  const [signals, setSignals] = useState<SignalData[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Function to process a single symbol's data
-  const processSymbolData = async (symbol: string): Promise<SignalData | null> => {
-    try {
-      const candles = await mockFetchCandleData(symbol);
-      const closes = candles.map(c => c.close);
-      const rsi14 = calculateRSI(closes, 14);
-      
-      if (candles.length < 2) return null;
-
-      const latestCandle = candles[candles.length - 1];
-      const previousCandle = candles[candles.length - 2];
-      
-      const priceChangePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;
-      const signal = getSignal({ rsi14 });
-
-      const mainTrend: MainTrend = {
-        trend: 'neutral',
-        type: 'none',
-        crossoverPrice: 0,
-        breakout: null,
-        isNear: false,
-        isDojiAfterBreakout: false,
-      };
-
-      const prevClosedGreen = previousCandle.close > previousCandle.open;
-      const prevClosedRed = previousCandle.close < previousCandle.open;
-
-      const highestVolumeColorPrev: 'green' | 'red' | null = 
-        previousCandle.volume > candles[candles.length - 3].volume
-        ? (previousCandle.close > previousCandle.open ? 'green' : 'red')
-        : null;
-
-      return {
-        symbol,
-        closes,
-        rsi14,
-        priceChangePercent,
-        mainTrend,
-        prevClosedGreen,
-        prevClosedRed,
-        highestVolumeColorPrev,
-        signal,
-      };
-    } catch (error) {
-      console.error(`Error processing data for ${symbol}:`, error);
-      return null;
-    }
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const processedSignals = await Promise.all(symbols.map(processSymbolData));
-      const filteredSignals = processedSignals.filter((s): s is SignalData => s !== null);
-      setSignals(filteredSignals);
-      setLoading(false);
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 60000);
-    return () => clearInterval(interval);
-  }, [symbols]);
-
   const signalTable = useMemo(() => {
     return signals.map(s => {
       const currentPrice = s.closes[s.closes.length - 1]?.toFixed(2) || 'N/A';
@@ -682,66 +551,146 @@ const CryptoPricesTable = () => {
   }, [signals]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
-      <div className="container mx-auto p-4 rounded-lg shadow-lg bg-gray-800">
-        <h1 className="text-3xl font-bold mb-6 text-center text-purple-400">Crypto Signals Dashboard</h1>
-        {loading ? (
-          <div className="flex justify-center items-center h-48">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500"></div>
-            <p className="ml-4 text-xl text-purple-300">Loading data...</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <div className="bg-gray-700 rounded-lg p-2">
-              <table className="min-w-full divide-y divide-gray-600">
-                <thead className="bg-gray-600">
-                  <tr>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Symbol
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Current Price
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Change (24h)
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Pump Strength
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Prev Volume Color
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Flag Signal
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-gray-800 divide-y divide-gray-700">
-                  {signalTable}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- Main App Component that exports everything ---
-export default function App() {
-  return (
-    <div className="bg-gray-900 min-h-screen font-sans">
+    <div className="bg-gray-900 min-h-screen font-sans text-white">
+      <script src="https://cdn.tailwindcss.com"></script>
+      <style>{`
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #2d3748;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #4a5568;
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #718096;
+        }
+      `}</style>
       <header className="py-8 text-center bg-gray-800 text-white">
         <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
           Master Crypto Dashboard
         </h1>
         <p className="text-gray-400">A unified view of crypto market signals and price data.</p>
       </header>
+      
       <div className="container mx-auto p-4">
-        <CryptoPricesTable />
+        {/* CryptoPricesTable Section */}
+        <div className="container mx-auto p-4 rounded-lg shadow-lg bg-gray-800">
+          <h1 className="text-3xl font-bold mb-6 text-center text-purple-400">Crypto Signals Dashboard</h1>
+          {loading ? (
+            <div className="flex justify-center items-center h-48">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500"></div>
+              <p className="ml-4 text-xl text-purple-300">Loading data...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="bg-gray-700 rounded-lg p-2">
+                <table className="min-w-full divide-y divide-gray-600">
+                  <thead className="bg-gray-600">
+                    <tr>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Symbol
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Current Price
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Change (24h)
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Pump Strength
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Prev Volume Color
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Flag Signal
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
+                    {signalTable}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* FlagSignalsDashboard Section */}
         <div className="mt-8">
-          <FlagSignalsDashboard />
+          <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
+            <div className="max-w-7xl mx-auto">
+              <header className="mb-8 text-center">
+                <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
+                  Flag Signal Dashboard
+                </h1>
+                <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
+              </header>
+              <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
+                <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
+                  <button
+                    onClick={() => setTimeframe('15m')}
+                    className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '15m' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+                  >
+                    15m
+                  </button>
+                  <button
+                    onClick={() => setTimeframe('4h')}
+                    className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '4h' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+                  >
+                    4h
+                  </button>
+                  <button
+                    onClick={() => setTimeframe('1d')}
+                    className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+                  >
+                    1d
+                  </button>
+                </div>
+                <div className="relative w-full md:w-64">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search symbols..."
+                    className="w-full pl-4 pr-10 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+              {loading ? (
+                <div className="flex justify-center items-center h-[50vh]">
+                  <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
+                </div>
+              ) : errorMessage ? (
+                <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
+                  <p>{errorMessage}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {renderSymbolsList('Bullish Breakouts', filterSymbols(bullishBreakoutSymbols), 'bg-green-600 hover:bg-green-500')}
+                  {renderSymbolsList('Bearish Breakouts', filterSymbols(bearishBreakoutSymbols), 'bg-red-600 hover:bg-red-500')}
+                  {renderSymbolsList('Bull Flags', filterSymbols(bullFlagSymbols), 'bg-blue-600 hover:bg-blue-500')}
+                  {renderSymbolsList('Bear Flags', filterSymbols(bearFlagSymbols), 'bg-orange-600 hover:bg-orange-500')}
+                </div>
+              )}
+              <footer className="mt-8 text-center text-gray-500 text-sm">
+                <p>Data provided by Binance Futures API.</p>
+              </footer>
+            </div>
+          </div>
         </div>
       </div>
     </div>
