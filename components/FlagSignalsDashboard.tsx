@@ -198,7 +198,7 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
 
 
 // Main component starts here
-const CryptoSignalsDashboard = () => {
+const FlagSignalsDashboard = () => {
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
   const [loading, setLoading] = useState(true);
@@ -418,4 +418,4 @@ const CryptoSignalsDashboard = () => {
   );
 };
 
-export default CryptoSignalsDashboard;
+export default FlagSignalsDashboard;
