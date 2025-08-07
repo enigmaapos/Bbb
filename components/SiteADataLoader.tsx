@@ -507,8 +507,8 @@ export default function SiteADataLoader() {
     ).length;
 
     // Breakout counts are now specifically based on the previous session's activity
-    const bullishBreakoutCount = bullishBreakoutSymbols.length;
-    const bearishBreakoutCount = bearishBreakoutSymbols.length;
+    const bullishBreakoutCount1D = bullishBreakoutSymbols.length;
+    const bearishBreakoutCount1D = bearishBreakoutSymbols.length;
 
 
     return {
@@ -518,8 +518,8 @@ export default function SiteADataLoader() {
       redVolumeCount,
       bullishTrendCount,
       bearishTrendCount,
-      bullishBreakoutCount,
-      bearishBreakoutCount,
+      bullishBreakoutCount1D,
+      bearishBreakoutCount1D,
     };
   }, [signals, bullishBreakoutSymbols, bearishBreakoutSymbols]);
 
@@ -590,11 +590,11 @@ export default function SiteADataLoader() {
   <>
     <div className="p-3 bg-gray-700 rounded-lg">
       <p className="text-sm text-gray-400">Bullish Breakout</p>
-      <p className="text-lg font-semibold text-green-400">{marketStats.bullishBreakoutCount}</p>
+      <p className="text-lg font-semibold text-green-400">{marketStats.bullishBreakoutCount1D}</p>
     </div>
     <div className="p-3 bg-gray-700 rounded-lg">
       <p className="text-sm text-gray-400">Bearish Breakout</p>
-      <p className="text-lg font-semibold text-red-400">{marketStats.bearishBreakoutCount}</p>
+      <p className="text-lg font-semibold text-red-400">{marketStats.bearishBreakoutCount1D}</p>
     </div>
   </>
 )}
