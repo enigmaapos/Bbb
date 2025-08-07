@@ -59,6 +59,12 @@ interface Metrics {
   };
 }
 
+interface LiveTickerData {
+  symbol: string;
+  price: string;
+  priceChangePercent: string;
+}
+
 // --- API Fetching with Rate Limiting and Exponential Backoff ---
 // Using a CORS proxy to bypass potential security blocks
 const PROXY_URL = 'https://api.allorigins.win/raw?url=';
@@ -124,6 +130,19 @@ const fetchCandleData = async (
     close: parseFloat(d[4]),
     volume: parseFloat(d[5]),
     openTime: d[0],
+  }));
+};
+
+const fetchLiveTicker = async (symbols: string[]): Promise<LiveTickerData[]> => {
+  if (symbols.length === 0) return [];
+  const symbolList = symbols.join('","');
+  const url = `https://fapi.binance.com/fapi/v1/ticker/24hr?symbols=["${symbolList}"]`;
+  const response = await fetchWithRateLimit(url);
+  const data = await response.json();
+  return data.map((d: any) => ({
+    symbol: d.symbol,
+    price: d.lastPrice,
+    priceChangePercent: d.priceChangePercent,
   }));
 };
 
@@ -404,11 +423,13 @@ export default function App() {
   const [symbols, setSymbols] = useState<string[]>([]);
   const [signals, setSignals] = useState<SignalData[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
+  const [liveTickerData, setLiveTickerData] = useState<Record<string, LiveTickerData>>({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const fetchIntervalRef = useRef<number | null>(null);
+  const liveTickerIntervalRef = useRef<number | null>(null);
 
   // Function to process a single symbol's data for the table
   const processSymbolData = async (symbol: string): Promise<SignalData | null> => {
@@ -520,7 +541,7 @@ export default function App() {
           clearInterval(fetchIntervalRef.current);
         }
         
-        // Set up interval for refreshing data with batching
+        // Set up interval for refreshing signals data with batching
         fetchIntervalRef.current = window.setInterval(async () => {
           await fetchAndSetSignals(fetchedSymbols);
           
@@ -558,6 +579,38 @@ export default function App() {
       }
     };
   }, [timeframe]);
+
+  // New useEffect for live ticker data
+  useEffect(() => {
+    if (symbols.length === 0) return;
+
+    const fetchTicker = async () => {
+      try {
+        const tickerData = await fetchLiveTicker(symbols);
+        const tickerMap = tickerData.reduce((acc, curr) => {
+          acc[curr.symbol] = curr;
+          return acc;
+        }, {} as Record<string, LiveTickerData>);
+        setLiveTickerData(tickerMap);
+      } catch (error) {
+        console.error('Failed to fetch live ticker data:', error);
+      }
+    };
+
+    fetchTicker();
+    
+    if (liveTickerIntervalRef.current) {
+      clearInterval(liveTickerIntervalRef.current);
+    }
+    
+    liveTickerIntervalRef.current = window.setInterval(fetchTicker, 5000); // Update every 5 seconds
+
+    return () => {
+      if (liveTickerIntervalRef.current) {
+        window.clearInterval(liveTickerIntervalRef.current);
+      }
+    };
+  }, [symbols]);
 
   const bullFlagSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
@@ -628,7 +681,9 @@ export default function App() {
 
   const signalTable = useMemo(() => {
     return signals.map(s => {
-      const currentPrice = s.closes[s.closes.length - 1]?.toFixed(2) || 'N/A';
+      const liveData = liveTickerData[s.symbol];
+      const currentPrice = liveData ? parseFloat(liveData.price).toFixed(2) : 'N/A';
+      const priceChangePercent = liveData ? parseFloat(liveData.priceChangePercent).toFixed(2) : 'N/A';
       const pumpDump = {
         pumpStrength: s.closes[s.closes.length - 1] > s.closes[s.closes.length - 10]
           ? (s.closes[s.closes.length - 1] / s.closes[s.closes.length - 10]) * 100
@@ -651,8 +706,8 @@ export default function App() {
             ${currentPrice}
           </td>
           <td className="px-4 py-4 whitespace-nowrap text-sm">
-            <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+            <span className={`font-semibold ${parseFloat(priceChangePercent) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {priceChangePercent}%
             </span>
           </td>
           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
@@ -669,7 +724,7 @@ export default function App() {
         </tr>
       );
     });
-  }, [signals]);
+  }, [signals, liveTickerData]);
 
   return (
     <div className="bg-gray-900 min-h-screen font-sans text-white">
