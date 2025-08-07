@@ -60,6 +60,9 @@ interface Metrics {
 }
 
 // --- API Fetching with Rate Limiting and Exponential Backoff ---
+// Using a CORS proxy to bypass potential security blocks
+const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+
 const throttle = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
 
 const fetchWithRateLimit = async (
@@ -68,7 +71,10 @@ const fetchWithRateLimit = async (
   delay = 1000
 ): Promise<Response> => {
   try {
-    const response = await fetch(url);
+    // Prepend the proxy URL
+    const proxiedUrl = PROXY_URL + encodeURIComponent(url);
+    const response = await fetch(proxiedUrl);
+
     if (response.status === 429 && retries > 0) {
       console.warn(`Rate limit hit, retrying in ${delay}ms...`);
       await throttle(delay);
@@ -407,7 +413,7 @@ export default function App() {
   // Function to process a single symbol's data for the table
   const processSymbolData = async (symbol: string): Promise<SignalData | null> => {
     try {
-      const candles = await fetchCandleData(symbol, '15m'); // Use a default interval for this table
+      const candles = await fetchCandleData(symbol, '15m');
       const closes = candles.map(c => c.close);
       const rsi14 = calculateRSI(closes, 14);
       
@@ -456,64 +462,89 @@ export default function App() {
       return null;
     }
   };
-
-  // Fetch data for the main table
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      // Fetch symbols to display in the table. You can customize this list.
-        const processedSignals = await Promise.all(symbols.map(processSymbolData));
-      const filteredSignals = processedSignals.filter((s): s is SignalData => s !== null);
-      setSignals(filteredSignals);
-      setLoading(false);
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 60000); // Refresh every minute
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch data for the flag dashboard
-  const fetchDataForFlags = async (symbolsToFetch: string[]) => {
-    setLoading(true);
-    setErrorMessage(null);
-    const newData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
+  
+  // New batching function to fetch data for the main table
+  const fetchAndSetSignals = async (symbolsToFetch: string[]) => {
     const batchSize = 10;
     const delay = 1000;
+    const allSignals: SignalData[] = [];
     for (let i = 0; i < symbolsToFetch.length; i += batchSize) {
       const batch = symbolsToFetch.slice(i, i + batchSize);
-      await Promise.all(batch.map(async symbol => {
-        try {
-          const candles = await fetchCandleData(symbol, timeframe);
-          newData[symbol] = {
-            candles,
-            metrics: calculateMetrics(candles, timeframe)
-          };
-        } catch (error) {
-          console.error(`Error fetching data for ${symbol}:`, error);
-          setErrorMessage(`Failed to fetch data for some symbols. It's likely a rate-limit issue. Please try again later.`);
-        }
-      }));
-      setSymbolsData(prevData => ({ ...prevData, ...newData }));
+      const processedBatch = await Promise.all(batch.map(processSymbolData));
+      const filteredBatch = processedBatch.filter((s): s is SignalData => s !== null);
+      allSignals.push(...filteredBatch);
       if (i + batchSize < symbolsToFetch.length) {
         await throttle(delay);
       }
     }
-    setLoading(false);
+    setSignals(allSignals);
   };
-
+  
+  // New combined data fetching useEffect
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
         const fetchedSymbols = await fetchFuturesSymbols();
         setSymbols(fetchedSymbols);
-        await fetchDataForFlags(fetchedSymbols);
+        
+        // Fetch and set signals for the main table with batching
+        await fetchAndSetSignals(fetchedSymbols);
 
+        // Fetch and set data for the flag dashboard
+        const newData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
+        const batchSize = 10;
+        const delay = 1000;
+        for (let i = 0; i < fetchedSymbols.length; i += batchSize) {
+          const batch = fetchedSymbols.slice(i, i + batchSize);
+          await Promise.all(batch.map(async symbol => {
+            try {
+              const candles = await fetchCandleData(symbol, timeframe);
+              newData[symbol] = {
+                candles,
+                metrics: calculateMetrics(candles, timeframe)
+              };
+            } catch (error) {
+              console.error(`Error fetching data for ${symbol}:`, error);
+            }
+          }));
+          setSymbolsData(prevData => ({ ...prevData, ...newData }));
+          if (i + batchSize < fetchedSymbols.length) {
+            await throttle(delay);
+          }
+        }
+
+        setLoading(false);
+        
         if (fetchIntervalRef.current) {
           clearInterval(fetchIntervalRef.current);
         }
-        fetchIntervalRef.current = window.setInterval(() => fetchDataForFlags(fetchedSymbols), 60000); // Refresh every minute
+        
+        // Set up interval for refreshing data with batching
+        fetchIntervalRef.current = window.setInterval(async () => {
+          await fetchAndSetSignals(fetchedSymbols);
+          
+          const newData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
+          for (let i = 0; i < fetchedSymbols.length; i += batchSize) {
+            const batch = fetchedSymbols.slice(i, i + batchSize);
+            await Promise.all(batch.map(async symbol => {
+              try {
+                const candles = await fetchCandleData(symbol, timeframe);
+                newData[symbol] = {
+                  candles,
+                  metrics: calculateMetrics(candles, timeframe)
+                };
+              } catch (error) {
+                console.error(`Error fetching data for ${symbol}:`, error);
+              }
+            }));
+            setSymbolsData(prevData => ({ ...prevData, ...newData }));
+            if (i + batchSize < fetchedSymbols.length) {
+              await throttle(delay);
+            }
+          }
+        }, 60000); // Refresh every minute
+        
       } catch (error) {
         console.error('Initial data load failed:', error);
         setErrorMessage('Failed to load initial data. Please try again.');
@@ -666,7 +697,7 @@ export default function App() {
       </header>
       
       <div className="container mx-auto p-4">
-        {/* CryptoPricesTable Section */}
+        {/* CryptoSignalsDashboard Section */}
         <div className="container mx-auto p-4 rounded-lg shadow-lg bg-gray-800">
           <h1 className="text-3xl font-bold mb-6 text-center text-purple-400">Crypto Signals Dashboard</h1>
           {loading ? (
