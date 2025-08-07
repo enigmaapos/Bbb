@@ -190,12 +190,19 @@ const CryptoSignalsDashboard = () => {
   const fetchIntervalRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
 
-  const fetchFuturesSymbols = async () => {
+  interface BinanceSymbol {
+  symbol: string;
+  contractType: string;
+  quoteAsset: string;
+}
+
+const fetchFuturesSymbols = async (): Promise<string[]> => {
   const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
-  const data = await res.json();
+  const data: { symbols: BinanceSymbol[] } = await res.json();
+
   return data.symbols
-    .filter(s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
-    .map(s => s.symbol);
+    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+    .map((s) => s.symbol);
 };
 
   const fetchData = async () => {
