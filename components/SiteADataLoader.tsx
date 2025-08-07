@@ -43,12 +43,16 @@ function calculateEMA(data: number[], period: number): number[] {
       const sma = data.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
       previousEma = sma;
     }
-    if (previousEma !== null) {
-  const currentEma: number = data[i] * k + previousEma * (1 - k);
-  ema.push(currentEma);
-  previousEma = currentEma;
-}
-  return ema;
+      if (previousEma !== null) {
+      const currentEma: number = data[i] * k + previousEma * (1 - k);
+      ema.push(currentEma);
+      previousEma = currentEma;
+    } else {
+      ema.push(NaN); // fallback for safety
+    }
+  }
+
+  return ema; // ✅ always returns an array
 }
 
 function calculateRSI(closes: number[], period = 14): number[] {
