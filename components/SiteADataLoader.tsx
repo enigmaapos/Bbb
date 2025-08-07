@@ -14,13 +14,10 @@ interface Candle {
 interface MainTrend {
   trend: 'bullish' | 'bearish' | 'neutral';
   type: 'support' | 'resistance' | 'none';
-  crossoverPrice: number;
-  // Still relevant for EMA context
-  breakout: 'bullish' | 'bearish' | null;
-  // Now for new high/low breakout
+  crossoverPrice: number; // Still relevant for EMA context
+  breakout: 'bullish' | 'bearish' | null; // Now for new high/low breakout
   isNear: boolean;
-  isDojiAfterBreakout: boolean;
-  // Applies to the new breakout
+  isDojiAfterBreakout: boolean; // Applies to the new breakout
 }
 
 interface SignalData {
@@ -32,8 +29,6 @@ interface SignalData {
   prevClosedGreen: boolean | null;
   prevClosedRed: boolean | null;
   highestVolumeColorPrev: 'green' | 'red' | null;
-  isBullFlag: boolean;
-  isBearFlag: boolean;
 }
 
 // --- Utility Functions ---
@@ -44,10 +39,10 @@ interface SignalData {
  * @returns An array containing the EMA values, with NaN for initial periods.
  */
 function calculateEMA(data: number[], period: number): number[] {
-  const k = 2 / (period + 1);
-  // Smoothing constant
+  const k = 2 / (period + 1); // Smoothing constant
   const ema: number[] = [];
   let previousEma: number | null = null;
+
   for (let i = 0; i < data.length; i++) {
     // For the initial periods before enough data for SMA, push NaN
     if (i < period - 1) {
@@ -83,6 +78,7 @@ function calculateRSI(closes: number[], period = 3): number[] {
   const rsi: number[] = [];
   let gains = 0;
   let losses = 0;
+
   for (let i = 1; i <= period; i++) {
     const diff = closes[i] - closes[i - 1];
     if (diff > 0) {
@@ -101,11 +97,11 @@ function calculateRSI(closes: number[], period = 3): number[] {
     const diff = closes[i] - closes[i - 1];
     const gain = diff > 0 ? diff : 0;
     const loss = diff < 0 ? -diff : 0;
+
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-    rs = avgLoss === 0 ?
-      Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
     rsi[i] = 100 - 100 / (1 + rs);
   }
 
@@ -134,9 +130,11 @@ function getRecentRSIDiff(
   strength: number;
 } | null {
   if (rsi.length < lookback) return null;
+
   const recentRSI = rsi.slice(-lookback);
   let recentHigh = -Infinity;
   let recentLow = Infinity;
+
   for (const value of recentRSI) {
     if (!isNaN(value)) {
       if (value > recentHigh) recentHigh = value;
@@ -168,13 +166,14 @@ function getRecentRSIDiff(
  * @returns A string representing the detected signal (e.g., 'MAX ZONE PUMP', 'NO STRONG SIGNAL').
  */
 const getSignal = (s: { rsi14?: number[] }): string => {
-  const pumpDump = s.rsi14 ?
-    getRecentRSIDiff(s.rsi14, 14) : null;
+  const pumpDump = s.rsi14 ? getRecentRSIDiff(s.rsi14, 14) : null;
   if (!pumpDump) return 'NO DATA';
 
   const { direction, pumpStrength: pump, dumpStrength: dump } = pumpDump;
+
   const inRange = (val: number, min: number, max: number) =>
     val !== undefined && val >= min && val <= max;
+
   const isAbove30 = (val: number) => val !== undefined && val >= 30;
 
   const pumpAbove30 = isAbove30(pump);
@@ -182,25 +181,29 @@ const getSignal = (s: { rsi14?: number[] }): string => {
 
   const pumpInRange_21_26 = inRange(pump, 21, 26);
   const dumpInRange_21_26 = inRange(dump, 21, 26);
+
   const pumpInRange_1_10 = inRange(pump, 1, 10);
   const dumpInRange_1_10 = inRange(dump, 1, 10);
+
   if (direction === 'pump' && pumpAbove30) return 'MAX ZONE PUMP';
   if (direction === 'dump' && dumpAbove30) return 'MAX ZONE DUMP';
+
   if (pumpInRange_21_26 && direction === 'pump') return 'BALANCE ZONE PUMP';
   if (dumpInRange_21_26 && direction === 'dump') return 'BALANCE ZONE DUMP';
+
   if (pumpInRange_1_10 && direction === 'pump') return 'LOWEST ZONE PUMP';
   if (dumpInRange_1_10 && direction === 'dump') return 'LOWEST ZONE DUMP';
+
   return 'NO STRONG SIGNAL';
 };
 
 // --- SiteADataLoader Component ---
 export default function SiteADataLoader() {
-  const [signals, setSignals] = useState<SignalData[]>([]);
-  // Explicitly type signals
+  const [signals, setSignals] = useState<SignalData[]>([]); // Explicitly type signals
   const [loading, setLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState('1d');
-  // Default to 1d
+  const [timeframe, setTimeframe] = useState('1d'); // Default to 1d
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
   // Utility to generate UTC timestamp at specific hour
   const getUTCMillis = (year: number, month: number, date: number, hour: number, minute: number): number => {
     return Date.UTC(year, month, date, hour, minute);
@@ -223,8 +226,7 @@ export default function SiteADataLoader() {
       const date = now.getUTCDate();
 
       const getUTCMillisFor1d = (y: number, m: number, d: number, hPH: number, min: number) =>
-        Date.UTC(y, m, d, hPH - 8, min);
-      // UTC+8 to UTC conversion for PH time
+        Date.UTC(y, m, d, hPH - 8, min); // UTC+8 to UTC conversion for PH time
 
       const today8AM_UTC = getUTCMillisFor1d(year, month, date, 8, 0);
       const tomorrow745AM_UTC = getUTCMillisFor1d(year, month, date + 1, 7, 45);
@@ -250,6 +252,7 @@ export default function SiteADataLoader() {
         '15m': 15 * 60 * 1000,
         '4h': 4 * 60 * 60 * 1000,
       };
+
       const tfMillis = MILLISECONDS[timeframeToUse];
       const sessionStart = Math.floor(nowMillis / tfMillis) * tfMillis;
       const sessionEnd = sessionStart + tfMillis;
@@ -259,6 +262,7 @@ export default function SiteADataLoader() {
       return { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd };
     }
   };
+
   /**
    * Fetches data from a given URL with exponential backoff and specific error handling for Binance API.
    * @param url - The URL to fetch data from.
@@ -266,8 +270,7 @@ export default function SiteADataLoader() {
    * @param delay - The initial delay in milliseconds before retrying.
    * @returns The JSON response data, or null if an invalid symbol error occurs or all retries fail.
    */
-  const fetchWithRetry = async (url: string, retries = 5, delay = 1000): Promise<any |
-    null> => {
+  const fetchWithRetry = async (url: string, retries = 5, delay = 1000): Promise<any | null> => {
     for (let i = 0; i < retries; i++) {
       try {
         const response = await fetch(url);
@@ -276,8 +279,7 @@ export default function SiteADataLoader() {
           const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : delay * Math.pow(2, i);
           console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
-          continue;
-          // Retry the request
+          continue; // Retry the request
         }
         if (!response.ok) {
           const errorBody = await response.json();
@@ -285,8 +287,7 @@ export default function SiteADataLoader() {
           if (errorBody.code === -1003) { // IP ban
             console.warn(`Binance IP ban detected. Retrying in ${delay * Math.pow(2, i) / 1000}s...`);
             await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
-            continue;
-            // Retry the request
+            continue; // Retry the request
           } else if (errorBody.code === -1121 || errorBody.msg === "Invalid symbol." || errorBody.msg === "Invalid symbol status.") {
             // Specific handling for invalid symbol errors: return null to skip this symbol
             console.warn(`Invalid symbol encountered for URL: ${url}. Skipping this symbol.`);
@@ -307,14 +308,14 @@ export default function SiteADataLoader() {
           if (error instanceof Error && error.message.includes("Invalid symbol")) { // Check for the specific message from previous handling
             return null;
           }
-          throw error;
-          // Re-throw if all retries fail for other reasons
+          throw error; // Re-throw if all retries fail for other reasons
         }
       }
     }
-    return null;
-    // Should not be reached if retries > 0 and no error, but as a fallback
+    return null; // Should not be reached if retries > 0 and no error, but as a fallback
   };
+
+
   useEffect(() => {
     let isMounted = true;
     const BATCH_SIZE = 10;
@@ -326,8 +327,7 @@ export default function SiteADataLoader() {
      * Fetches and analyzes data for a single cryptocurrency symbol.
      * @param symbol - The cryptocurrency symbol (e.g., "BTCUSDT").
      * @param interval - The candlestick interval (e.g., "15m", "4h", "1d").
-     * @returns An object containing analyzed
-     * signal data for the symbol, or null if an error occurs.
+     * @returns An object containing analyzed signal data for the symbol, or null if an error occurs.
      */
     const fetchAndAnalyze = async (symbol: string, interval: string): Promise<SignalData | null> => {
       // Fetch klines data
@@ -348,37 +348,36 @@ export default function SiteADataLoader() {
         close: +c[4],
         volume: +c[5],
       }));
+
       const closes: number[] = candles.map((c: Candle) => c.close);
       const opens: number[] = candles.map((c: Candle) => c.open);
       const highs: number[] = candles.map((c: Candle) => c.high);
       const lows: number[] = candles.map((c: Candle) => c.low);
-      const ema5 = calculateEMA(closes, 5);
-      const ema10 = calculateEMA(closes, 10);
+
       const ema14 = calculateEMA(closes, 14);
-      const ema20 = calculateEMA(closes, 20);
-      const ema50 = calculateEMA(closes, 50);
       const ema70 = calculateEMA(closes, 70);
       const ema200 = calculateEMA(closes, 200);
       const rsi14 = calculateRSI(closes, 14);
+
       // Fetch 24h ticker data
       const ticker24h = await fetchWithRetry(
         `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`
       );
+
       // If ticker24h is null (due to invalid symbol or other fetch error), skip this symbol
       if (ticker24h === null) {
         return null;
       }
 
       const priceChangePercent = parseFloat(ticker24h.priceChangePercent);
+
       // Calculate previous session candles and highest volume color
-      const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(interval);
-      // Get current session times too
+      const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(interval); // Get current session times too
 
       const candlesCurrentSession = candles.filter((c: Candle) => c.timestamp >= sessionStart && c.timestamp <= sessionEnd);
       const candlesPrevSession = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
 
-      let highestVolumeColorPrev: 'green' | 'red' |
-        null = null;
+      let highestVolumeColorPrev: 'green' | 'red' | null = null;
       if (candlesPrevSession.length > 0) {
         let maxVolume = -1;
         let highestVolumeCandle: Candle | null = null;
@@ -390,24 +389,18 @@ export default function SiteADataLoader() {
         }
         if (highestVolumeCandle) {
           // Determine color based on close vs open of the highest volume candle
-          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ?
-            'green' : 'red';
+          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ? 'green' : 'red';
         }
       }
 
       // Simulate prevClosedGreen/Red (simplified)
-      let prevClosedGreen: boolean |
-        null = null;
+      let prevClosedGreen: boolean | null = null;
       let prevClosedRed: boolean | null = null;
       if (candles.length >= 2) {
         const prevCandle = candles[candles.length - 2];
         prevClosedGreen = prevCandle.close > prevCandle.open;
         prevClosedRed = prevCandle.close < prevCandle.open;
       }
-      
-      // Calculate the bullish and bearish flag signals
-      const isBullFlag = (ema5.at(-1) > ema10.at(-1) && ema10.at(-1) > ema20.at(-1) && ema20.at(-1) > ema50.at(-1) && rsi14.at(-1) > 50);
-      const isBearFlag = (ema5.at(-1) < ema10.at(-1) && ema10.at(-1) < ema20.at(-1) && ema20.at(-1) < ema50.at(-1) && rsi14.at(-1) < 50);
 
       // Initialize mainTrend object
       let mainTrend: MainTrend = {
@@ -418,6 +411,7 @@ export default function SiteADataLoader() {
         isNear: false,
         isDojiAfterBreakout: false,
       };
+
       // Determine overall trend based on CURRENT EMA values (from full 500 candles)
       const lastEma70Full = ema70.at(-1);
       const lastEma200Full = ema200.at(-1);
@@ -434,19 +428,18 @@ export default function SiteADataLoader() {
 
       // Calculate today's highest high and lowest low from current session candles
       // Ensure there are candles in the current session before reducing
-      const todaysHighestHigh = candlesCurrentSession.length > 0 ?
-        candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const todaysLowestLow = candlesCurrentSession.length > 0 ?
-        candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const todaysHighestHigh = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const todaysLowestLow = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+
       // Calculate previous session's highest high and lowest low
       // Ensure there are candles in the previous session before reducing
-      const prevSessionHigh = candlesPrevSession.length > 0 ?
-        candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const prevSessionLow = candlesPrevSession.length > 0 ?
-        candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const prevSessionHigh = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const prevSessionLow = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+
       // New Breakout Logic: Today's high/low vs. Previous Session's high/low
       const bullishBreakout = todaysHighestHigh !== null && prevSessionHigh !== null && todaysHighestHigh > prevSessionHigh;
       const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && todaysLowestLow < prevSessionLow;
+
       // Set mainTrend.breakout based on the new logic
       if (bullishBreakout) {
         mainTrend.breakout = 'bullish';
@@ -457,177 +450,355 @@ export default function SiteADataLoader() {
       // Check for doji after breakout (applies to the new breakout)
       if (mainTrend.breakout && candlesCurrentSession.length > 0) {
         const lastCandleCurrentSession = candlesCurrentSession[candlesCurrentSession.length - 1];
-        const isDoji = Math.abs(lastCandleCurrentSession.open - lastCandleCurrentSession.close) < (lastCandleCurrentSession.high - lastCandleCurrentSession.low) * 0.1;
-        // 10% threshold for doji
-        mainTrend.isDojiAfterBreakout = isDoji;
+        const bodySize = Math.abs(lastCandleCurrentSession.close - lastCandleCurrentSession.open);
+        const totalRange = lastCandleCurrentSession.high - lastCandleCurrentSession.low;
+        if (totalRange > 0 && bodySize / totalRange < 0.2) { // 20% body size as a threshold for doji-like candle
+          mainTrend.isDojiAfterBreakout = true;
+        }
       }
-      
-      const currentPrice = closes.at(-1);
-      const lastRSI = rsi14.at(-1);
-      
+
       return {
         symbol,
         closes,
-        rsi14,
+        rsi14, // Keep rsi14 for getSignal calculation
         priceChangePercent,
-        mainTrend,
+        mainTrend, // Updated mainTrend object
         prevClosedGreen,
         prevClosedRed,
-        highestVolumeColorPrev,
-        isBullFlag: isBullFlag && !isNaN(isBullFlag),
-        isBearFlag: isBearFlag && !isNaN(isBearFlag),
+        highestVolumeColorPrev, // Add the calculated highest volume color
       };
     };
 
-    // --- Main Fetching Logic ---
-    const fetchAllSymbols = async () => {
-      setLoading(true);
-      try {
-        const symbolsResponse = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
-        if (symbolsResponse === null) {
-          throw new Error("Could not fetch symbols.");
-        }
-        symbols = symbolsResponse.symbols
-          .filter((s: any) => s.quoteAsset === 'USDT' && s.status === 'TRADING')
-          .map((s: any) => s.symbol)
-          .slice(0, 50); // Get top 50 symbols
+    /**
+     * Processes symbols in batches to avoid rate limits and updates the signals state.
+     */
+    const processBatch = async () => {
+      if (!isMounted) return;
 
-        let allSignals: SignalData[] = [];
-        const processBatch = async () => {
-          if (currentIndex >= symbols.length || !isMounted) {
+      if (symbols.length === 0) {
+        // Fetch all symbols once
+        try {
+          const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
+          if (exchangeInfo === null) {
+            console.error('Failed to fetch exchange info, cannot proceed.');
             setLoading(false);
             return;
           }
-          const batch = symbols.slice(currentIndex, currentIndex + BATCH_SIZE);
-          const batchPromises = batch.map(symbol => fetchAndAnalyze(symbol, timeframe));
-          const batchResults = await Promise.all(batchPromises);
-          
-          // Filter out null results (invalid symbols)
-          const validResults = batchResults.filter(result => result !== null) as SignalData[];
-          allSignals = [...allSignals, ...validResults];
-          setSignals(allSignals);
-          currentIndex += BATCH_SIZE;
-
-          if (currentIndex < symbols.length && isMounted) {
-            // Set a delay between batches to respect API limits
-            setTimeout(processBatch, INTERVAL_MS);
+          if (exchangeInfo && Array.isArray(exchangeInfo.symbols)) {
+            symbols = exchangeInfo.symbols.map((s: { symbol: string }) => s.symbol).filter((s: string) => s.endsWith('USDT'));
           } else {
+            console.error('Exchange info did not contain a valid symbols array:', exchangeInfo);
             setLoading(false);
+            return;
           }
-        };
+        } catch (error) {
+          console.error('Error fetching exchange info:', error);
+          setLoading(false);
+          return;
+        }
+      }
 
-        await processBatch(); // Start the first batch
+      const newSignals = await Promise.all(
+        symbols.slice(currentIndex, currentIndex + BATCH_SIZE).map((symbol: string) => fetchAndAnalyze(symbol, timeframe))
+      );
+
+      if (isMounted) {
+        setSignals((prev) => [...prev, ...newSignals.filter(Boolean) as SignalData[]]); // filter(Boolean) removes null entries
+        currentIndex += BATCH_SIZE;
+
+        // Update last updated timestamp after processing a batch
         setLastUpdated(new Date().toLocaleTimeString());
-        
-      } catch (error) {
-        console.error("Failed to fetch symbols or data:", error);
-        setLoading(false);
+
+        if (currentIndex < symbols.length) {
+          setTimeout(processBatch, INTERVAL_MS);
+        } else {
+          setLoading(false); // All symbols processed
+        }
       }
     };
 
-    fetchAllSymbols();
-    const intervalId = setInterval(fetchAllSymbols, 60000); // Poll every 60 seconds
+    // Initialize/reset signals and loading state when timeframe changes or on initial load
+    setSignals([]); // Clear previous signals when timeframe changes
+    setLoading(true);
+    currentIndex = 0; // Reset index for new fetch
+    symbols = []; // Reset symbols to re-fetch exchange info
+    setLastUpdated(null); // Reset last updated timestamp
 
+    processBatch();
+
+    // Cleanup function for useEffect to prevent state updates on unmounted component
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
     };
-  }, [timeframe]); // Dependencies for useEffect
+  }, [timeframe]); // Rerun effect when timeframe changes
 
-  const handleTimeframeChange = (newTimeframe: string) => {
-    setTimeframe(newTimeframe);
-  };
-  
-  const formattedSignals = useMemo(() => {
-    return signals.map(s => {
-      const currentPrice = s.closes.at(-1)?.toFixed(2) || 'N/A';
-      const pumpDump = s.rsi14 ? getRecentRSIDiff(s.rsi14, 14) : null;
-      const trendColor = s.mainTrend.trend === 'bullish' ? 'text-green-400' : s.mainTrend.trend === 'bearish' ? 'text-red-400' : 'text-gray-400';
-      const trendText = s.mainTrend.trend.toUpperCase();
-      const breakoutText = s.mainTrend.breakout ?
-        s.mainTrend.breakout.toUpperCase() : 'N/A';
-      const dojiText = s.mainTrend.isDojiAfterBreakout ?
-        'Doji After Breakout' : 'No Doji';
-
-      return {
-        ...s,
-        currentPrice,
-        pumpDump,
-        trendColor,
-        trendText,
-        breakoutText,
-        dojiText
-      };
-    });
+  // Memoize the filtering of signals for "MAX ZONE PUMP" to optimize performance
+  const maxPumpZoneSignals = useMemo(() => {
+    return signals.filter(s => getSignal(s) === 'MAX ZONE PUMP');
   }, [signals]);
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 font-sans">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-center text-purple-400">Trading Signals Dashboard</h1>
+  // Filter signals for bullish and bearish breakouts
+  const bullishBreakoutSymbols = useMemo(() => {
+    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bullish' && s.mainTrend);
+  }, [signals]);
 
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex space-x-2">
-            {['15m', '4h', '1d'].map(tf => (
-              <button
-                key={tf}
-                onClick={() => handleTimeframeChange(tf)}
-                className={`py-2 px-4 rounded-lg font-semibold transition-colors duration-200 ${
-                  timeframe === tf
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+  const bearishBreakoutSymbols = useMemo(() => {
+    return signals.filter(s => s.mainTrend && s.mainTrend.breakout === 'bearish' && s.mainTrend);
+  }, [signals]);
+
+
+  // Calculate statistics for the "Market Overview" section
+  const marketStats = useMemo(() => {
+    const greenPriceChangeCount = signals.filter(
+      (t) => parseFloat(String(t.priceChangePercent)) > 0
+    ).length;
+
+    const redPriceChangeCount = signals.filter(
+      (t) => parseFloat(String(t.priceChangePercent)) < 0
+    ).length;
+
+    const greenVolumeCount = signals.filter(
+      (s) => s.highestVolumeColorPrev === 'green'
+    ).length;
+
+    const redVolumeCount = signals.filter(
+      (s) => s.highestVolumeColorPrev === 'red'
+    ).length;
+
+    const bullishTrendCount = signals.filter(
+        (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
+    ).length;
+
+    const bearishTrendCount = signals.filter(
+        (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
+    ).length;
+
+    // Breakout counts are now specifically based on the previous session's activity
+    const bullishBreakoutCount = bullishBreakoutSymbols.length;
+    const bearishBreakoutCount = bearishBreakoutSymbols.length;
+
+
+    return {
+      greenPriceChangeCount,
+      redPriceChangeCount,
+      greenVolumeCount,
+      redVolumeCount,
+      bullishTrendCount,
+      bearishTrendCount,
+      bullishBreakoutCount,
+      bearishBreakoutCount,
+    };
+  }, [signals, bullishBreakoutSymbols, bearishBreakoutSymbols]);
+
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-purple-400 mb-6 text-center">
+          Crypto Signals Dashboard 🚀
+        </h1>
+
+        {/* Timeframe Selector */}
+        <div className="flex justify-center mb-6 space-x-4">
+          {['15m', '4h', '1d'].map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200
+                ${timeframe === tf
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
-              >
-                {tf}
-              </button>
-            ))}
-          </div>
-          {lastUpdated && (
-            <div className="text-sm text-gray-400">
-              Last Updated: {lastUpdated}
-            </div>
-          )}
+            >
+              {tf.toUpperCase()}
+            </button>
+          ))}
         </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center h-[50vh]">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500"></div>
+        {lastUpdated && (
+            <p className="text-center text-sm text-gray-400 mb-4">
+                Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
+            </p>
+        )}
+
+        {/* Market Overview Section */}
+        <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
+            <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
+                Market Overview
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Green Price Change</p>
+                    <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Red Price Change</p>
+                    <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
+                    <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
+                    <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
+                </div>
+                {/* New: Bullish/Bearish Trend Counts */}
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Bullish Trend</p>
+                    <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Bearish Trend</p>
+                    <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
+                </div>
+                {/* New: Bullish/Bearish Breakout Counts */}
+                {timeframe === '1d' && (
+  <>
+    <div className="p-3 bg-gray-700 rounded-lg">
+      <p className="text-sm text-gray-400">Bullish Breakout</p>
+      <p className="text-lg font-semibold text-green-400">{marketStats.bullishBreakoutCount}</p>
+    </div>
+    <div className="p-3 bg-gray-700 rounded-lg">
+      <p className="text-sm text-gray-400">Bearish Breakout</p>
+      <p className="text-lg font-semibold text-red-400">{marketStats.bearishBreakoutCount}</p>
+    </div>
+  </>
+)}
+            </div>
+        </div>
+
+        {loading && (
+          <div className="text-center text-lg text-gray-400 mt-10">
+            Loading signals... This might take a moment. ⏳
           </div>
-        ) : (
-          <div className="overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
-            <div className="align-middle inline-block min-w-full">
+        )}
+
+        {/* Display Bullish Breakout Symbols */}
+        {!loading && bullishBreakoutSymbols.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-green-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-5 text-center">
+              Bullish Breakouts ({bullishBreakoutSymbols.length})
+            </h2>
+            <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
                       Symbol
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Price
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Current Price
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      24h Change
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Pump/Dump Str
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      High Vol Color
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Bull Flag
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Bear Flag
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                      24h Change (%)
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-gray-800 divide-y divide-gray-700">
-                  {formattedSignals.map((s, index) => {
-                    const pumpDump = s.rsi14 ? getRecentRSIDiff(s.rsi14, 14) : null;
-                    const currentPrice = s.closes.at(-1)?.toFixed(2) || 'N/A';
+                <tbody className="divide-y divide-gray-700">
+                  {bullishBreakoutSymbols.map((s) => (
+                    <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-green-200">
+                        {s.symbol}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                        ${s.closes && s.closes.length > 0 ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Display Bearish Breakout Symbols */}
+        {!loading && bearishBreakoutSymbols.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-red-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-red-300 mb-5 text-center">
+              Bearish Breakouts ({bearishBreakoutSymbols.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                      Symbol
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Current Price
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                      24h Change (%)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {bearishBreakoutSymbols.map((s) => (
+                    <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-red-200">
+                        {s.symbol}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                        ${s.closes && s.closes.length > 0 ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {!loading && maxPumpZoneSignals.length === 0 && (
+          <div className="text-center text-lg text-gray-400 mt-10">
+            No "MAX ZONE PUMP" signals found for the selected timeframe.
+          </div>
+        )}
+
+        {/* Display MAX ZONE PUMP Signals (kept for completeness as it was in your original code) */}
+        {!loading && maxPumpZoneSignals.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
+              MAX ZONE PUMP Signals ({maxPumpZoneSignals.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                      Symbol
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Current Price
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      24h Change (%)
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      RSI Pump Strength
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                      Prev Session Volume
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {maxPumpZoneSignals.map((s) => {
+                    const pumpDump = getRecentRSIDiff(s.rsi14, 14);
+                    const currentPrice = s.closes ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
                     return (
-                      <tr key={index} className="hover:bg-gray-700 transition-colors duration-150">
+                      <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-200">
                           {s.symbol}
                         </td>
@@ -646,12 +817,6 @@ export default function SiteADataLoader() {
                           <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ? 'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
                             {s.highestVolumeColorPrev ? s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
                           </span>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          {s.isBullFlag ? <span className="text-green-400 font-bold">✓</span> : <span className="text-gray-500">—</span>}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          {s.isBearFlag ? <span className="text-red-400 font-bold">✓</span> : <span className="text-gray-500">—</span>}
                         </td>
                       </tr>
                     );
