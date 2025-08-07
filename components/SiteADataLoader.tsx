@@ -18,7 +18,7 @@ interface Candle {
   low: number;
   close: number;
   volume: number;
-  timestamp: number; // Added for SiteADataLoader compatibility
+  timestamp: number;
 }
 
 interface MainTrend {
@@ -39,7 +39,7 @@ interface SignalData {
   prevClosedGreen: boolean | null;
   prevClosedRed: boolean | null;
   highestVolumeColorPrev: 'green' | 'red' | null;
-  signal: string; // New property for the flag signal
+  signal: string;
 }
 
 interface Metrics {
@@ -59,7 +59,7 @@ interface Metrics {
   };
 }
 
-// --- Utility Functions from SiteADataLoader.tsx ---
+// --- Utility Functions ---
 /**
  * Calculates the Exponential Moving Average (EMA).
  */
@@ -179,7 +179,6 @@ const getSignal = (s: { rsi14?: number[] }): string => {
   return 'NO STRONG SIGNAL';
 };
 
-// --- Utility Functions from FlagSignalsDashboard.tsx ---
 const getMillis = (timeframe: string) => {
   switch (timeframe) {
     case '15m': return 15 * 60 * 1000;
@@ -300,8 +299,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   };
 };
 
-
-// --- Mock API functions to replace the real ones ---
+// --- MOCK API FUNCTIONS (REPLACE THESE WITH YOUR LIVE DATA FETCHING FUNCTIONS) ---
 const mockFetchFuturesSymbols = async (): Promise<string[]> => {
   await new Promise(resolve => setTimeout(resolve, 500));
   return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT'];
@@ -341,6 +339,33 @@ const mockFetchData = async (symbolsToFetch: string[], timeframe: string) => {
   }
   return newSymbolsData;
 };
+
+// Mock function to replace the original fetchCandleData from SiteADataLoader
+async function mockFetchCandleData(symbol: string): Promise<Candle[]> {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const mockCandles: Candle[] = [];
+  let currentPrice = 100 + Math.random() * 50;
+  for (let i = 0; i < 100; i++) {
+    const open = currentPrice;
+    const high = open + Math.random() * 5;
+    const low = open - Math.random() * 5;
+    const close = low + Math.random() * (high - low);
+    const volume = 1000 + Math.random() * 5000;
+    
+    mockCandles.push({
+      timestamp: Date.now() - (100 - i) * 60000,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      openTime: Date.now() - (100 - i) * 60000,
+    });
+    currentPrice = close;
+  }
+  return mockCandles;
+}
+// --- END OF MOCK API FUNCTIONS ---
 
 
 // --- FlagSignalsDashboard Component ---
@@ -549,38 +574,11 @@ const FlagSignalsDashboard = () => {
   );
 };
 
-
 // --- CryptoPricesTable Component ---
 const CryptoPricesTable = () => {
   const [symbols] = useState<string[]>(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
   const [signals, setSignals] = useState<SignalData[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Mock function to replace the original fetchCandleData from SiteADataLoader
-  async function mockFetchCandleData(symbol: string): Promise<Candle[]> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const mockCandles: Candle[] = [];
-    let currentPrice = 100 + Math.random() * 50;
-    for (let i = 0; i < 100; i++) {
-      const open = currentPrice;
-      const high = open + Math.random() * 5;
-      const low = open - Math.random() * 5;
-      const close = low + Math.random() * (high - low);
-      const volume = 1000 + Math.random() * 5000;
-      
-      mockCandles.push({
-        timestamp: Date.now() - (100 - i) * 60000,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        openTime: Date.now() - (100 - i) * 60000,
-      });
-      currentPrice = close;
-    }
-    return mockCandles;
-  }
 
   // Function to process a single symbol's data
   const processSymbolData = async (symbol: string): Promise<SignalData | null> => {
@@ -623,7 +621,7 @@ const CryptoPricesTable = () => {
         prevClosedGreen,
         prevClosedRed,
         highestVolumeColorPrev,
-        signal, // Add the new signal here
+        signal,
       };
     } catch (error) {
       console.error(`Error processing data for ${symbol}:`, error);
