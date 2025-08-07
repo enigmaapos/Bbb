@@ -136,6 +136,7 @@ export default function SiteADataLoader() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m'); // Default to 15m
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const marketStats1D = data['1d'];           // fixed stats for 1D
 
   // Utility to generate UTC timestamp at specific hour
   const getUTCMillis = (year: number, month: number, date: number, hour: number, minute: number): number => {
@@ -507,8 +508,8 @@ export default function SiteADataLoader() {
     ).length;
 
     // Breakout counts are now specifically based on the previous session's activity
-    const bullishBreakoutCount1D = bullishBreakoutSymbols.length;
-    const bearishBreakoutCount1D = bearishBreakoutSymbols.length;
+    const bullishBreakoutCount = bullishBreakoutSymbols.length;
+    const bearishBreakoutCount = bearishBreakoutSymbols.length;
 
 
     return {
@@ -585,17 +586,18 @@ export default function SiteADataLoader() {
                     <p className="text-sm text-gray-400">Bearish Trend</p>
                     <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
                 </div>
-                {/* New: Bullish/Bearish Breakout Counts */}             
-  <>
-    <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bullish Breakout</p>
-      <p className="text-lg font-semibold text-green-400">{marketStats.bullishBreakoutCount1D}</p>
-    </div>
-    <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bearish Breakout</p>
-      <p className="text-lg font-semibold text-red-400">{marketStats.bearishBreakoutCount1D}</p>
-    </div>
-  </>
+  {/* New: Bullish/Bearish Breakout Counts */}             
+  {/* Always show 1D Breakout Counts */}
+<>
+  <div className="p-3 bg-gray-700 rounded-lg">
+    <p className="text-sm text-gray-400">Bullish Breakout (1D)</p>
+    <p className="text-lg font-semibold text-green-400">{marketStats1D.bullishBreakoutCount}</p>
+  </div>
+  <div className="p-3 bg-gray-700 rounded-lg">
+    <p className="text-sm text-gray-400">Bearish Breakout (1D)</p>
+    <p className="text-lg font-semibold text-red-400">{marketStats1D.bearishBreakoutCount}</p>
+  </div>
+</>
             </div>
         </div>
 
