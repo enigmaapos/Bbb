@@ -44,11 +44,10 @@ function calculateEMA(data: number[], period: number): number[] {
       previousEma = sma;
     }
     if (previousEma !== null) {
-      const currentEma = data[i] * k + previousEma * (1 - k);
-      ema.push(currentEma);
-      previousEma = currentEma;
-    }
-  }
+  const currentEma: number = data[i] * k + previousEma * (1 - k);
+  ema.push(currentEma);
+  previousEma = currentEma;
+}
   return ema;
 }
 
