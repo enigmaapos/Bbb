@@ -203,6 +203,12 @@ const fetchFundingRates = async (symbols: string[]) => {
   return fundingData;
 };
 
+interface CombinedSignal {
+    symbol: string;
+    type: 'bullish' | 'bearish' | null;
+    funding: 'positive' | 'negative' | null;
+}
+
 // Main component starts here
 const FlagSignalsDashboard = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
@@ -357,6 +363,13 @@ const FlagSignalsDashboard = () => {
     );
   };
   
+  // New filter function for combined signals
+  const filterCombinedSignals = (signals: CombinedSignal[]) => {
+    return signals.filter(signal =>
+      signal.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
+  
   const renderSymbolsList = (title: string, symbols: string[], color: string) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
@@ -385,7 +398,7 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
     </div>
   );
 
-  const renderCombinedSignalsList = (title: string, data: any[]) => (
+  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
@@ -505,10 +518,10 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {renderCombinedSignalsList('Strong Bull Setups', filterSymbols(strongBullSignals))}
-            {renderCombinedSignalsList('Bear Trap / Weakness', filterSymbols(weakBearSignals))}
-            {renderCombinedSignalsList('Bull Trap Risk', filterSymbols(weakBullSignals))}
-            {renderCombinedSignalsList('Strong Bear Setups', filterSymbols(strongBearSignals))}
+            {renderCombinedSignalsList('Strong Bull Setups', filterCombinedSignals(strongBullSignals as CombinedSignal[]))}
+            {renderCombinedSignalsList('Bear Trap / Weakness', filterCombinedSignals(weakBearSignals as CombinedSignal[]))}
+            {renderCombinedSignalsList('Bull Trap Risk', filterCombinedSignals(weakBullSignals as CombinedSignal[]))}
+            {renderCombinedSignalsList('Strong Bear Setups', filterCombinedSignals(strongBearSignals as CombinedSignal[]))}
           </div>
         )}
 
