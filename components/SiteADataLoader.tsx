@@ -137,6 +137,39 @@ export default function SiteADataLoader() {
   const [timeframe, setTimeframe] = useState('15m'); // Default to 15m
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [signals1D, setSignals1D] = useState<SignalData[]>([]);
+
+  const [signals1D, setSignals1D] = useState<SignalData[]>([]);
+
+useEffect(() => {
+  let isMounted = true;
+
+  const fetch1DSignals = async () => {
+    try {
+      const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
+      const symbols = exchangeInfo.symbols
+        .map((s: { symbol: string }) => s.symbol)
+        .filter((s: string) => s.endsWith('USDT'));
+
+      const fetchedSignals = await Promise.all(
+        symbols.slice(0, 100).map((symbol: string) => fetchAndAnalyze(symbol, '1d'))
+      );
+
+      if (isMounted) {
+        const valid = fetchedSignals.filter(Boolean) as SignalData[];
+        setSignals1D(valid);
+        console.log('✅ Loaded signals1D:', valid.length);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching 1D signals:', error);
+    }
+  };
+
+  fetch1DSignals();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
   
 
   // Utility to generate UTC timestamp at specific hour
