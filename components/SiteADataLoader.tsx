@@ -666,7 +666,8 @@ const bearFlagSymbols = useMemo(() => {
                 </div>
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
-           
+                    <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
+                </div>
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
                     <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
