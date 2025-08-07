@@ -136,8 +136,7 @@ export default function SiteADataLoader() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m'); // Default to 15m
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const marketStats = data[timeframe];        // changing with dropdown
-const marketStats1D = data['1d'];           // fixed stats for 1D
+  
 
   // Utility to generate UTC timestamp at specific hour
   const getUTCMillis = (year: number, month: number, date: number, hour: number, minute: number): number => {
@@ -484,47 +483,59 @@ const marketStats1D = data['1d'];           // fixed stats for 1D
 
   // Calculate statistics for the "Market Overview" section
   const marketStats = useMemo(() => {
-    const greenPriceChangeCount = signals.filter(
-      (t) => parseFloat(String(t.priceChangePercent)) > 0
-    ).length;
+  const greenPriceChangeCount = signals.filter(
+    (t) => parseFloat(String(t.priceChangePercent)) > 0
+  ).length;
 
-    const redPriceChangeCount = signals.filter(
-      (t) => parseFloat(String(t.priceChangePercent)) < 0
-    ).length;
+  const redPriceChangeCount = signals.filter(
+    (t) => parseFloat(String(t.priceChangePercent)) < 0
+  ).length;
 
-    const greenVolumeCount = signals.filter(
-      (s) => s.highestVolumeColorPrev === 'green'
-    ).length;
+  const greenVolumeCount = signals.filter(
+    (s) => s.highestVolumeColorPrev === 'green'
+  ).length;
 
-    const redVolumeCount = signals.filter(
-      (s) => s.highestVolumeColorPrev === 'red'
-    ).length;
+  const redVolumeCount = signals.filter(
+    (s) => s.highestVolumeColorPrev === 'red'
+  ).length;
 
-    const bullishTrendCount = signals.filter(
-        (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
-    ).length;
+  const bullishTrendCount = signals.filter(
+    (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
+  ).length;
 
-    const bearishTrendCount = signals.filter(
-        (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
-    ).length;
+  const bearishTrendCount = signals.filter(
+    (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
+  ).length;
 
-    // Breakout counts are now specifically based on the previous session's activity
-    const bullishBreakoutCount = bullishBreakoutSymbols.length;
-    const bearishBreakoutCount = bearishBreakoutSymbols.length;
+  // Current timeframe breakout counts
+  const bullishBreakoutCount = bullishBreakoutSymbols.length;
+  const bearishBreakoutCount = bearishBreakoutSymbols.length;
 
+  // ✅ You need access to 1D timeframe data separately
+  // For this, assume you have these already loaded or passed:
+  // signals1D, bullishBreakoutSymbols1D, bearishBreakoutSymbols1D
+  const bullishBreakoutCount1D = bullishBreakoutSymbols1D.length;
+  const bearishBreakoutCount1D = bearishBreakoutSymbols1D.length;
 
-    return {
-      greenPriceChangeCount,
-      redPriceChangeCount,
-      greenVolumeCount,
-      redVolumeCount,
-      bullishTrendCount,
-      bearishTrendCount,
-      bullishBreakoutCount,
-      bearishBreakoutCount,
-    };
-  }, [signals, bullishBreakoutSymbols, bearishBreakoutSymbols]);
-
+  return {
+    greenPriceChangeCount,
+    redPriceChangeCount,
+    greenVolumeCount,
+    redVolumeCount,
+    bullishTrendCount,
+    bearishTrendCount,
+    bullishBreakoutCount,
+    bearishBreakoutCount,
+    bullishBreakoutCount1D,
+    bearishBreakoutCount1D,
+  };
+}, [
+  signals,
+  bullishBreakoutSymbols,
+  bearishBreakoutSymbols,
+  bullishBreakoutSymbols1D,
+  bearishBreakoutSymbols1D,
+]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
@@ -590,14 +601,18 @@ const marketStats1D = data['1d'];           // fixed stats for 1D
   {/* New: Bullish/Bearish Breakout Counts */}             
   {/* Always show 1D Breakout Counts */}
 <>
-  <div className="p-3 bg-gray-700 rounded-lg">
-    <p className="text-sm text-gray-400">Bullish Breakout (1D)</p>
-    <p className="text-lg font-semibold text-green-400">{marketStats1D.bullishBreakoutCount}</p>
-  </div>
-  <div className="p-3 bg-gray-700 rounded-lg">
-    <p className="text-sm text-gray-400">Bearish Breakout (1D)</p>
-    <p className="text-lg font-semibold text-red-400">{marketStats1D.bearishBreakoutCount}</p>
-  </div>
+  <div className="p-3 bg-gray-700 rounded-lg">  
+    <p className="text-sm text-gray-400">Bullish Breakout (1D)</p>  
+    <p className="text-lg font-semibold text-green-400">
+      {marketStats.bullishBreakoutCount1D}
+    </p>  
+  </div>  
+  <div className="p-3 bg-gray-700 rounded-lg">  
+    <p className="text-sm text-gray-400">Bearish Breakout (1D)</p>  
+    <p className="text-lg font-semibold text-red-400">
+      {marketStats.bearishBreakoutCount1D}
+    </p>  
+  </div>  
 </>
             </div>
         </div>
