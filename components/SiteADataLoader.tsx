@@ -15,10 +15,7 @@ interface MainTrend {
   type: 'support' | 'resistance' | 'none';
   crossoverPrice: number;
 // Still relevant for EMA context
-  breakout: 'bullish' | 'bearish' | null;
-// Now for new high/low breakout
   isNear: boolean;
-  isDojiAfterBreakout: boolean;
 // Applies to the new breakout
 }
 
@@ -404,9 +401,7 @@ null = null;
         trend: 'neutral',
         type: 'none',
         crossoverPrice: 0,
-        breakout: null,
         isNear: false,
-        isDojiAfterBreakout: false,
       };
 // Determine overall trend based on CURRENT EMA values (from full 500 candles)
       const lastEma70Full = ema70.at(-1);
@@ -419,40 +414,6 @@ null = null;
         } else if (lastEma70Full < lastEma200Full) {
           mainTrend.trend = 'bearish';
           mainTrend.type = 'resistance';
-        }
-      }
-
-      // Calculate today's highest high and lowest low from current session candles
-      // Ensure there are candles in the current session before reducing
-      const todaysHighestHigh = candlesCurrentSession.length > 0 ?
-candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const todaysLowestLow = candlesCurrentSession.length > 0 ?
-candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
-
-      // Calculate previous session's highest high and lowest low
-      // Ensure there are candles in the previous session before reducing
-      const prevSessionHigh = candlesPrevSession.length > 0 ?
-candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const prevSessionLow = candlesPrevSession.length > 0 ?
-candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
-
-      // New Breakout Logic: Today's high/low vs. Previous Session's high/low
-      const bullishBreakout = todaysHighestHigh !== null && prevSessionHigh !== null && todaysHighestHigh > prevSessionHigh;
-      const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && todaysLowestLow < prevSessionLow;
-// Set mainTrend.breakout based on the new logic
-      if (bullishBreakout) {
-        mainTrend.breakout = 'bullish';
-      } else if (bearishBreakout) {
-        mainTrend.breakout = 'bearish';
-      }
-
-      // Check for doji after breakout (applies to the new breakout)
-      if (mainTrend.breakout && candlesCurrentSession.length > 0) {
-        const lastCandleCurrentSession = candlesCurrentSession[candlesCurrentSession.length - 1];
-        const bodySize = Math.abs(lastCandleCurrentSession.close - lastCandleCurrentSession.open);
-        const totalRange = lastCandleCurrentSession.high - lastCandleCurrentSession.low;
-        if (totalRange > 0 && bodySize / totalRange < 0.2) { // 20% body size as a threshold for doji-like candle
-          mainTrend.isDojiAfterBreakout = true;
         }
       }
 
@@ -662,7 +623,6 @@ const bearFlagSymbols = useMemo(() => {
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
                     <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
-                </div>
        
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
