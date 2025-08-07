@@ -462,7 +462,7 @@ export default function App() {
     const fetchData = async () => {
       setLoading(true);
       // Fetch symbols to display in the table. You can customize this list.
-      const processedSignals = await Promise.all(['BTCUSDT', 'ETHUSDT', 'SOLUSDT'].map(processSymbolData));
+        const processedSignals = await Promise.all(symbols.map(processSymbolData));
       const filteredSignals = processedSignals.filter((s): s is SignalData => s !== null);
       setSignals(filteredSignals);
       setLoading(false);
