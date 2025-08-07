@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 // Use this for clipboard functionality
-// FIX: Added type annotation for the 'text' parameter to resolve the TypeScript error.
 const copyToClipboard = (text: string) => {
   const el = document.createElement('textarea');
   el.value = text;
@@ -181,31 +180,34 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   };
 };
 
+// Function to fetch all perpetual USDT symbols
+interface BinanceSymbol {
+  symbol: string;
+  contractType: string;
+  quoteAsset: string;
+}
+
+const fetchFuturesSymbols = async (): Promise<string[]> => {
+  const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  const data: { symbols: BinanceSymbol[] } = await res.json();
+
+  return data.symbols
+    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+    .map((s) => s.symbol);
+};
+
+
 // Main component starts here
 const CryptoSignalsDashboard = () => {
+  const [symbols, setSymbols] = useState<string[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fetchIntervalRef = useRef<number | null>(null);
-  const timeoutRef = useRef<number | null>(null);
 
-  interface BinanceSymbol {
-  symbol: string;
-  contractType: string;
-  quoteAsset: string;
-}
-
-const fetchFuturesSymbols = async (): Promise<string[]> => {
-  const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
-  const data: { symbols: BinanceSymbol[] } = await res.json();
-
-  return data.symbols
-    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
-    .map((s) => s.symbol);
-};
-
-  const fetchData = async () => {
+  // This function fetches the candle data for the given symbols
+  const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
       const newSymbolsData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
@@ -213,7 +215,7 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
       const tfMillis = getMillis(timeframe);
       const startTime = nowMillis - (100 * tfMillis);
       
-      for (const symbol of symbols) {
+      for (const symbol of symbolsToFetch) {
         const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
         const response = await fetch(url);
         const data = await response.json();
@@ -244,23 +246,42 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
     }
   };
 
-  useEffect(() => {
-    setLoading(true);
-    fetchData();
-    if (fetchIntervalRef.current) {
-      clearInterval(fetchIntervalRef.current);
-    }
-    fetchIntervalRef.current = window.setInterval(fetchData, 60000); // Refresh every 60 seconds
 
+  useEffect(() => {
+    // Async function to handle the fetching logic
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // First, fetch the list of symbols
+        const fetchedSymbols = await fetchFuturesSymbols();
+        setSymbols(fetchedSymbols);
+
+        // Then, fetch the candle data for those symbols
+        await fetchData(fetchedSymbols);
+
+        // Clear any existing interval
+        if (fetchIntervalRef.current) {
+          clearInterval(fetchIntervalRef.current);
+        }
+
+        // Set up a new interval to refresh data every 60 seconds
+        fetchIntervalRef.current = window.setInterval(() => fetchData(fetchedSymbols), 60000);
+      } catch (error) {
+        console.error('Initial data load failed:', error);
+        setErrorMessage('Failed to load initial data. Please try again.');
+        setLoading(false);
+      }
+    };
+
+    loadData();
+
+    // Cleanup function for the interval
     return () => {
       if (fetchIntervalRef.current) {
         window.clearInterval(fetchIntervalRef.current);
       }
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
     };
-  }, [timeframe]);
+  }, [timeframe]); // Rerun effect when timeframe changes
 
   const bullFlagSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
