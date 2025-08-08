@@ -186,29 +186,20 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
     .map((s) => s.symbol);
 };
 
-/**
- * Fetch funding rates for a chunk of symbols.
- * Returns an object mapping symbol -> number (fundingRate)
- * If a symbol is missing in the response or cannot be parsed, it will not be set in the returned object.
- */
+// Function to fetch funding rates
 const fetchFundingRates = async (symbols: string[]) => {
   const fundingData: Record<string, number> = {};
-  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-  for (const symbol of symbols) {
+  await Promise.all(symbols.map(async (symbol) => {
     try {
-      const res = await fetch(`/api/funding?symbol=${symbol}`);
+      const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`);
       const json = await res.json();
-      if (json && Array.isArray(json) && json[0] && typeof json[0].fundingRate === 'string') {
+      if (json && json[0] && typeof json[0].fundingRate === 'string') {
         fundingData[symbol] = parseFloat(json[0].fundingRate);
-      } else {
-        console.warn('Unexpected funding payload for', symbol, json);
       }
     } catch (err) {
       console.error(`Funding fetch error for ${symbol}`, err);
     }
-    await delay(100);
-  }
+  }));
   return fundingData;
 };
 
@@ -223,10 +214,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
-  // fundingRates holds numeric values; if a symbol is missing, it won't be present as a key
   const [fundingRates, setFundingRates] = useState<Record<string, number>>({});
-  // track timestamp (ms) when a funding rate for a symbol was last updated
-  const [fundingTimestamps, setFundingTimestamps] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -270,18 +258,8 @@ const FlagSignalsDashboard: React.FC = () => {
       });
       setSymbolsData(prevData => ({ ...prevData, ...newSymbolsData }));
       
-      // fetch funding for this batch and merge (we will also have a separate dedicated refresh)
       const newFundingRates = await fetchFundingRates(symbolsToFetch);
-      // Build timestamps for those that succeeded
-      const now = Date.now();
-      setFundingRates(prevRates => ({ ...prevRates, ...newFundingRates }));
-      setFundingTimestamps(prev => {
-        const copy = { ...prev };
-        Object.keys(newFundingRates).forEach(sym => {
-          copy[sym] = now;
-        });
-        return copy;
-      });
+      setFundingRates(prevRates => ({...prevRates, ...newFundingRates }));
 
       setLoading(false);
       setLastUpdated(Date.now());
@@ -291,7 +269,7 @@ const FlagSignalsDashboard: React.FC = () => {
       setLoading(false);
     }
   };
-  // Background refresh strategy for candles (unchanged logic, but funding has its own refresh below)
+  // Background refresh strategy
   useEffect(() => {
     let isMounted = true;
     const BATCH_SIZE = 10;
@@ -345,39 +323,7 @@ const FlagSignalsDashboard: React.FC = () => {
       }
     };
   }, [timeframe]);
-
-  // DEDICATED funding refresh - refresh funding independently every minute
-  useEffect(() => {
-    if (!allSymbols || allSymbols.length === 0) return;
-    let mounted = true;
-
-    const refreshFunding = async () => {
-      try {
-        // chunk requests to avoid too many parallel requests
-        const BATCH = 50;
-        for (let i = 0; i < allSymbols.length; i += BATCH) {
-          const chunk = allSymbols.slice(i, i + BATCH);
-          const rates = await fetchFundingRates(chunk);
-          if (!mounted) return;
-          const now = Date.now();
-          // Merge the results and update timestamps for those returned
-          setFundingRates(prev => ({ ...prev, ...rates }));
-          setFundingTimestamps(prev => {
-            const copy = { ...prev };
-            Object.keys(rates).forEach(sym => (copy[sym] = now));
-            return copy;
-          });
-        }
-      } catch (err) {
-        console.error('Funding refresh error', err);
-      }
-    };
-
-    // initial immediate refresh then interval
-    refreshFunding();
-    const iv = window.setInterval(refreshFunding, 60_000);
-    return () => { mounted = false; clearInterval(iv); };
-  }, [allSymbols]);
+  // Rerun effect when timeframe changes
 
   const flaggedSymbolsWithFunding = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
@@ -387,14 +333,11 @@ const FlagSignalsDashboard: React.FC = () => {
       const isBull = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isBear = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
 
-      // Use hasOwnProperty to detect whether we actually have a funding rate for this symbol.
-      const fundingRate = Object.prototype.hasOwnProperty.call(fundingRates, symbol) ? fundingRates[symbol] : null;
+      const fundingRate = fundingRates[symbol] ?? 0;
 
       let fundingBias: 'positive' | 'negative' | null = null;
-      if (fundingRate !== null && typeof fundingRate === 'number') {
-        if (fundingRate > 0) fundingBias = 'positive';
-        else if (fundingRate < 0) fundingBias = 'negative';
-      }
+      if (fundingRate > 0) fundingBias = 'positive';    // Longs paying
+      else if (fundingRate < 0) fundingBias = 'negative'; // Shorts paying
 
       return {
         symbol,
@@ -403,7 +346,6 @@ const FlagSignalsDashboard: React.FC = () => {
       } as CombinedSignal;
     }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData, fundingRates]);
-
   const bullishBreakoutSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
       const s = symbolsData[symbol]?.metrics;
@@ -458,71 +400,34 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
     </div>
   );
 
-  const TWO_MIN_MS = 2 * 60 * 1000;
   const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
-            className="text-gray-400 hover:text-white transition-colors duration-200"
-            title="Copy symbols"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" />
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
+          className="text-gray-400 hover:text-white transition-colors duration-200"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" />
+          </svg>
+        </button>
       </div>
       <div className="overflow-y-auto max-h-[300px] space-y-2">
         {data.length > 0 ? (
-          data.map((item: any) => {
-            const fundingKnown = Object.prototype.hasOwnProperty.call(fundingRates, item.symbol);
-            const fundingValue = fundingKnown ? fundingRates[item.symbol] : null;
-            const ts = fundingTimestamps[item.symbol] ?? 0;
-            const age = ts ? Date.now() - ts : Infinity;
-            const isStale = ts === 0 || age > TWO_MIN_MS;
-
-            // color mapping (kept from original but will be accurate with fundingBias)
-            const bgClass =
-              item.type === 'bullish' && item.funding === 'negative' ? 'bg-green-600' :
-              item.type === 'bullish' && item.funding === 'positive' ? 'bg-yellow-600' :
-              item.type === 'bearish' && item.funding === 'positive' ? 'bg-red-600' :
-              item.type === 'bearish' && item.funding === 'negative' ? 'bg-teal-600' : '';
-
-            return (
-              <div
-                key={item.symbol}
-                className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold">{item.symbol}</div>
-                    <div className="text-sm text-gray-200 mt-1">
-                      {item.funding === 'positive' ? '(Funding +)' : item.funding === 'negative' ? '(Funding -)' : '(Funding n/a)'}
-                      {fundingKnown && fundingValue !== null ? (
-                        <span className="ml-2 text-xs text-gray-300">{Number(fundingValue).toFixed(6)}</span>
-                      ) : (
-                        <span className="ml-2 text-xs text-gray-400">—</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Stale badge */}
-                    {!fundingKnown ? (
-                      <span className="text-xs bg-gray-700 text-gray-200 px-2 py-1 rounded">n/a</span>
-                    ) : isStale ? (
-                      <span className="text-xs bg-yellow-700 text-white px-2 py-1 rounded">stale</span>
-                    ) : (
-                      <span className="text-xs bg-green-700 text-white px-2 py-1 rounded">fresh</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          data.map((item: any) => (
+            <div
+              key={item.symbol}
+              className={`px-4 py-2 rounded-lg text-lg font-medium text-white
+                ${item.type === 'bullish' && item.funding === 'negative' ? 'bg-green-600' : ''}
+                ${item.type === 'bullish' && item.funding === 'positive' ? 'bg-yellow-600' : ''}
+                ${item.type === 'bearish' && item.funding === 'positive' ? 'bg-red-600' : ''}
+                ${item.type === 'bearish' && item.funding === 'negative' ? 'bg-teal-600' : ''}
+              `}
+            >
+              {item.symbol} ({item.funding === 'positive' ? 'Funding +' : 'Funding -'})
+            </div>
+          ))
         ) : (
           <p className="text-gray-500">No symbols found.</p>
         )}
@@ -534,14 +439,6 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
   const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
   const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
   const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
-
-  // Debug function to inspect fundingRates & flaggedSymbolsWithFunding quickly
-  const handleDebugConsole = () => {
-    console.table(fundingRates);
-    console.table(flaggedSymbolsWithFunding);
-    // also print timestamps for quick inspection
-    console.table(fundingTimestamps);
-  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
@@ -613,17 +510,6 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 </svg>
               </button>
             )}
-          </div>
-
-          {/* Debug button */}
-          <div className="ml-2">
-            <button
-              onClick={handleDebugConsole}
-              className="bg-gray-800 text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-700 transition"
-              title="Dump fundingRates & flaggedSymbolsWithFunding to console"
-            >
-              Debug funding (console)
-            </button>
           </div>
         </div>
 
