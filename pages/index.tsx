@@ -104,6 +104,7 @@ export default function PriceFundingTracker() {
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [siteAData, setSiteAData] = useState<SiteAData | null>(null);
 
 
   const [sortConfig, setSortConfig] = useState<{
