@@ -15,7 +15,6 @@ import {
   MarketAnalysisResults,
   // SentimentSignal, // Removed import from types.ts temporarily to define locally
   SentimentArticle,
-  SiteAData,
 } from "../types";
 import {
   BinanceExchangeInfoResponse,
@@ -105,7 +104,6 @@ export default function PriceFundingTracker() {
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>('');
-  const [siteAData, setSiteAData] = useState<SiteAData | null>(null);
 
 
   const [sortConfig, setSortConfig] = useState<{
@@ -184,7 +182,6 @@ export default function PriceFundingTracker() {
       totalShortLiquidationsUSD: 0,
     },
     newsData: [],
-    siteAData: null,
   });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
@@ -519,7 +516,6 @@ export default function PriceFundingTracker() {
       volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
       newsArticles: cryptoNews,
-      siteAData: siteAData,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
@@ -738,7 +734,13 @@ export default function PriceFundingTracker() {
 
         <MarketAnalysisDisplay
           marketAnalysis={marketAnalysis}
-          showDetails={true}
+          fundingImbalanceData={fundingImbalanceData}
+          greenCount={greenCount}
+          redCount={redCount}
+          greenPositiveFunding={greenPositiveFunding}
+          greenNegativeFunding={greenNegativeFunding}
+          redPositiveFunding={redPositiveFunding}
+          redNegativeFunding={redNegativeFunding}
         />
 
         <div className="mb-8">
