@@ -195,10 +195,8 @@ const fetchFundingRates = async (symbols: string[]) => {
   const fundingData: Record<string, number> = {};
   await Promise.all(symbols.map(async (symbol) => {
     try {
-      const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`);
+      const res = await fetch(`/api/funding?symbol=${symbol}`);
       const json = await res.json();
-      // Debug log of raw response
-      console.debug('Funding raw response for', symbol, json);
       if (json && Array.isArray(json) && json[0] && typeof json[0].fundingRate === 'string') {
         fundingData[symbol] = parseFloat(json[0].fundingRate);
       } else {
