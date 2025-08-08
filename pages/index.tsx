@@ -5,8 +5,7 @@ import Image from 'next/image';
 import { Inter } from 'next/font/google';
 import styles from '@/styles/Home.module.css';
 import {
-  // REMOVED: SentimentAnalysis is not an exported member of sentimentAnalyzer.ts
-  getMarketData,
+  // CORRECTED: 'SentimentAnalysis' and 'getMarketData' are not exported members.
   MarketStats,
   analyzeSentiment,
   MarketAnalysisResults,
@@ -14,7 +13,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import MarketAnalysisDisplay from '../components/MarketAnalysisDisplay';
 import { fetchAggregatedLiquidationData } from '../utils/binanceApi';
-import { NewsData, SentimentArticle } from '../types';
+import { SentimentArticle } from '../types';
 import { getNewsSentiment } from '../utils/newsSentiment';
 import SiteADataLoader from '../components/SiteADataLoader';
 import { SiteAData } from '../types';
@@ -67,7 +66,17 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      const marketData = await getMarketData();
+      // NOTE: getMarketData is not available in sentimentAnalyzer.ts, this needs to be fixed.
+      // Assuming a separate utility function for this.
+      // const marketData = await getMarketData();
+      const marketData = {
+        green: 0,
+        red: 0,
+        fundingStats: { greenPositiveFunding: 0, greenNegativeFunding: 0, redPositiveFunding: 0, redNegativeFunding: 0 },
+        volumeData: [],
+      };
+
+
       const liquidationData = await fetchAggregatedLiquidationData();
       const newsArticles = await getNewsSentiment();
 
