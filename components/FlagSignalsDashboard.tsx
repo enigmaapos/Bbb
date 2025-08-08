@@ -210,7 +210,7 @@ interface CombinedSignal {
 }
 
 // Main component starts here
-const FlagSignalsDashboard = () => {
+const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
@@ -343,8 +343,8 @@ const FlagSignalsDashboard = () => {
         symbol,
         type: isBull ? 'bullish' : isBear ? 'bearish' : null,
         funding: fundingBias,
-      };
-    }).filter(Boolean);
+      } as CombinedSignal;
+    }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData, fundingRates]);
   const bullishBreakoutSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
@@ -435,10 +435,10 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
     </div>
   );
 
-  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
-  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
@@ -513,67 +513,95 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           </div>
         </div>
 
-<div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-    <h2 className="text-lg font-semibold text-white mb-2">📘 Flag + Funding Interpretation Guide</h2>
-    <table className="w-full text-sm text-left text-gray-300">
-      <thead className="text-gray-400">
-        <tr>
-          <th className="py-1 pr-4">Flag Type</th>
-          <th className="py-1 pr-4">Funding Bias</th>
-          <th className="py-1">Interpretation</th>
-          <th className="py-1">Position</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td className="py-1 pr-4">Bull Flag</td>
-          <td className="py-1 pr-4">Shorts Paying ➖</td>
-          <td className="py-1">✅ Strong Bull Setup</td>
-          <td className="py-1 text-green-400">Buying</td>
-        </tr>
-        <tr>
-          <td className="py-1 pr-4">Bull Flag</td>
-          <td className="py-1 pr-4">Longs Paying ➕</td>
-          <td className="py-1">🚨 Bull Trap Risk</td>
-          <td className="py-1 text-red-400">Selling</td>
-        </tr>
-        <tr>
-          <td className="py-1 pr-4">Bear Flag</td>
-          <td className="py-1 pr-4">Longs Paying ➕</td>
-          <td className="py-1">✅ Strong Bear Setup</td>
-          <td className="py-1 text-red-400">Selling</td>
-        </tr>
-        <tr>
-          <td className="py-1 pr-4">Bear Flag</td>
-          <td className="py-1 pr-4">Shorts Paying ➖</td>
-          <td className="py-1">⚠️ Bear Trap / Weakness</td>
-          <td className="py-1 text-green-400">Buying</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+        {/* === GUIDE + SIGNALS === */}
+        <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h2 className="text-lg font-semibold text-white mb-2">📘 Flag + Funding Interpretation Guide</h2>
+              <table className="w-full text-sm text-left text-gray-300">
+                <thead className="text-gray-400">
+                  <tr>
+                    <th className="py-1 pr-4">Flag Type</th>
+                    <th className="py-1 pr-4">Funding Bias</th>
+                    <th className="py-1 pr-4">Interpretation</th>
+                    <th className="py-1">Position</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="py-1 pr-4">Bull Flag</td>
+                    <td className="py-1 pr-4">Shorts Paying ➖</td>
+                    <td className="py-1">✅ Strong Bull Setup</td>
+                    <td className="py-1 text-green-400">Buying</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-4">Bull Flag</td>
+                    <td className="py-1 pr-4">Longs Paying ➕</td>
+                    <td className="py-1">🚨 Bull Trap Risk</td>
+                    <td className="py-1 text-red-400">Selling</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-4">Bear Flag</td>
+                    <td className="py-1 pr-4">Longs Paying ➕</td>
+                    <td className="py-1">✅ Strong Bear Setup</td>
+                    <td className="py-1 text-red-400">Selling</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-4">Bear Flag</td>
+                    <td className="py-1 pr-4">Shorts Paying ➖</td>
+                    <td className="py-1">⚠️ Bear Trap / Weakness</td>
+                    <td className="py-1 text-green-400">Buying</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-{loading ? (
-  <div className="flex justify-center items-center h-[50vh]">
-    <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
-  </div>
-) : errorMessage ? (
-  <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
-    <p>{errorMessage}</p>
-  </div>
-) : (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-    {/* Buying Positions */}
-    {renderCombinedSignalsList('Buying Positions (Strong Bull Setups)', filterCombinedSignals(strongBullSignals as CombinedSignal[]))}
-    {renderCombinedSignalsList('Buying Positions (Bear Trap Weakness)', filterCombinedSignals(weakBearSignals as CombinedSignal[]))}
+            <div>
+              {/* Quick stats or mini legend (optional) */}
+              <h2 className="text-lg font-semibold text-white mb-2">Legend</h2>
+              <div className="flex gap-2 items-center mb-2">
+                <div className="w-4 h-4 bg-green-600 rounded" />
+                <span className="text-gray-300">Strong Bull / Buying</span>
+              </div>
+              <div className="flex gap-2 items-center mb-2">
+                <div className="w-4 h-4 bg-yellow-600 rounded" />
+                <span className="text-gray-300">Bull Trap Risk (Selling pressure)</span>
+              </div>
+              <div className="flex gap-2 items-center mb-2">
+                <div className="w-4 h-4 bg-red-600 rounded" />
+                <span className="text-gray-300">Strong Bear / Selling</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <div className="w-4 h-4 bg-teal-600 rounded" />
+                <span className="text-gray-300">Bear Trap / Buying</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-    {/* Selling Positions */}
-    {renderCombinedSignalsList('Selling Positions (Bull Trap Risk)', filterCombinedSignals(weakBullSignals as CombinedSignal[]))}
-    {renderCombinedSignalsList('Selling Positions (Strong Bear Setups)', filterCombinedSignals(strongBearSignals as CombinedSignal[]))}
-  </div>
-)}
+        {/* Loading / Error / Signals */}
+        <div className="mt-8">
+          {loading ? (
+            <div className="flex justify-center items-center h-[50vh]">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
+            </div>
+          ) : errorMessage ? (
+            <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
+              <p>{errorMessage}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* BUYING GROUP */}
+              {renderCombinedSignalsList('Buying Positions — Strong Bull Setups', filterCombinedSignals(strongBullSignals as CombinedSignal[]))}
+              {renderCombinedSignalsList('Buying Positions — Bear Trap / Weakness', filterCombinedSignals(weakBearSignals as CombinedSignal[]))}
+
+              {/* SELLING GROUP */}
+              {renderCombinedSignalsList('Selling Positions — Bull Trap Risk', filterCombinedSignals(weakBullSignals as CombinedSignal[]))}
+              {renderCombinedSignalsList('Selling Positions — Strong Bear Setups', filterCombinedSignals(strongBearSignals as CombinedSignal[]))}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
