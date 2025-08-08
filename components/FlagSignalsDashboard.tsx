@@ -206,7 +206,8 @@ const fetchFundingRates = async (symbols: string[]) => {
 interface CombinedSignal {
     symbol: string;
     type: 'bullish' | 'bearish' | null;
-    funding: 'positive' | 'negative' | null;
+    funding: 'positive' |
+'negative' | null;
 }
 
 // Main component starts here
@@ -238,6 +239,7 @@ const FlagSignalsDashboard: React.FC = () => {
           const candles = data.map((d: any[]) => ({
             openTime: d[0],
             open: parseFloat(d[1]),
+ 
             high: parseFloat(d[2]),
             low: parseFloat(d[3]),
             close: parseFloat(d[4]),
@@ -245,6 +247,7 @@ const FlagSignalsDashboard: React.FC = () => {
           }));
           return { symbol, data: { candles, metrics: calculateMetrics(candles, timeframe) } };
         } else {
+         
           console.error(`Failed to fetch data for ${symbol}. Data:`, data);
           return null;
         }
@@ -283,6 +286,7 @@ const FlagSignalsDashboard: React.FC = () => {
       await fetchData(batch);
       currentIndex += BATCH_SIZE;
 
+     
       if (currentIndex < symbolsToLoad.length && isMounted) {
         setTimeout(loadBatch, INTERVAL_MS);
       } else {
@@ -291,7 +295,8 @@ const FlagSignalsDashboard: React.FC = () => {
           if (fetchIntervalRef.current) {
             clearInterval(fetchIntervalRef.current);
           }
-          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 60000);
+          fetchIntervalRef.current = window.setInterval(() 
+=> fetchData(symbolsToLoad), 60000);
         }
       }
     };
@@ -326,6 +331,8 @@ const FlagSignalsDashboard: React.FC = () => {
   // Rerun effect when timeframe changes
 
   const flaggedSymbolsWithFunding = useMemo(() => {
+    // Define a funding rate threshold.
+    const fundingRateThreshold = 0.0001;
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
 
@@ -333,17 +340,23 @@ const FlagSignalsDashboard: React.FC = () => {
       const isBull = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isBear = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
 
-      const fundingRate = fundingRates[symbol] ?? 0;
-
+      const fundingRate 
+= fundingRates[symbol] ?? 0;
       let fundingBias: 'positive' | 'negative' | null = null;
-      if (fundingRate > 0) fundingBias = 'positive';    // Longs paying
-      else if (fundingRate < 0) fundingBias = 'negative'; // Shorts paying
+
+      // Update funding logic to use a threshold
+      if (fundingRate > fundingRateThreshold) {
+        fundingBias = 'positive';
+      } else if (fundingRate < -fundingRateThreshold) {
+        fundingBias = 'negative';
+      }
 
       return {
         symbol,
         type: isBull ? 'bullish' : isBear ? 'bearish' : null,
         funding: fundingBias,
-      } as CombinedSignal;
+      } as 
+CombinedSignal;
     }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData, fundingRates]);
   const bullishBreakoutSymbols = useMemo(() => {
@@ -381,13 +394,15 @@ const FlagSignalsDashboard: React.FC = () => {
           className="text-gray-400 hover:text-white transition-colors duration-200"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6"
-fill="none" viewBox="0 0 24 24" stroke="currentColor">
+fill="none" 
+viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" />
           </svg>
         </button>
       </div>
       <div className="overflow-y-auto max-h-[300px] space-y-2">
-        {symbols.length > 0 ? (
+        {symbols.length 
+> 0 ? (
           symbols.map(symbol => (
             <div key={symbol} className={`px-4 py-2 rounded-lg text-lg font-medium text-white ${color}`}>
               {symbol}
@@ -395,12 +410,12 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           ))
         ) : (
           <p className="text-gray-500">No symbols found.</p>
-        )}
+      
+          )}
       </div>
     </div>
   );
-
-  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => (
+const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
@@ -408,23 +423,27 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
           className="text-gray-400 hover:text-white transition-colors duration-200"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" 
+fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" />
           </svg>
         </button>
       </div>
       <div className="overflow-y-auto max-h-[300px] space-y-2">
-        {data.length > 0 ? (
+        
+{data.length > 0 ? (
           data.map((item: any) => (
             <div
               key={item.symbol}
               className={`px-4 py-2 rounded-lg text-lg font-medium text-white
                 ${item.type === 'bullish' && item.funding === 'negative' ? 'bg-green-600' : ''}
+            
                 ${item.type === 'bullish' && item.funding === 'positive' ? 'bg-yellow-600' : ''}
                 ${item.type === 'bearish' && item.funding === 'positive' ? 'bg-red-600' : ''}
                 ${item.type === 'bearish' && item.funding === 'negative' ? 'bg-teal-600' : ''}
               `}
             >
+        
               {item.symbol} ({item.funding === 'positive' ? 'Funding +' : 'Funding -'})
             </div>
           ))
@@ -434,13 +453,11 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
       </div>
     </div>
   );
-
-  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
-  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
-
-  return (
+const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <script src="https://cdn.tailwindcss.com"></script>
       <style>{`
@@ -452,6 +469,7 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
         }
         ::-webkit-scrollbar-thumb {
           background: #4a5568;
+ 
           border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
@@ -461,7 +479,8 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <div className="max-w-7xl mx-auto">
         <header className="mb-8 text-center">
           <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
-            Flag Signal Dashboard
+            
+Flag Signal Dashboard
           </h1>
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
           <p className="text-gray-500 text-sm mt-2">
@@ -470,22 +489,26 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
         </header>
 
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
+     
           <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
             <button
               onClick={() => setTimeframe('15m')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '15m' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '15m' ?
+'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
             >
               15m
             </button>
             <button
               onClick={() => setTimeframe('4h')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '4h' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '4h' ?
+'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
             >
               4h
             </button>
             <button
               onClick={() => setTimeframe('1d')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ?
+'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
             >
               1d
             </button>
@@ -494,18 +517,21 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           {/* Search Input */}
           <div className="relative w-full md:w-64">
             <input
+          
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search symbols..."
               className="w-full pl-4 pr-10 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200"
             />
-            {searchTerm && (
+            
+{searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -514,64 +540,76 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
         </div>
 
         {/* === GUIDE + SIGNALS === */}
-        <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
+   
+          <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <h2 className="text-lg font-semibold text-white mb-2">📘 Flag + Funding Interpretation Guide</h2>
               <table className="w-full text-sm text-left text-gray-300">
                 <thead className="text-gray-400">
+     
                   <tr>
                     <th className="py-1 pr-4">Flag Type</th>
                     <th className="py-1 pr-4">Funding Bias</th>
                     <th className="py-1 pr-4">Interpretation</th>
+                   
                     <th className="py-1">Position</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td className="py-1 pr-4">Bull Flag</td>
+       
                     <td className="py-1 pr-4">Shorts Paying ➖</td>
                     <td className="py-1">✅ Strong Bull Setup</td>
                     <td className="py-1 text-green-400">Buying</td>
                   </tr>
                   <tr>
+ 
                     <td className="py-1 pr-4">Bull Flag</td>
                     <td className="py-1 pr-4">Longs Paying ➕</td>
                     <td className="py-1">🚨 Bull Trap Risk</td>
                     <td className="py-1 text-red-400">Selling</td>
-                  </tr>
+        
+                    </tr>
                   <tr>
                     <td className="py-1 pr-4">Bear Flag</td>
                     <td className="py-1 pr-4">Longs Paying ➕</td>
                     <td className="py-1">✅ Strong Bear Setup</td>
+ 
                     <td className="py-1 text-red-400">Selling</td>
                   </tr>
                   <tr>
                     <td className="py-1 pr-4">Bear Flag</td>
+                    
                     <td className="py-1 pr-4">Shorts Paying ➖</td>
                     <td className="py-1">⚠️ Bear Trap / Weakness</td>
                     <td className="py-1 text-green-400">Buying</td>
                   </tr>
                 </tbody>
               </table>
+ 
             </div>
 
             <div>
               {/* Quick stats or mini legend (optional) */}
               <h2 className="text-lg font-semibold text-white mb-2">Legend</h2>
               <div className="flex gap-2 items-center mb-2">
-                <div className="w-4 h-4 bg-green-600 rounded" />
+                <div className="w-4 h-4 bg-green-600 
+rounded" />
                 <span className="text-gray-300">Strong Bull / Buying</span>
               </div>
               <div className="flex gap-2 items-center mb-2">
                 <div className="w-4 h-4 bg-yellow-600 rounded" />
                 <span className="text-gray-300">Bull Trap Risk (Selling pressure)</span>
-              </div>
+     
+                </div>
               <div className="flex gap-2 items-center mb-2">
                 <div className="w-4 h-4 bg-red-600 rounded" />
                 <span className="text-gray-300">Strong Bear / Selling</span>
               </div>
               <div className="flex gap-2 items-center">
+ 
                 <div className="w-4 h-4 bg-teal-600 rounded" />
                 <span className="text-gray-300">Bear Trap / Buying</span>
               </div>
@@ -580,24 +618,29 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
         </div>
 
         {/* Loading / Error / Signals */}
-        <div className="mt-8">
-          {loading ? (
+  
+          <div className="mt-8">
+          {loading ?
+(
             <div className="flex justify-center items-center h-[50vh]">
               <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
             </div>
-          ) : errorMessage ? (
+          ) : errorMessage ?
+(
             <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
               <p>{errorMessage}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* BUYING GROUP */}
+           
               {renderCombinedSignalsList('Buying Positions — Strong Bull Setups', filterCombinedSignals(strongBullSignals as CombinedSignal[]))}
               {renderCombinedSignalsList('Buying Positions — Bear Trap / Weakness', filterCombinedSignals(weakBearSignals as CombinedSignal[]))}
 
               {/* SELLING GROUP */}
               {renderCombinedSignalsList('Selling Positions — Bull Trap Risk', filterCombinedSignals(weakBullSignals as CombinedSignal[]))}
               {renderCombinedSignalsList('Selling Positions — Strong Bear Setups', filterCombinedSignals(strongBearSignals as CombinedSignal[]))}
+     
             </div>
           )}
         </div>
