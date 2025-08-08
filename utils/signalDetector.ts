@@ -1,146 +1,119 @@
-import { SymbolData } from '../types';
+// src/utils/signalDetector.ts
 
-export type SentimentSignal = {
-  symbol: string;
-  signal:
-    | 'Bullish Opportunity'
-    | 'Early Squeeze Signal'
-    | 'Bearish Risk'
-    | 'Early Long Trap'
-    | 'Neutral';
-  reason: string;
-  priceChangePercent: number;
-  strongBuy?: boolean;
-  strongSell?: boolean;
-  riskReward?: 'Low' | 'Medium' | 'Medium-High' | 'High' | 'Strong';
-};
+import { SymbolData, SentimentSignal, SiteAData } from "../types";
 
-// ✅ Volume formatter
-function formatVolume(volume: number): string {
-  if (volume >= 1_000_000_000) {
-    return `$${(volume / 1e9).toFixed(1)}B`;
-  } else if (volume >= 1_000_000) {
-    return `$${(volume / 1e6).toFixed(1)}M`;
-  } else {
-    return `$${volume.toLocaleString()}`;
+/**
+ * A utility function to detect actionable sentiment signals from market data.
+ * It analyzes individual symbol data to find specific patterns that suggest
+ * bullish opportunities or bearish risks.
+ *
+ * @param volumeData An array of SymbolData objects containing market metrics.
+ * @returns An array of SentimentSignal objects.
+ */
+export function detectSentimentSignals(volumeData: SymbolData[]): SentimentSignal[] {
+  const signals: SentimentSignal[] = [];
+
+  for (const data of volumeData) {
+    const { symbol, priceChangePercent, fundingRate, volume } = data;
+
+    // --- Bullish Signal Detection ---
+
+    // Signal 1: "Funding Squeeze" - Price is up, funding is very negative.
+    if (
+      priceChangePercent > 2 &&
+      fundingRate < -0.005 &&
+      volume > 200_000_000
+    ) {
+      signals.push({
+        symbol,
+        signal: "Bullish Opportunity",
+        type: "Funding Squeeze",
+        description: `Price up (${priceChangePercent.toFixed(2)}%) with strong negative funding (${fundingRate.toFixed(4)}). Shorts may be forced to cover.`,
+      });
+    }
+
+    // Signal 2: "Volume Reversal" - Price is down, but funding is turning positive
+    // with significant volume, suggesting longs are accumulating.
+    if (
+      priceChangePercent < -2 &&
+      fundingRate > 0.001 &&
+      volume > 500_000_000
+    ) {
+      signals.push({
+        symbol,
+        signal: "Bullish Opportunity",
+        type: "Volume Reversal",
+        description: `Price down (${priceChangePercent.toFixed(2)}%) but high volume and positive funding (${fundingRate.toFixed(4)}) may indicate a bullish reversal.`,
+      });
+    }
+
+
+    // --- Bearish Signal Detection ---
+
+    // Signal 3: "Long Trap" - Price is down, funding is very positive.
+    if (
+      priceChangePercent < -2 &&
+      fundingRate > 0.01 &&
+      volume > 200_000_000
+    ) {
+      signals.push({
+        symbol,
+        signal: "Bearish Risk",
+        type: "Long Trap",
+        description: `Price down (${priceChangePercent.toFixed(2)}%) with strong positive funding (${fundingRate.toFixed(4)}). Longs may be trapped, risking liquidations.`,
+      });
+    }
+
+    // Signal 4: "Weak Rally" - Price is up, but funding is flat or negative
+    // with low volume.
+    if (
+      priceChangePercent > 3 &&
+      fundingRate < 0.0001 &&
+      volume < 50_000_000
+    ) {
+      signals.push({
+        symbol,
+        signal: "Bearish Risk",
+        type: "Weak Rally",
+        description: `Price up (${priceChangePercent.toFixed(2)}%) but with negative funding (${fundingRate.toFixed(4)}) and low volume. The rally lacks conviction.`,
+      });
+    }
   }
+
+  return signals;
 }
 
-export function detectSentimentSignals(data: SymbolData[]): SentimentSignal[] {
-  const volumeThreshold = 50_000_000;
-  const strongVolume = 100_000_000;
-  const strongFunding = 0.015;
-  const strongNegativeFunding = -0.015;
+/**
+ * A new function to detect bullish and bearish flag signals from Site A data.
+ * @param siteAData The market data from Site A.
+ * @returns A SentimentSignal object or null if no signal is detected.
+ */
+export function detectFlagSignals(siteAData: SiteAData): SentimentSignal | null {
+  if (!siteAData) {
+    return null;
+  }
 
-  return data.map(({ symbol, priceChangePercent, volume, fundingRate }) => {
-    const volumeUSD = formatVolume(volume);
-    const fundingPercent = (fundingRate * 100).toFixed(4) + '%';
+  const { longShortRatio, openInterestChange } = siteAData;
 
-    const absPriceChange = Math.abs(priceChangePercent);
-    const isStrongVolume = volume >= strongVolume;
-
-    // 🧠 Risk/Reward rating
-    let riskReward: SentimentSignal['riskReward'] = 'Medium';
-    if (absPriceChange > 4.5 && isStrongVolume) riskReward = 'Strong';
-    else if (absPriceChange > 3.5) riskReward = 'High';
-    else if (absPriceChange > 2.0) riskReward = 'Medium-High';
-
-    // 🟠 EARLY SQUEEZE SIGNAL
-    if (
-      priceChangePercent > 0 &&
-      priceChangePercent < 10 &&
-      volume >= volumeThreshold &&
-      fundingRate < 0
-    ) {
-      const strongBuy =
-        absPriceChange > 4 &&
-        (fundingRate < strongNegativeFunding || isStrongVolume);
-
-      return {
-        symbol,
-        signal: 'Early Squeeze Signal',
-        reason: `Moderate price gain (+${priceChangePercent.toFixed(
-          1
-        )}%), strong volume (${volumeUSD}), and negative funding (${fundingPercent}) suggest a developing short squeeze.`,
-        priceChangePercent,
-        strongBuy,
-        riskReward,
-      };
-    }
-
-    // 🟣 EARLY LONG TRAP SIGNAL
-    if (
-      priceChangePercent < 0 &&
-      priceChangePercent > -10 &&
-      volume >= volumeThreshold &&
-      fundingRate > 0
-    ) {
-      const strongSell =
-        absPriceChange > 3 && (fundingRate > strongFunding || isStrongVolume);
-
-      return {
-        symbol,
-        signal: 'Early Long Trap',
-        reason: `Moderate price drop (${priceChangePercent.toFixed(
-          1
-        )}%), high volume (${volumeUSD}), and positive funding (${fundingPercent}) suggest a developing long trap scenario.`,
-        priceChangePercent,
-        strongSell,
-        riskReward,
-      };
-    }
-
-    // 🟢 BULLISH OPPORTUNITY
-    if (
-      priceChangePercent > 0 &&
-      priceChangePercent < 10 &&
-      volume >= volumeThreshold &&
-      fundingRate <= 0.0001
-    ) {
-      const strongBuy =
-        absPriceChange > 3 && (fundingRate < 0 || isStrongVolume);
-
-      return {
-        symbol,
-        signal: 'Bullish Opportunity',
-        reason: `Moderate price gain (+${priceChangePercent.toFixed(
-          1
-        )}%), high volume (${volumeUSD}), and low or negative funding (${fundingPercent}) suggest early bullish momentum.`,
-        priceChangePercent,
-        strongBuy,
-        riskReward,
-      };
-    }
-
-    // 🔻 BEARISH RISK
-    if (
-      priceChangePercent < 0 &&
-      priceChangePercent > -10 &&
-      volume >= volumeThreshold &&
-      fundingRate >= 0.0001
-    ) {
-      const strongSell =
-        absPriceChange > 3 && (fundingRate > 0.01 || isStrongVolume);
-
-      return {
-        symbol,
-        signal: 'Bearish Risk',
-        reason: `Moderate price drop (${priceChangePercent.toFixed(
-          1
-        )}%), high volume (${volumeUSD}), and positive funding (${fundingPercent}) suggest long trap or hidden sell pressure.`,
-        priceChangePercent,
-        strongSell,
-        riskReward,
-      };
-    }
-
-    // ❔ NEUTRAL
+  // Bullish Flag: Open interest rising with a short bias
+  if (openInterestChange > 0.15 && longShortRatio < 0.9) {
     return {
-      symbol,
-      signal: 'Neutral',
-      reason: 'No strong sentiment signal detected.',
-      priceChangePercent,
-      riskReward: 'Low',
+      symbol: "SITEA_OVERALL",
+      signal: "Bullish Opportunity",
+      type: "SiteA Short Squeeze Flag",
+      description: `Site A data shows rising open interest (${(openInterestChange * 100).toFixed(0)}%) with a short bias (${longShortRatio.toFixed(2)} long/short ratio), flagging potential for a squeeze.`,
     };
-  });
+  }
+
+  // Bearish Flag: Open interest rising with a long bias
+  if (openInterestChange > 0.15 && longShortRatio > 1.1) {
+    return {
+      symbol: "SITEA_OVERALL",
+      signal: "Bearish Risk",
+      type: "SiteA Long Trap Flag",
+      description: `Site A data shows rising open interest (${(openInterestChange * 100).toFixed(0)}%) with a long bias (${longShortRatio.toFixed(2)} long/short ratio), flagging a potential long trap.`,
+    };
+  }
+
+  return null;
 }
