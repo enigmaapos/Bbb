@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 // Use this for clipboard functionality
-const copyToClipboard = (text) => {
+const copyToClipboard = (text: string) => {
   const el = document.createElement('textarea');
   el.value = text;
   document.body.appendChild(el);
@@ -11,7 +11,7 @@ const copyToClipboard = (text) => {
 };
 
 // Converts a string timeframe (e.g., '15m') into milliseconds
-const getMillis = (timeframe) => {
+const getMillis = (timeframe: string): number => {
   switch (timeframe) {
     case '15m': return 15 * 60 * 1000;
     case '4h': return 4 * 60 * 60 * 1000;
@@ -48,7 +48,7 @@ interface Metrics {
 }
 
 // Determines the start times of the current and previous sessions based on the timeframe
-const getSessions = (timeframe, nowMillis) => {
+const getSessions = (timeframe: string, nowMillis: number) => {
   const tfMillis = getMillis(timeframe);
   let currentSessionStart;
   if (timeframe === '1d') {
@@ -68,14 +68,14 @@ const getSessions = (timeframe, nowMillis) => {
 };
 
 // Checks if a candle is a Doji candle
-const isDoji = (candle) => {
+const isDoji = (candle: Candle) => {
   const bodySize = Math.abs(candle.close - candle.open);
   const totalRange = candle.high - candle.low;
   return totalRange > 0 && (bodySize / totalRange) < 0.2;
 };
 
 // Calculates various metrics (EMAs, RSI, breakouts) from candle data
-const calculateMetrics = (candles, timeframe) => {
+const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
   if (!candles || candles.length < 2) return null;
 
   const nowMillis = Date.now();
@@ -108,10 +108,10 @@ const calculateMetrics = (candles, timeframe) => {
   }
 
   // EMA calculation function
-  const ema = (candles, period) => {
+  const ema = (candles: Candle[], period: number) => {
     if (candles.length < period) return [];
     const alpha = 2 / (period + 1);
-    const emaValues = [];
+    const emaValues: number[] = [];
     const initialSMA = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period;
     emaValues.push(initialSMA);
     for (let i = period; i < candles.length; i++) {
@@ -131,7 +131,7 @@ const calculateMetrics = (candles, timeframe) => {
   const lastEma50 = ema50[ema50.length - 1];
 
   // RSI calculation function
-  const getRSI = (candles, period = 14) => {
+  const getRSI = (candles: Candle[], period = 14) => {
     if (candles.length < period) return null;
     let gains = 0;
     let losses = 0;
@@ -157,6 +157,23 @@ const calculateMetrics = (candles, timeframe) => {
 
   const rsi = getRSI(candles, 14);
 
+  if (rsi === null) {
+      // Handle the case where there's not enough data for RSI
+      return {
+          price: lastCandle.close,
+          prevSessionHigh,
+          prevSessionLow,
+          todaysHighestHigh,
+          todaysLowestLow,
+          ema5: lastEma5,
+          ema10: lastEma10,
+          ema20: lastEma20,
+          ema50: lastEma50,
+          rsi: 0, // Default to a neutral value
+          mainTrend,
+      };
+  }
+
   return {
     price: lastCandle.close,
     prevSessionHigh,
@@ -167,7 +184,7 @@ const calculateMetrics = (candles, timeframe) => {
     ema10: lastEma10,
     ema20: lastEma20,
     ema50: lastEma50,
-    rsi: rsi!,
+    rsi,
     mainTrend,
   };
 };
@@ -177,13 +194,13 @@ const fetchFuturesSymbols = async () => {
   const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
   const data = await res.json();
   return data.symbols
-    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
-    .map((s) => s.symbol);
+    .filter((s: { contractType: string; quoteAsset: string; }) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+    .map((s: { symbol: any; }) => s.symbol);
 };
 
 // Fetches the latest funding rates for a list of symbols
-const fetchFundingRates = async (symbols) => {
-  const fundingData = {};
+const fetchFundingRates = async (symbols: string[]) => {
+  const fundingData: { [key: string]: number } = {};
   await Promise.all(symbols.map(async (symbol) => {
     try {
       const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`);
@@ -209,23 +226,23 @@ interface CombinedSignal {
 }
 
 const FlagSignalsDashboard = () => {
-  const [allSymbols, setAllSymbols] = useState([]);
-  const [symbolsData, setSymbolsData] = useState({});
-  const [fundingRates, setFundingRates] = useState({});
+  const [allSymbols, setAllSymbols] = useState<string[]>([]);
+  const [symbolsData, setSymbolsData] = useState<{ [key: string]: { candles: Candle[], metrics: Metrics | null } }>({});
+  const [fundingRates, setFundingRates] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
-  const [errorMessage, setErrorMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState(Date.now());
-  const fetchIntervalRef = useRef(null);
+  const fetchIntervalRef = useRef<number | null>(null);
 
   // === DATA FETCHING LOGIC ===
 
   // This function fetches the candle data for the given symbols
-  const fetchData = async (symbolsToFetch) => {
+  const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
-      const newSymbolsData = {};
+      const newSymbolsData: { [key: string]: any } = {};
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
       // Fetch more data than needed to ensure enough history for EMA calculations
@@ -236,13 +253,13 @@ const FlagSignalsDashboard = () => {
         const data = await response.json();
 
         if (data && Array.isArray(data) && data.length > 0) {
-          const candles = data.map((d) => ({
+          const candles = data.map((d: number[]) => ({
             openTime: d[0],
-            open: parseFloat(d[1]),
-            high: parseFloat(d[2]),
-            low: parseFloat(d[3]),
-            close: parseFloat(d[4]),
-            volume: parseFloat(d[5]),
+            open: parseFloat(d[1].toString()),
+            high: parseFloat(d[2].toString()),
+            low: parseFloat(d[3].toString()),
+            close: parseFloat(d[4].toString()),
+            volume: parseFloat(d[5].toString()),
           }));
           return { symbol, data: { candles, metrics: calculateMetrics(candles, timeframe) } };
         } else {
@@ -273,7 +290,7 @@ const FlagSignalsDashboard = () => {
     const BATCH_SIZE = 30; // Load 30 symbols at a time
     const INTERVAL_MS = 2000; // Interval between batches
     let currentIndex = 0;
-    let symbolsToLoad = [];
+    let symbolsToLoad: string[] = [];
 
     const loadBatch = async () => {
       if (!symbolsToLoad.length || !isMounted) return;
@@ -324,7 +341,7 @@ const FlagSignalsDashboard = () => {
         // Use a batched approach with a delay to avoid rate limiting errors
         const BATCH_SIZE = 50;
         const DELAY_MS = 1000;
-        const newFundingRates = {};
+        const newFundingRates: { [key: string]: number } = {};
         for (let i = 0; i < allSymbols.length; i += BATCH_SIZE) {
           const batch = allSymbols.slice(i, i + BATCH_SIZE);
           const rates = await fetchFundingRates(batch);
@@ -372,7 +389,7 @@ const FlagSignalsDashboard = () => {
         type: isBull ? 'bullish' : isBear ? 'bearish' : null,
         funding: fundingBias,
       };
-    }).filter(Boolean);
+    }).filter((s): s is CombinedSignal => s !== null);
   }, [symbolsData, fundingRates]);
 
   const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
@@ -381,14 +398,14 @@ const FlagSignalsDashboard = () => {
   const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
 
   // Helper function to filter the symbol lists based on the search term
-  const filterCombinedSignals = (signals) => {
+  const filterCombinedSignals = (signals: CombinedSignal[]) => {
     return signals.filter(signal =>
       signal.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
 
   // === COMPONENT RENDERING ===
-  const renderCombinedSignalsList = (title, data) => (
+  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
