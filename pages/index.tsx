@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Inter } from 'next/font/google';
 import styles from '@/styles/Home.module.css';
 import {
-  SentimentAnalysis,
+  // REMOVED: SentimentAnalysis is not an exported member of sentimentAnalyzer.ts
   getMarketData,
   MarketStats,
   analyzeSentiment,
@@ -25,7 +25,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ADDITION: Initialize siteAData to null in the useState hook
   const [siteAData, setSiteAData] = useState<SiteAData | null>(null);
 
   const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysisResults>({
@@ -61,7 +60,6 @@ export default function Home() {
       interpretation: '',
       score: 0,
     },
-    // FIX: Add the missing siteAData property and set it to null
     siteAData: null,
   });
 
@@ -69,26 +67,18 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      // Fetch core market data
       const marketData = await getMarketData();
-
-      // Fetch aggregated liquidation data
       const liquidationData = await fetchAggregatedLiquidationData();
-
-      // Fetch news data
       const newsArticles = await getNewsSentiment();
 
-      // Consolidate data into a MarketStats object
       const marketStats: MarketStats = {
         ...marketData,
         liquidationData: liquidationData,
         newsArticles: newsArticles,
-        siteAData: siteAData, // Pass the state variable
+        siteAData: siteAData,
       };
 
-      // Analyze sentiment
       const analysisResults = analyzeSentiment(marketStats);
-
       setMarketAnalysis(analysisResults);
     } catch (err) {
       setError('Failed to fetch and analyze market data.');
@@ -100,9 +90,9 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const intervalId = setInterval(fetchData, 60000); // Refresh every minute
-    return () => clearInterval(intervalId); // Cleanup on component unmount
-  }, [siteAData]); // Rerun effect when siteAData changes
+    const intervalId = setInterval(fetchData, 60000);
+    return () => clearInterval(intervalId);
+  }, [siteAData]);
 
   return (
     <>
