@@ -210,7 +210,7 @@ interface CombinedSignal {
 }
 
 // Main component starts here
-const FlagSignalsDashboard = () => {
+const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
@@ -219,6 +219,7 @@ const FlagSignalsDashboard = () => {
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const fetchIntervalRef = useRef<number | null>(null);
   // This function fetches the candle data for the given symbols
   const fetchData = async (symbolsToFetch: string[]) => {
@@ -261,6 +262,7 @@ const FlagSignalsDashboard = () => {
       setFundingRates(prevRates => ({...prevRates, ...newFundingRates }));
 
       setLoading(false);
+      setLastUpdated(Date.now());
     } catch (error) {
       console.error('Error fetching data:', error);
       setErrorMessage('Failed to fetch data. Please check your connection or try again later.');
@@ -341,8 +343,8 @@ const FlagSignalsDashboard = () => {
         symbol,
         type: isBull ? 'bullish' : isBear ? 'bearish' : null,
         funding: fundingBias,
-      };
-    }).filter(Boolean);
+      } as CombinedSignal;
+    }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData, fundingRates]);
   const bullishBreakoutSymbols = useMemo(() => {
     return Object.keys(symbolsData).filter(symbol => {
@@ -433,10 +435,10 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
     </div>
   );
 
-  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
-  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: any) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
@@ -462,6 +464,9 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
             Flag Signal Dashboard
           </h1>
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
+          <p className="text-gray-500 text-sm mt-2">
+            Last updated: {new Date(lastUpdated).toLocaleTimeString()}
+          </p>
         </header>
 
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
@@ -508,7 +513,7 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           </div>
         </div>
 
-          {/* === GUIDE + SIGNALS === */}
+        {/* === GUIDE + SIGNALS === */}
         <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
@@ -597,9 +602,6 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           )}
         </div>
 
-        <footer className="mt-8 text-center text-gray-500 text-sm">
-          <p>Data provided by Binance Futures API.</p>
-        </footer>
       </div>
     </div>
   );
