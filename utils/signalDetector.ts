@@ -27,8 +27,8 @@ export function detectSentimentSignals(volumeData: SymbolData[]): SentimentSigna
       signals.push({
         symbol,
         signal: "Bullish Opportunity",
-        type: "Funding Squeeze",
-        description: `Price up (${priceChangePercent.toFixed(2)}%) with strong negative funding (${fundingRate.toFixed(4)}). Shorts may be forced to cover.`,
+        reason: `Price up (${priceChangePercent.toFixed(2)}%) with strong negative funding (${fundingRate.toFixed(4)}). Shorts may be forced to cover.`,
+        priceChangePercent: priceChangePercent,
       });
     }
 
@@ -42,8 +42,8 @@ export function detectSentimentSignals(volumeData: SymbolData[]): SentimentSigna
       signals.push({
         symbol,
         signal: "Bullish Opportunity",
-        type: "Volume Reversal",
-        description: `Price down (${priceChangePercent.toFixed(2)}%) but high volume and positive funding (${fundingRate.toFixed(4)}) may indicate a bullish reversal.`,
+        reason: `Price down (${priceChangePercent.toFixed(2)}%) but high volume and positive funding (${fundingRate.toFixed(4)}) may indicate a bullish reversal.`,
+        priceChangePercent: priceChangePercent,
       });
     }
 
@@ -59,8 +59,8 @@ export function detectSentimentSignals(volumeData: SymbolData[]): SentimentSigna
       signals.push({
         symbol,
         signal: "Bearish Risk",
-        type: "Long Trap",
-        description: `Price down (${priceChangePercent.toFixed(2)}%) with strong positive funding (${fundingRate.toFixed(4)}). Longs may be trapped, risking liquidations.`,
+        reason: `Price down (${priceChangePercent.toFixed(2)}%) with strong positive funding (${fundingRate.toFixed(4)}). Longs may be trapped, risking liquidations.`,
+        priceChangePercent: priceChangePercent,
       });
     }
 
@@ -74,8 +74,8 @@ export function detectSentimentSignals(volumeData: SymbolData[]): SentimentSigna
       signals.push({
         symbol,
         signal: "Bearish Risk",
-        type: "Weak Rally",
-        description: `Price up (${priceChangePercent.toFixed(2)}%) but with negative funding (${fundingRate.toFixed(4)}) and low volume. The rally lacks conviction.`,
+        reason: `Price up (${priceChangePercent.toFixed(2)}%) but with negative funding (${fundingRate.toFixed(4)}) and low volume. The rally lacks conviction.`,
+        priceChangePercent: priceChangePercent,
       });
     }
   }
@@ -100,8 +100,8 @@ export function detectFlagSignals(siteAData: SiteAData): SentimentSignal | null 
     return {
       symbol: "SITEA_OVERALL",
       signal: "Bullish Opportunity",
-      type: "SiteA Short Squeeze Flag",
-      description: `Site A data shows rising open interest (${(openInterestChange * 100).toFixed(0)}%) with a short bias (${longShortRatio.toFixed(2)} long/short ratio), flagging potential for a squeeze.`,
+      reason: `Site A data shows rising open interest (${(openInterestChange * 100).toFixed(0)}%) with a short bias (${longShortRatio.toFixed(2)} long/short ratio), flagging potential for a squeeze.`,
+      priceChangePercent: 0,
     };
   }
 
@@ -110,8 +110,8 @@ export function detectFlagSignals(siteAData: SiteAData): SentimentSignal | null 
     return {
       symbol: "SITEA_OVERALL",
       signal: "Bearish Risk",
-      type: "SiteA Long Trap Flag",
-      description: `Site A data shows rising open interest (${(openInterestChange * 100).toFixed(0)}%) with a long bias (${longShortRatio.toFixed(2)} long/short ratio), flagging a potential long trap.`,
+      reason: `Site A data shows rising open interest (${(openInterestChange * 100).toFixed(0)}%) with a long bias (${longShortRatio.toFixed(2)} long/short ratio), flagging a potential long trap.`,
+      priceChangePercent: 0,
     };
   }
 
