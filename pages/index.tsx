@@ -738,13 +738,7 @@ export default function PriceFundingTracker() {
 
         <MarketAnalysisDisplay
           marketAnalysis={marketAnalysis}
-          fundingImbalanceData={fundingImbalanceData}
-          greenCount={greenCount}
-          redCount={redCount}
-          greenPositiveFunding={greenPositiveFunding}
-          greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
+          showDetails={true}
         />
 
         <div className="mb-8">
