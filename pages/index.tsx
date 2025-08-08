@@ -4,17 +4,13 @@ import Head from 'next/head';
 import Image from 'next/image';
 import { Inter } from 'next/font/google';
 import styles from '@/styles/Home.module.css';
-import {
-  // CORRECTED: 'SentimentAnalysis' and 'getMarketData' are not exported members.
-  analyzeSentiment,
-} from '../utils/sentimentAnalyzer';
+import { analyzeSentiment } from '../utils/sentimentAnalyzer';
 import React, { useEffect, useState } from 'react';
 import MarketAnalysisDisplay from '../components/MarketAnalysisDisplay';
-import { fetchAggregatedLiquidationData } from '../utils/binanceApi';
+import { getMarketData, fetchAggregatedLiquidationData } from '../utils/binanceApi'; // CORRECTED: Importing from binanceApi.ts
 import { MarketStats, MarketAnalysisResults, SentimentArticle, SiteAData } from '../types';
 import { getNewsSentiment } from '../utils/newsSentiment';
 import SiteADataLoader from '../components/SiteADataLoader';
-// CORRECTED: Moved the import of MarketStats, MarketAnalysisResults, and SiteAData here.
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -64,17 +60,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      // NOTE: getMarketData is not available in sentimentAnalyzer.ts, this needs to be fixed.
-      // Assuming a separate utility function for this.
-      // const marketData = await getMarketData();
-      const marketData = {
-        green: 0,
-        red: 0,
-        fundingStats: { greenPositiveFunding: 0, greenNegativeFunding: 0, redPositiveFunding: 0, redNegativeFunding: 0 },
-        volumeData: [],
-      };
-
-
+      const marketData = await getMarketData();
       const liquidationData = await fetchAggregatedLiquidationData();
       const newsArticles = await getNewsSentiment();
 
