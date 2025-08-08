@@ -517,6 +517,7 @@ export default function PriceFundingTracker() {
       volumeData: rawData,
       liquidationData: aggregatedLiquidationForSentiment,
       newsArticles: cryptoNews,
+      siteAData: siteAData,
     };
 
     const sentimentResults = analyzeSentiment(marketStatsForAnalysis);
