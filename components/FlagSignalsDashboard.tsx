@@ -295,8 +295,7 @@ const FlagSignalsDashboard: React.FC = () => {
           if (fetchIntervalRef.current) {
             clearInterval(fetchIntervalRef.current);
           }
-          fetchIntervalRef.current = window.setInterval(() 
-=> fetchData(symbolsToLoad), 60000);
+          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 60000);
         }
       }
     };
