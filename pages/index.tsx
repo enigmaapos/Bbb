@@ -15,6 +15,7 @@ import {
   MarketAnalysisResults,
   // SentimentSignal, // Removed import from types.ts temporarily to define locally
   SentimentArticle,
+  SiteAData,
 } from "../types";
 import {
   BinanceExchangeInfoResponse,
