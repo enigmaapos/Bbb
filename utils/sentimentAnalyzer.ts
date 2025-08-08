@@ -10,7 +10,7 @@ import {
   SentimentSignal,
 } from "../types";
 
-import { detectSentimentSignals } from "./signalDetector"; // Assuming you have this import for your signal detector
+import { detectSentimentSignals, detectFlagSignals } from "./signalDetector";
 
 export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   const {
@@ -20,6 +20,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     volumeData,
     liquidationData,
     newsArticles,
+    siteAData, // ADDITION: Destructure new Site A data
   } = data;
 
   const results: MarketAnalysisResults = {
@@ -31,7 +32,6 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     liquidationHeatmap: { rating: "", interpretation: "", score: 0 },
     newsSentiment: { rating: "", interpretation: "", score: 0 },
     actionableSentimentSignals: [],
-    // FIX IS HERE: Change "" to "Neutral" for tone
     actionableSentimentSummary: { bullishCount: 0, bearishCount: 0, tone: "Neutral", interpretation: "", score: 0 },
     overallSentimentAccuracy: "",
     overallMarketOutlook: { score: 0, tone: "", strategySuggestion: "" },
@@ -50,8 +50,12 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
       totalShortLiquidationsUSD: liquidationData?.totalShortLiquidationsUSD || 0,
     },
     newsData: newsArticles,
+    // ADDITION: Include Site A data for reference
+    siteAData,
   };
 
+  // --- EXISTING ANALYSIS SECTIONS (UNCHANGED) ---
+  // ... (General Bias, Funding Imbalance, Short Squeeze Candidates, etc.) ...
   // --- 1. General Bias ---
   if (green > red * 1.5) {
     results.generalBias = {
@@ -312,14 +316,22 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // --- 8. Actionable Sentiment Signals ---
-    const actionableSentimentSignals: SentimentSignal[] = detectSentimentSignals(volumeData);
-    results.actionableSentimentSignals = actionableSentimentSignals; // Assign to results object
+  const actionableSentimentSignals: SentimentSignal[] = detectSentimentSignals(volumeData);
+  results.actionableSentimentSignals = actionableSentimentSignals;
+
+  // ADDITION: Detect and add Site A flag signals
+  if (siteAData) {
+    const flagSignal = detectFlagSignals(siteAData);
+    if (flagSignal) {
+      results.actionableSentimentSignals.push(flagSignal);
+    }
+  }
 
   // Count bullish and bearish signals
-  const bullishCount = actionableSentimentSignals.filter(
+  const bullishCount = results.actionableSentimentSignals.filter(
     (sig) => sig.signal === "Bullish Opportunity"
   ).length;
-  const bearishCount = actionableSentimentSignals.filter(
+  const bearishCount = results.actionableSentimentSignals.filter(
     (sig) => sig.signal === "Bearish Risk"
   ).length;
 
@@ -343,7 +355,7 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   }
 
   // Compose the actionable sentiment summary
-  results.actionableSentimentSummary = { // Assign to results object
+  results.actionableSentimentSummary = {
     bullishCount,
     bearishCount,
     tone,
@@ -352,10 +364,9 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
   };
 
   // --- 9. Overall Sentiment Accuracy ---
-  results.overallSentimentAccuracy = "Based on multiple indicators including price action, funding, volume, liquidations, and news.";
+  results.overallSentimentAccuracy = "Based on multiple indicators including price action, funding, volume, liquidations, news, and Site A data.";
 
   // --- 10. Overall Market Outlook ---
-  // Include actionable sentiment score in average calculation
   const totalScore =
     results.generalBias.score +
     results.fundingImbalance.score +
@@ -364,9 +375,9 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     results.volumeSentiment.score +
     results.liquidationHeatmap.score +
     results.newsSentiment.score +
-    results.actionableSentimentSummary.score; // Use the property from results
+    results.actionableSentimentSummary.score;
 
-  const numberOfScores = 8; // Updated to include actionableSentimentSummary
+  const numberOfScores = 8; // Score count remains the same as actionableSentimentSummary score now includes flag signals
 
   const averageScore = totalScore / numberOfScores;
 
@@ -401,6 +412,5 @@ export function analyzeSentiment(data: MarketStats): MarketAnalysisResults {
     strategySuggestion,
   };
 
-  // Ensure to return the results object at the end of the main function body
   return results;
 }
