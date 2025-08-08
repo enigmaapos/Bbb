@@ -378,7 +378,7 @@ const FlagSignalsDashboard: React.FC = () => {
     return () => { mounted = false; clearInterval(iv); };
   }, [allSymbols]);
 
-  const flaggedSymbolsWithFunding = useMemo(() => {
+const flaggedSymbolsWithFunding = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
 
@@ -386,14 +386,12 @@ const FlagSignalsDashboard: React.FC = () => {
       const isBull = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isBear = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
 
-      // Use hasOwnProperty to detect whether we actually have a funding rate for this symbol.
-      const fundingRate = Object.prototype.hasOwnProperty.call(fundingRates, symbol) ? fundingRates[symbol] : null;
+      const fundingRate = fundingRates[symbol] ?? 0;
 
       let fundingBias: 'positive' | 'negative' | null = null;
-      if (fundingRate !== null && typeof fundingRate === 'number') {
-        if (fundingRate > 0) fundingBias = 'positive';
-        else if (fundingRate < 0) fundingBias = 'negative';
-      }
+      if (fundingRate > 0) fundingBias = 'positive';    // Longs paying
+      else if (fundingRate < 0) fundingBias = 'negative'; // Shorts paying
+      
 
       return {
         symbol,
