@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
-import FlagSignalsDashboard from './FlagSignalsDashboard';
+import React, { useEffect, useState, useMemo } from 'react';
+
 // --- Type Definitions ---
 interface Candle {
   timestamp: number;
@@ -14,12 +14,9 @@ interface MainTrend {
   trend: 'bullish' | 'bearish' | 'neutral';
   type: 'support' | 'resistance' | 'none';
   crossoverPrice: number;
-// Still relevant for EMA context
   breakout: 'bullish' | 'bearish' | null;
-// Now for new high/low breakout
   isNear: boolean;
   isDojiAfterBreakout: boolean;
-// Applies to the new breakout
 }
 
 interface SignalData {
@@ -42,21 +39,17 @@ interface SignalData {
  */
 function calculateEMA(data: number[], period: number): number[] {
   const k = 2 / (period + 1);
-// Smoothing constant
   const ema: number[] = [];
   let previousEma: number | null = null;
   for (let i = 0; i < data.length; i++) {
-    // For the initial periods before enough data for SMA, push NaN
     if (i < period - 1) {
       ema.push(NaN);
       continue;
     }
-    // Calculate initial Simple Moving Average (SMA) for the first EMA point
     if (i === period - 1) {
       const sma = data.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
       previousEma = sma;
     }
-    // Calculate EMA using the formula: CurrentPrice * K + PreviousEMA * (1 - K)
     if (previousEma !== null) {
       const currentEma: number = data[i] * k + previousEma * (1 - k);
       ema.push(currentEma);
@@ -101,7 +94,8 @@ function calculateRSI(closes: number[], period = 3): number[] {
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rs = avgLoss === 0 ?
+    Number.POSITIVE_INFINITY : avgGain / avgLoss;
     rsi[i] = 100 - 100 / (1 + rs);
   }
 
@@ -165,7 +159,7 @@ function getRecentRSIDiff(
  */
 const getSignal = (s: { rsi14?: number[] }): string => {
   const pumpDump = s.rsi14 ?
-getRecentRSIDiff(s.rsi14, 14) : null;
+  getRecentRSIDiff(s.rsi14, 14) : null;
   if (!pumpDump) return 'NO DATA';
 
   const { direction, pumpStrength: pump, dumpStrength: dump } = pumpDump;
@@ -192,23 +186,14 @@ getRecentRSIDiff(s.rsi14, 14) : null;
 // --- SiteADataLoader Component ---
 export default function SiteADataLoader() {
   const [signals, setSignals] = useState<SignalData[]>([]);
-// Explicitly type signals
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
-// Default to 1d
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-// Utility to generate UTC timestamp at specific hour
+
   const getUTCMillis = (year: number, month: number, date: number, hour: number, minute: number): number => {
     return Date.UTC(year, month, date, hour, minute);
   };
 
-  /**
-   * Calculates session start and end times based on the selected timeframe.
- * For '1d', it uses a custom 8 AM PH time (UTC+8) session.
- * For '15m' and '4h', it calculates generic fixed-interval sessions.
-   * @param tf - The selected timeframe ('15m', '4h', '1d').
- * @returns An object containing session start/end and previous session start/end timestamps in milliseconds.
- */
   const getSessions = (tf: string) => {
     const now = new Date();
     const timeframeToUse = tf || timeframe;
@@ -220,7 +205,6 @@ export default function SiteADataLoader() {
 
       const getUTCMillisFor1d = (y: number, m: number, d: number, hPH: number, min: number) =>
         Date.UTC(y, m, d, hPH - 8, min);
-// UTC+8 to UTC conversion for PH time
 
       const today8AM_UTC = getUTCMillisFor1d(year, month, date, 8, 0);
       const tomorrow745AM_UTC = getUTCMillisFor1d(year, month, date + 1, 7, 45);
@@ -255,36 +239,25 @@ export default function SiteADataLoader() {
       return { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd };
     }
   };
-  /**
-   * Fetches data from a given URL with exponential backoff and specific error handling for Binance API.
- * @param url - The URL to fetch data from.
-   * @param retries - The maximum number of retries.
- * @param delay - The initial delay in milliseconds before retrying.
- * @returns The JSON response data, or null if an invalid symbol error occurs or all retries fail.
- */
-  const fetchWithRetry = async (url: string, retries = 5, delay = 1000): Promise<any |
-null> => {
+
+  const fetchWithRetry = async (url: string, retries = 5, delay = 1000): Promise<any | null> => {
     for (let i = 0; i < retries; i++) {
       try {
         const response = await fetch(url);
-        if (response.status === 429 || response.status === 418) { // 429 Too Many Requests, 418 I'm a teapot (Binance sometimes uses this)
+        if (response.status === 429 || response.status === 418) {
           const retryAfter = response.headers.get('Retry-After');
           const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : delay * Math.pow(2, i);
           console.warn(`Rate limit hit. Retrying in ${waitTime / 1000}s...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
-// Retry the request
         }
         if (!response.ok) {
           const errorBody = await response.json();
-// Check for Binance specific error codes for IP ban or invalid symbol
-          if (errorBody.code === -1003) { // IP ban
+          if (errorBody.code === -1003) {
             console.warn(`Binance IP ban detected. Retrying in ${delay * Math.pow(2, i) / 1000}s...`);
             await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
             continue;
-// Retry the request
           } else if (errorBody.code === -1121 || errorBody.msg === "Invalid symbol." || errorBody.msg === "Invalid symbol status.") {
-            // Specific handling for invalid symbol errors: return null to skip this symbol
             console.warn(`Invalid symbol encountered for URL: ${url}. Skipping this symbol.`);
             return null;
           }
@@ -298,42 +271,29 @@ null> => {
           console.log(`Retrying in ${waitTime / 1000}s...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
         } else {
-          // If all retries fail, for a symbol-specific error, return null.
-// For other critical errors, re-throw.
-          if (error instanceof Error && error.message.includes("Invalid symbol")) { // Check for the specific message from previous handling
+          if (error instanceof Error && error.message.includes("Invalid symbol")) {
             return null;
           }
           throw error;
-// Re-throw if all retries fail for other reasons
         }
       }
     }
     return null;
-// Should not be reached if retries > 0 and no error, but as a fallback
   };
+
   useEffect(() => {
     let isMounted = true;
     const BATCH_SIZE = 10;
-    const INTERVAL_MS = 1000; // Base interval between batches
+    const INTERVAL_MS = 1000;
     let currentIndex = 0;
     let symbols: string[] = [];
 
-    /**
-     * Fetches and analyzes data for a single cryptocurrency symbol.
-     * @param symbol - The cryptocurrency symbol (e.g., "BTCUSDT").
-     * @param interval - The candlestick interval (e.g., "15m", "4h", "1d").
-     * @returns An object containing analyzed 
-signal data for the symbol, or null if an error occurs.
-     */
     const fetchAndAnalyze = async (symbol: string, interval: string): Promise<SignalData | null> => {
-      // Fetch klines data
       const raw = await fetchWithRetry(
         `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=500`
       );
 
-      // If raw is null (due to invalid symbol or other fetch error), skip this symbol
       if (raw === null) {
-     
         return null;
       }
 
@@ -353,25 +313,19 @@ signal data for the symbol, or null if an error occurs.
       const ema70 = calculateEMA(closes, 70);
       const ema200 = calculateEMA(closes, 200);
       const rsi14 = calculateRSI(closes, 14);
-// Fetch 24h ticker data
       const ticker24h = await fetchWithRetry(
         `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`
       );
-// If ticker24h is null (due to invalid symbol or other fetch error), skip this symbol
       if (ticker24h === null) {
         return null;
       }
 
       const priceChangePercent = parseFloat(ticker24h.priceChangePercent);
-// Calculate previous session candles and highest volume color
       const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(interval);
-// Get current session times too
-
       const candlesCurrentSession = candles.filter((c: Candle) => c.timestamp >= sessionStart && c.timestamp <= sessionEnd);
       const candlesPrevSession = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
 
-      let highestVolumeColorPrev: 'green' | 'red' |
-null = null;
+      let highestVolumeColorPrev: 'green' | 'red' | null = null;
       if (candlesPrevSession.length > 0) {
         let maxVolume = -1;
         let highestVolumeCandle: Candle | null = null;
@@ -382,15 +336,11 @@ null = null;
           }
         }
         if (highestVolumeCandle) {
-          // Determine color based on close vs open of the highest volume candle
-          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ?
-'green' : 'red';
+          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ? 'green' : 'red';
         }
       }
 
-      // Simulate prevClosedGreen/Red (simplified)
-      let prevClosedGreen: boolean |
-null = null;
+      let prevClosedGreen: boolean | null = null;
       let prevClosedRed: boolean | null = null;
       if (candles.length >= 2) {
         const prevCandle = candles[candles.length - 2];
@@ -398,7 +348,6 @@ null = null;
         prevClosedRed = prevCandle.close < prevCandle.open;
       }
 
-      // Initialize mainTrend object
       let mainTrend: MainTrend = {
         trend: 'neutral',
         type: 'none',
@@ -407,7 +356,6 @@ null = null;
         isNear: false,
         isDojiAfterBreakout: false,
       };
-// Determine overall trend based on CURRENT EMA values (from full 500 candles)
       const lastEma70Full = ema70.at(-1);
       const lastEma200Full = ema200.at(-1);
 
@@ -421,36 +369,25 @@ null = null;
         }
       }
 
-      // Calculate today's highest high and lowest low from current session candles
-      // Ensure there are candles in the current session before reducing
-      const todaysHighestHigh = candlesCurrentSession.length > 0 ?
-candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const todaysLowestLow = candlesCurrentSession.length > 0 ?
-candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const todaysHighestHigh = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const todaysLowestLow = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
-      // Calculate previous session's highest high and lowest low
-      // Ensure there are candles in the previous session before reducing
-      const prevSessionHigh = candlesPrevSession.length > 0 ?
-candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const prevSessionLow = candlesPrevSession.length > 0 ?
-candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const prevSessionHigh = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const prevSessionLow = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
-      // New Breakout Logic: Today's high/low vs. Previous Session's high/low
       const bullishBreakout = todaysHighestHigh !== null && prevSessionHigh !== null && todaysHighestHigh > prevSessionHigh;
-const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && todaysLowestLow < prevSessionLow;
-// Set mainTrend.breakout based on the new logic
+      const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && todaysLowestLow < prevSessionLow;
       if (bullishBreakout) {
         mainTrend.breakout = 'bullish';
       } else if (bearishBreakout) {
         mainTrend.breakout = 'bearish';
       }
 
-      // Check for doji after breakout (applies to the new breakout)
       if (mainTrend.breakout && candlesCurrentSession.length > 0) {
         const lastCandleCurrentSession = candlesCurrentSession[candlesCurrentSession.length - 1];
         const bodySize = Math.abs(lastCandleCurrentSession.close - lastCandleCurrentSession.open);
         const totalRange = lastCandleCurrentSession.high - lastCandleCurrentSession.low;
-        if (totalRange > 0 && bodySize / totalRange < 0.2) { // 20% body size as a threshold for doji-like candle
+        if (totalRange > 0 && bodySize / totalRange < 0.2) {
           mainTrend.isDojiAfterBreakout = true;
         }
       }
@@ -458,23 +395,18 @@ const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && t
       return {
         symbol,
         closes,
-        rsi14, // Keep rsi14 for getSignal calculation
+        rsi14,
         priceChangePercent,
-        mainTrend, // Updated mainTrend object
+        mainTrend,
         prevClosedGreen,
         prevClosedRed,
-        highestVolumeColorPrev, // Add the calculated highest volume color
-      
+        highestVolumeColorPrev,
       };
     };
 
-    /**
-     * Processes symbols in batches to avoid rate limits and updates the signals state.
-     */
     const processBatch = async () => {
       if (!isMounted) return;
       if (symbols.length === 0) {
-        // Fetch all symbols once
         try {
           const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
           if (exchangeInfo === null) {
@@ -501,41 +433,30 @@ const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && t
       );
       if (isMounted) {
         setSignals((prev) => [...prev, ...newSignals.filter(Boolean) as SignalData[]]);
-// filter(Boolean) removes null entries
         currentIndex += BATCH_SIZE;
-// Update last updated timestamp after processing a batch
         setLastUpdated(new Date().toLocaleTimeString());
         if (currentIndex < symbols.length) {
           setTimeout(processBatch, INTERVAL_MS);
         } else {
           setLoading(false);
-// All symbols processed
         }
       }
     };
-// Initialize/reset signals and loading state when timeframe changes or on initial load
     setSignals([]);
-// Clear previous signals when timeframe changes
     setLoading(true);
     currentIndex = 0;
-// Reset index for new fetch
     symbols = [];
-// Reset symbols to re-fetch exchange info
-    setLastUpdated(null); // Reset last updated timestamp
+    setLastUpdated(null);
 
     processBatch();
-// Cleanup function for useEffect to prevent state updates on unmounted component
     return () => {
       isMounted = false;
     };
-  }, [timeframe]); // Rerun effect when timeframe changes
+  }, [timeframe]);
 
-  // Memoize the filtering of signals for "MAX ZONE PUMP" to optimize performance
   const maxPumpZoneSignals = useMemo(() => {
     return signals.filter(s => getSignal(s) === 'MAX ZONE PUMP');
   }, [signals]);
-
-// Calculate bull and bear flag signals
   const bullFlagSymbols = useMemo(() => {
   return signals.filter(s => {
     if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
@@ -553,8 +474,7 @@ const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && t
     return isBullishEma && rsi! > 50;
   });
 }, [signals]);
-
-const bearFlagSymbols = useMemo(() => {
+  const bearFlagSymbols = useMemo(() => {
   return signals.filter(s => {
     if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
 
@@ -571,8 +491,6 @@ const bearFlagSymbols = useMemo(() => {
     return isBearishEma && rsi! < 50;
   });
 }, [signals]);
-
-// Calculate statistics for the "Market Overview" section
   const marketStats = useMemo(() => {
     const greenPriceChangeCount = signals.filter(
       (t) => parseFloat(String(t.priceChangePercent)) > 0
@@ -590,7 +508,6 @@ const bearFlagSymbols = useMemo(() => {
       (s) => s.highestVolumeColorPrev === 'red'
     ).length;
 
-  
     const bullishTrendCount = signals.filter(
         (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
     ).length;
@@ -621,17 +538,14 @@ const bearFlagSymbols = useMemo(() => {
           Crypto Signals Dashboard 🚀
         </h1>
 
-        {/* Timeframe Selector */}
         <div className="flex justify-center mb-6 space-x-4">
           {['15m', '4h', '1d'].map((tf) => (
-      
             <button
               key={tf}
               onClick={() => setTimeframe(tf)}
               className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200
                 ${timeframe === tf
                   ? 'bg-purple-600 text-white shadow-lg'
-      
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
             >
@@ -641,28 +555,23 @@ const bearFlagSymbols = useMemo(() => {
         </div>
 
         {lastUpdated && (
-   
           <p className="text-center text-sm text-gray-400 mb-4">
                 Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
             </p>
         )}
 
-        {/* Market Overview Section */}
         <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
             <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
- 
                 Market Overview
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Green Price Change</p>
-           
                     <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
                 </div>
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Red Price Change</p>
                     <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
-      
                 </div>
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
@@ -672,18 +581,14 @@ const bearFlagSymbols = useMemo(() => {
                     <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
                     <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
                 </div>
-                {/* New: Bullish/Bearish Trend Counts */}
-   
                 <div className="p-3 bg-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400">Bullish Trend</p>
                     <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
                 </div>
                 <div className="p-3 bg-gray-700 rounded-lg">
-   
                     <p className="text-sm text-gray-400">Bearish Trend</p>
                     <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
                 </div>
-                {/* New: Bull/Bear Flag Counts */}
   <>
     <div className="p-3 bg-gray-700 rounded-lg">
       <p className="text-sm text-gray-400">Bull Flag</p>
@@ -698,14 +603,11 @@ const bearFlagSymbols = useMemo(() => {
         </div>
 
         {loading && (
-          <div className="text-center text-lg text-gray-400 
-mt-10">
-            Loading signals... This might take a moment.
-            ⏳
+          <div className="text-center text-lg text-gray-400 mt-10">
+            Loading signals... This might take a moment. ⏳
           </div>
         )}
 
-        {/* Display Bull Flag Signals */}
         {!loading && bullFlagSymbols.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
             <h2 className="text-2xl sm:text-3xl font-bold text-blue-300 mb-5 text-center">
@@ -738,7 +640,6 @@ mt-10">
           </div>
         )}
 
-        {/* Display Bear Flag Signals */}
         {!loading && bearFlagSymbols.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-orange-700">
             <h2 className="text-2xl sm:text-3xl font-bold text-orange-300 mb-5 text-center">
@@ -775,44 +676,36 @@ mt-10">
         {!loading && maxPumpZoneSignals.length === 0 && (
           <div className="text-center text-lg text-gray-400 mt-10">
             No "MAX ZONE PUMP" signals found for the selected timeframe.
-       
           </div>
         )}
 
-        {/* Display MAX ZONE PUMP Signals (kept for completeness as it was in your original code) */}
         {!loading && maxPumpZoneSignals.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
             <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
-              MAX 
-ZONE PUMP Signals ({maxPumpZoneSignals.length})
+              MAX ZONE PUMP Signals ({maxPumpZoneSignals.length})
             </h2>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
-                    
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
                       Symbol
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                     
-Current Price
+                     Current Price
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       24h Change (%)
                     </th>
-      
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       RSI Pump Strength
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
-     
                       Prev Session Volume
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-         
                     {maxPumpZoneSignals.map((s) => {
                     const pumpDump = getRecentRSIDiff(s.rsi14, 14);
                     const currentPrice = s.closes ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
@@ -820,27 +713,21 @@ Current Price
                       <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-200">
                           {s.symbol}
-                 
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
                           ${currentPrice}
                         </td>
-              
                         <td className="px-4 py-4 whitespace-nowrap text-sm">
                           <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {s.priceChangePercent?.toFixed(2) || 'N/A'}%
-                      
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
                           {pumpDump?.pumpStrength?.toFixed(2) || 'N/A'}
-               
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ?
-'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
-                            {s.highestVolumeColorPrev ?
-s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
+                          <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ? 'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
+                            {s.highestVolumeColorPrev ? s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
                           </span>
                         </td>
                       </tr>
@@ -852,7 +739,6 @@ s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
           </div>
         )}
       </div>
-      < FlagSignalsDashboard />
     </div>
   );
 }
