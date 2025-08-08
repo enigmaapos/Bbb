@@ -182,6 +182,7 @@ export default function PriceFundingTracker() {
       totalShortLiquidationsUSD: 0,
     },
     newsData: [],
+    siteAData: null,
   });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
