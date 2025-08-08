@@ -193,7 +193,9 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
  */
 const fetchFundingRates = async (symbols: string[]) => {
   const fundingData: Record<string, number> = {};
-  await Promise.all(symbols.map(async (symbol) => {
+  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+  for (const symbol of symbols) {
     try {
       const res = await fetch(`/api/funding?symbol=${symbol}`);
       const json = await res.json();
@@ -205,7 +207,8 @@ const fetchFundingRates = async (symbols: string[]) => {
     } catch (err) {
       console.error(`Funding fetch error for ${symbol}`, err);
     }
-  }));
+    await delay(100);
+  }
   return fundingData;
 };
 
