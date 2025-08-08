@@ -6,17 +6,15 @@ import { Inter } from 'next/font/google';
 import styles from '@/styles/Home.module.css';
 import {
   // CORRECTED: 'SentimentAnalysis' and 'getMarketData' are not exported members.
-  MarketStats,
   analyzeSentiment,
-  MarketAnalysisResults,
 } from '../utils/sentimentAnalyzer';
 import React, { useEffect, useState } from 'react';
 import MarketAnalysisDisplay from '../components/MarketAnalysisDisplay';
 import { fetchAggregatedLiquidationData } from '../utils/binanceApi';
-import { SentimentArticle } from '../types';
+import { MarketStats, MarketAnalysisResults, SentimentArticle, SiteAData } from '../types';
 import { getNewsSentiment } from '../utils/newsSentiment';
 import SiteADataLoader from '../components/SiteADataLoader';
-import { SiteAData } from '../types';
+// CORRECTED: Moved the import of MarketStats, MarketAnalysisResults, and SiteAData here.
 
 const inter = Inter({ subsets: ['latin'] });
 
