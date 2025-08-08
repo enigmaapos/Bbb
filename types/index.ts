@@ -1,43 +1,58 @@
 // src/types.ts
 
-// Define the data structure for a single cryptocurrency symbol
+// This file is the correct and complete version of the types.ts file.
+
 export interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
+  lastPrice: number;
   volume: number;
+  sentimentSignal?: SentimentSignal; // Optional sentiment signal per symbol
 }
 
-// Define the data structure for overall market stats
-export interface MarketData {
-  greenCount: number;
-  redCount: number;
-  greenPositiveFunding: number;
-  greenNegativeFunding: number;
-  redPositiveFunding: number;
-  redNegativeFunding: number;
-  priceUpFundingNegativeCount: number;
-  priceDownFundingPositiveCount: number;
-  topShortSqueeze: SymbolData[];
-  topLongTrap: SymbolData[];
-  totalLongLiquidationsUSD: number;
-  totalShortLiquidationsUSD: number;
+export interface SymbolTradeSignal {
+  symbol: string;
+  signal: "long" | "short" | null;
+  strength: "Weak" | "Medium" | "Strong";
+  confidence: "Low Confidence" | "Medium Confidence" | "High Confidence";
+  entry: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
 }
 
-// Define the data structure for a single news article
-export interface SentimentArticle {
-  title: string;
-  source: string;
-  date: string;
+export interface LiquidationEvent {
+  symbol: string;
+  side: "BUY" | "SELL";
+  price: number;
+  quantity: number;
+  timestamp: number;
 }
 
-// Define the data structure for aggregated liquidation data
 export interface AggregatedLiquidationData {
   totalLongLiquidationsUSD: number;
   totalShortLiquidationsUSD: number;
+  longLiquidationCount: number;
+  shortLiquidationCount: number;
 }
 
-// Define the data structure for Site A's specific market data
+export interface MarketAnalysisResultDetail {
+  rating: string;
+  interpretation: string;
+  score: number; // Score from 0–10
+  topHeadlines?: string[]; // Optional for news sentiment only
+}
+
+export interface SentimentArticle {
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  content?: string;
+  sentimentScore?: number;
+  sentimentCategory?: 'positive' | 'negative' | 'neutral';
+}
+
 export interface SiteAData {
   longShortRatio: number;
   openInterestChange: number;
@@ -54,45 +69,55 @@ export interface MarketStats {
     redNegativeFunding: number;
   };
   volumeData: SymbolData[];
-  liquidationData: AggregatedLiquidationData | null;
+  liquidationData: AggregatedLiquidationData | undefined;
   newsArticles: SentimentArticle[];
   siteAData: SiteAData | null; // ADDITION: The new Site A data
 }
 
-// Define the data structure for the output of the sentiment analysis
-export interface AnalysisComponentResult {
-  rating: string;
-  interpretation: string;
-  score: number;
+
+export interface MarketData {
+  greenCount: number;
+  redCount: number;
+  greenPositiveFunding: number;
+  greenNegativeFunding: number;
+  redPositiveFunding: number;
+  redNegativeFunding: number;
+  priceUpFundingNegativeCount: number;
+  priceDownFundingPositiveCount: number;
+  topShortSqueeze: SymbolData[];
+  topLongTrap: SymbolData[];
+  totalLongLiquidationsUSD: number;
+  totalShortLiquidationsUSD: number;
 }
 
-// Define the data structure for actionable sentiment signals
+export interface NewsData extends Array<any> {}
+
 export interface SentimentSignal {
   symbol: string;
-  signal: "Bullish Opportunity" | "Bearish Risk";
-  type: string;
-  description: string;
+  signal: 'Bullish Opportunity' | 'Early Squeeze Signal' | 'Bearish Risk' | 'Early Long Trap' | 'Neutral';
+  reason: string;
+  priceChangePercent: number;
+  strongBuy?: boolean;
+  strongSell?: boolean;
+  riskReward?: 'Low' | 'Medium' | 'Medium-High' | 'High' | 'Strong';
 }
 
 export interface ActionableSentimentSummary {
   bullishCount: number;
   bearishCount: number;
-  tone: "Bullish" | "Bearish" | "Neutral";
+  tone: 'Bullish' | 'Bearish' | 'Neutral';
   interpretation: string;
-  score: number;
+  score: number; // Score 0–10 for overall sentiment strength
 }
 
-// Define the complete data structure for the final analysis results
 export interface MarketAnalysisResults {
-  generalBias: AnalysisComponentResult;
-  fundingImbalance: AnalysisComponentResult;
-  shortSqueezeCandidates: AnalysisComponentResult;
-  longTrapCandidates: AnalysisComponentResult;
-  volumeSentiment: AnalysisComponentResult;
-  liquidationHeatmap: AnalysisComponentResult;
-  newsSentiment: AnalysisComponentResult;
-  actionableSentimentSignals: SentimentSignal[];
-  actionableSentimentSummary: ActionableSentimentSummary;
+  generalBias: MarketAnalysisResultDetail;
+  fundingImbalance: MarketAnalysisResultDetail;
+  shortSqueezeCandidates: MarketAnalysisResultDetail;
+  longTrapCandidates: MarketAnalysisResultDetail;
+  volumeSentiment: MarketAnalysisResultDetail;
+  liquidationHeatmap: MarketAnalysisResultDetail;
+  newsSentiment: MarketAnalysisResultDetail;
   overallSentimentAccuracy: string;
   overallMarketOutlook: {
     score: number;
@@ -100,6 +125,81 @@ export interface MarketAnalysisResults {
     strategySuggestion: string;
   };
   marketData: MarketData;
-  newsData: SentimentArticle[];
-  siteAData: SiteAData | null;
+  newsData: NewsData;
+  actionableSentimentSignals?: SentimentSignal[];
+  actionableSentimentSummary?: ActionableSentimentSummary;
+  siteAData: SiteAData | null; // ADDITION: The new Site A data
+}
+
+
+// Raw Binance API types (unchanged)
+export interface BinanceTicker24hr {
+  symbol: string;
+  priceChange: string;
+  priceChangePercent: string;
+  weightedAvgPrice: string;
+  prevClosePrice: string;
+  lastPrice: string;
+  lastQty: string;
+  bidPrice: string;
+  bidQty: string;
+  askPrice: string;
+  askQty: string;
+  openPrice: string;
+  highPrice: string;
+  lowPrice: string;
+  volume: string;
+  quoteVolume: string;
+  openTime: number;
+  closeTime: number;
+  firstId: number;
+  lastId: number;
+  count: number;
+}
+
+export interface BinancePremiumIndex {
+  symbol: string;
+  markPrice: string;
+  indexPrice: string;
+  estimatedSettlePrice: string;
+  lastFundingRate: string;
+  nextFundingTime: number;
+  interestRate: string;
+  time: number;
+}
+
+export interface BinanceSymbol {
+  symbol: string;
+  pair: string;
+  contractType: string;
+  deliveryDate: number;
+  onboardDate: number;
+  status: string;
+  maintMarginPercent: string;
+  requiredMarginPercent: string;
+  baseAsset: string;
+  quoteAsset: string;
+  marginAsset: string;
+  pricePrecision: number;
+  quantityPrecision: number;
+  baseAssetPrecision: number;
+  quotePrecision: number;
+  underlyingType: string;
+  underlyingSubType: string[];
+  settlePlan: number;
+  triggerProtect: string;
+  liquidationFee: string;
+  marketTakeBound: string;
+  maxMoveLimit: string;
+  filters: any[];
+  orderTypes: string[];
+  timeInForce: string[];
+}
+
+export interface BinanceExchangeInfoResponse {
+  timezone: string;
+  serverTime: number;
+  rateLimits: any[];
+  exchangeFilters: any[];
+  symbols: BinanceSymbol[];
 }
