@@ -321,26 +321,21 @@ const FlagSignalsDashboard = () => {
 
     const refreshFunding = async () => {
       try {
-        const chunks = [];
-        const BATCH = 50;
-        for (let i = 0; i < allSymbols.length; i += BATCH) {
-          chunks.push(allSymbols.slice(i, i + BATCH));
-        }
-        for (const chunk of chunks) {
-          const rates = await fetchFundingRates(chunk);
+        // Use a batched approach with a delay to avoid rate limiting errors
+        const BATCH_SIZE = 50;
+        const DELAY_MS = 1000;
+        const newFundingRates = {};
+        for (let i = 0; i < allSymbols.length; i += BATCH_SIZE) {
+          const batch = allSymbols.slice(i, i + BATCH_SIZE);
+          const rates = await fetchFundingRates(batch);
           if (!mounted) return;
-          // Use a defensive merge strategy
-          setFundingRates(prev => {
-            const nextRates = { ...prev, ...rates };
-            // For any requested symbol that failed to fetch, set it to null
-            chunk.forEach(symbol => {
-              if (!rates.hasOwnProperty(symbol)) {
-                nextRates[symbol] = null;
-              }
-            });
-            return nextRates;
-          });
+          Object.assign(newFundingRates, rates);
+
+          if (i + BATCH_SIZE < allSymbols.length) {
+            await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+          }
         }
+        setFundingRates(newFundingRates);
       } catch (err) {
         console.error('Funding refresh error', err);
       }
