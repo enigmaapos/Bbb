@@ -219,6 +219,7 @@ const FlagSignalsDashboard = () => {
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const fetchIntervalRef = useRef<number | null>(null);
   // This function fetches the candle data for the given symbols
   const fetchData = async (symbolsToFetch: string[]) => {
@@ -261,6 +262,7 @@ const FlagSignalsDashboard = () => {
       setFundingRates(prevRates => ({...prevRates, ...newFundingRates }));
 
       setLoading(false);
+      setLastUpdated(Date.now());
     } catch (error) {
       console.error('Error fetching data:', error);
       setErrorMessage('Failed to fetch data. Please check your connection or try again later.');
@@ -462,6 +464,9 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
             Flag Signal Dashboard
           </h1>
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
+          <p className="text-gray-500 text-sm mt-2">
+            Last updated: {new Date(lastUpdated).toLocaleTimeString()}
+          </p>
         </header>
 
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
@@ -508,24 +513,7 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center h-[50vh]">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
-          </div>
-        ) : errorMessage ? (
-          <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
-            <p>{errorMessage}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {renderCombinedSignalsList('Strong Bull Setups', filterCombinedSignals(strongBullSignals as CombinedSignal[]))}
-            {renderCombinedSignalsList('Bear Trap / Weakness', filterCombinedSignals(weakBearSignals as CombinedSignal[]))}
-            {renderCombinedSignalsList('Bull Trap Risk', filterCombinedSignals(weakBullSignals as CombinedSignal[]))}
-            {renderCombinedSignalsList('Strong Bear Setups', filterCombinedSignals(strongBearSignals as CombinedSignal[]))}
-          </div>
-        )}
-
-      <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
+        <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
         <h2 className="text-lg font-semibold text-white mb-2">📘 Flag + Funding Interpretation Guide</h2>
         <table className="w-full text-sm text-left text-gray-300">
           <thead className="text-gray-400">
@@ -560,9 +548,22 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
         </table>
       </div>
 
-        <footer className="mt-8 text-center text-gray-500 text-sm">
-          <p>Data provided by Binance Futures API.</p>
-        </footer>
+        {loading ? (
+          <div className="flex justify-center items-center h-[50vh]">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
+          </div>
+        ) : errorMessage ? (
+          <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
+            <p>{errorMessage}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {renderCombinedSignalsList('Strong Bull Setups', filterCombinedSignals(strongBullSignals as CombinedSignal[]))}
+            {renderCombinedSignalsList('Bear Trap / Weakness', filterCombinedSignals(weakBearSignals as CombinedSignal[]))}
+            {renderCombinedSignalsList('Bull Trap Risk', filterCombinedSignals(weakBullSignals as CombinedSignal[]))}
+            {renderCombinedSignalsList('Strong Bear Setups', filterCombinedSignals(strongBearSignals as CombinedSignal[]))}
+          </div>
+        )}
       </div>
     </div>
   );
