@@ -6,7 +6,6 @@ import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
 import SiteADataLoader from "../components/SiteADataLoader";
-import FlagSignalsDashboard from '../FlagSignalsDashboard';
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -869,7 +868,7 @@ export default function PriceFundingTracker() {
         </div>
 
         <SiteADataLoader />
-         <FlagSignalsDashboard />
+        
 
         <div className="my-8 h-px bg-gray-700" />
 
