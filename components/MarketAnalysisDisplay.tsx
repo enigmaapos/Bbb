@@ -1,12 +1,23 @@
-// src/components/MarketAnalysisDisplay.tsx
-
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 import { MarketAnalysisResults, SymbolData } from '../types';
 
 interface MarketAnalysisDisplayProps {
   marketAnalysis: MarketAnalysisResults;
-  showDetails: boolean;
+  fundingImbalanceData: {
+    priceUpShortsPaying: number;
+    priceUpLongsPaying: number;
+    priceDownLongsPaying: number;
+    priceDownShortsPaying: number;
+    topShortSqueeze: SymbolData[];
+    topLongTrap: SymbolData[];
+  };
+  greenCount: number;
+  redCount: number;
+  greenPositiveFunding: number;
+  greenNegativeFunding: number;
+  redPositiveFunding: number;
+  redNegativeFunding: number;
 }
 
 const formatVolume = (num: number): string => {
@@ -20,23 +31,28 @@ const formatVolume = (num: number): string => {
   return formatter.format(num);
 };
 
+// Custom Label component to display score on top of bars
 const CustomBarLabel: React.FC<any> = ({ x, y, width, height, value }) => {
-  const displayY = y - (value < 0 ? height : 0) - 5;
-  let textColor = '#fff';
+  // Adjust position to be just above the bar
+  const displayY = y - (value < 0 ? height : 0) - 5; // 5px padding above the bar
+
+  // Determine text color based on the score value, similar to getScoreColor
+  let textColor = '#fff'; // Default to white
   if (typeof value === 'number') {
-    if (value >= 7.5) textColor = '#4ade80';
-    else if (value >= 6) textColor = '#facc15';
-    else if (value >= 4) textColor = '#f97316';
-    else textColor = '#f87171';
+    if (value >= 7.5) textColor = '#4ade80'; // Green
+    else if (value >= 6) textColor = '#facc15'; // Yellow
+    else if (value >= 4) textColor = '#f97316'; // Orange
+    else textColor = '#f87171'; // Red
   }
+
   return (
     <text
-      x={x + width / 2}
-      y={displayY}
-      fill={textColor}
-      textAnchor="middle"
-      dominantBaseline="auto"
-      fontSize={12}
+      x={x + width / 2} // Center horizontally
+      y={displayY} // Position vertically above the bar
+      fill={textColor} // Set text color
+      textAnchor="middle" // Center text
+      dominantBaseline="auto" // Align text
+      fontSize={12} // Adjust font size as needed
       fontWeight="bold"
     >
       {typeof value === 'number' ? value.toFixed(1) : value}
@@ -47,13 +63,28 @@ const CustomBarLabel: React.FC<any> = ({ x, y, width, height, value }) => {
 
 const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
   marketAnalysis,
-  showDetails
+  fundingImbalanceData,
+  greenCount,
+  redCount,
+  greenPositiveFunding,
+  greenNegativeFunding,
+  redPositiveFunding,
+  redNegativeFunding,
 }) => {
   const [chartKey, setChartKey] = useState(0);
 
+  // You can remove this useEffect if you don't need to force re-render on click for other reasons.
+  // The CustomChartTooltip now handles its own positioning, so a chart re-render isn't needed for that.
   useEffect(() => {
     const handleClick = () => setChartKey((prev) => prev + 1);
-    return () => {};
+    // Be careful with adding a global click listener that forces a re-render
+    // of the entire chart. This might affect performance if the component is large.
+    // Consider if this is truly necessary or if there's a more targeted re-render trigger.
+    // For now, I'll comment it out, as it's not directly related to the label display.
+    // window.addEventListener('click', handleClick);
+    return () => {
+      // window.removeEventListener('click', handleClick);
+    };
   }, []);
 
   const getScoreColor = (score: number) => {
@@ -192,129 +223,113 @@ const MarketAnalysisDisplay: React.FC<MarketAnalysisDisplayProps> = ({
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-      {/* General Bias */}
-      <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-        <h3 className="font-semibold text-blue-300 mb-1">General Bias</h3>
-        <p className="text-blue-300">{marketAnalysis.generalBias?.rating}</p>
-        <p className="text-blue-200 text-xs mt-1">{marketAnalysis.generalBias?.interpretation}</p>
-      </div>
+     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+  {/* General Bias */}
+  <div className="p-3 bg-gray-700/50 rounded-md mb-4">
+    <h3 className="font-semibold text-blue-300 mb-1">General Bias</h3>
+    <p className="text-blue-300">{marketAnalysis.generalBias?.rating}</p>
+    <p className="text-blue-200 text-xs mt-1">{marketAnalysis.generalBias?.interpretation}</p>
+  </div>
 
-      {/* Funding Imbalance */}
-      <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-        <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance</h3>
-        <p className="text-yellow-200">{marketAnalysis.fundingImbalance?.rating}</p>
-        <p className="text-yellow-100 text-xs mt-1">
-          {marketAnalysis.fundingImbalance?.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
-        </p>
-      </div>
+  {/* Funding Imbalance */}
+  <div className="p-3 bg-gray-700/50 rounded-md mb-4">
+    <h3 className="font-semibold text-yellow-300 mb-1">🕵️ Funding Imbalance</h3>
+    <p className="text-yellow-200">{marketAnalysis.fundingImbalance?.rating}</p>
+    <p className="text-yellow-100 text-xs mt-1">
+      {marketAnalysis.fundingImbalance?.interpretation || "Funding rates are diverging — potential trap setup forming, monitor for confirmation before acting."}
+    </p>
+  </div>
 
-      {/* Top Short Squeeze Candidates */}
-      <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-        <h3 className="font-semibold text-yellow-400 mb-1">🔥 Top Short Squeeze Candidates</h3>
-        <p className="text-yellow-200">{marketAnalysis.shortSqueezeCandidates?.rating}</p>
-        <p className="text-yellow-100 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates?.interpretation}</p>
+ {/* Top Short Squeeze Candidates */}
+<div className="p-3 bg-gray-700/50 rounded-md mb-4">
+  <h3 className="font-semibold text-yellow-400 mb-1">🔥 Top Short Squeeze Candidates</h3>
+  <p className="text-yellow-200">{marketAnalysis.shortSqueezeCandidates?.rating}</p>
+  <p className="text-yellow-100 text-xs mt-1">{marketAnalysis.shortSqueezeCandidates?.interpretation}</p>
 
-        <div className="mt-2 text-xs">
-          <p className="font-semibold text-yellow-200">Candidates:</p>
-          <ul className="list-disc list-inside text-yellow-100 text-sm">
-            {marketAnalysis.marketData.topShortSqueeze.length > 0 ? (
-              marketAnalysis.marketData.topShortSqueeze.map((d) => (
-                <li key={d.symbol}>
-                  <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-green-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-green-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
-                </li>
-              ))
-            ) : (
-              <li>No strong short squeeze candidates at the moment.</li>
-            )}
-          </ul>
-        </div>
-      </div>
-
-      {/* Top Long Trap Candidates */}
-      <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-        <h3 className="font-semibold text-pink-400 mb-1">⚠️ Top Long Trap Candidates</h3>
-        <p className="text-pink-300">{marketAnalysis.longTrapCandidates?.rating}</p>
-        <p className="text-pink-200 text-xs mt-1">{marketAnalysis.longTrapCandidates?.interpretation}</p>
-
-        <div className="mt-2 text-xs">
-          <p className="font-semibold text-pink-200">Candidates:</p>
-          <ul className="list-disc list-inside text-pink-100 text-sm">
-            {marketAnalysis.marketData.topLongTrap.length > 0 ? (
-              marketAnalysis.marketData.topLongTrap.map((d) => (
-                <li key={d.symbol}>
-                  <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-red-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-red-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
-                </li>
-              ))
-            ) : (
-              <li>No strong long trap candidates at the moment.</li>
-            )}
-          </ul>
-        </div>
-      </div>
-
-      {/* Site A Data */}
-      {marketAnalysis.siteAData && (
-        <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-          <h3 className="font-semibold text-green-300 mb-1">📈 Site A Data</h3>
-          <p className="text-green-200 text-xs mt-1">
-            Long/Short Ratio: <span className="font-bold">{marketAnalysis.siteAData.longShortRatio.toFixed(2)}</span>
-          </p>
-          <p className="text-green-200 text-xs mt-1">
-            Open Interest Change: <span className="font-bold">{marketAnalysis.siteAData.openInterestChange.toFixed(2)}%</span>
-          </p>
-          <p className="text-gray-400 text-xs mt-1">
-            This data provides additional insight into market positioning and is crucial for detecting potential squeezes or traps.
-          </p>
-        </div>
+  <div className="mt-2 text-xs">
+    <p className="font-semibold text-yellow-200">Candidates:</p>
+    <ul className="list-disc list-inside text-yellow-100 text-sm">
+      {fundingImbalanceData.topShortSqueeze.length > 0 ? (
+        fundingImbalanceData.topShortSqueeze.map((d) => (
+          <li key={d.symbol}>
+            <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-green-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-green-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
+          </li>
+        ))
+      ) : (
+        <li>No strong short squeeze candidates at the moment.</li>
       )}
+    </ul>
+  </div>
+</div>
 
-      {/* Volume Sentiment */}
-      <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-        <h3 className="font-semibold text-purple-300 mb-1">📊 Volume Sentiment</h3>
-        <p className="text-purple-300">{marketAnalysis.volumeSentiment?.rating}</p>
-        <p className="text-purple-200 text-xs mt-1">{marketAnalysis.volumeSentiment?.interpretation}</p>
-      </div>
+{/* Top Long Trap Candidates */}
+<div className="p-3 bg-gray-700/50 rounded-md mb-4">
+  <h3 className="font-semibold text-pink-400 mb-1">⚠️ Top Long Trap Candidates</h3>
+  <p className="text-pink-300">{marketAnalysis.longTrapCandidates?.rating}</p>
+  <p className="text-pink-200 text-xs mt-1">{marketAnalysis.longTrapCandidates?.interpretation}</p>
 
-      {/* Liquidation Sentiment */}
-      <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-        <h3 className="font-semibold text-pink-300 mb-1">💥 Liquidation Sentiment</h3>
-        <p className="text-pink-300">{marketAnalysis.liquidationHeatmap?.rating}</p>
-        <p className="text-pink-200 text-xs mt-1">{marketAnalysis.liquidationHeatmap?.interpretation}</p>
-      </div>
-
-      {/* News Sentiment */}
-      <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-        <h3 className="font-semibold text-cyan-300 mb-1">📰 News Sentiment</h3>
-        <p className="text-cyan-300">{marketAnalysis.newsSentiment?.rating}</p>
-        <p className="text-cyan-200 text-xs mt-1">{marketAnalysis.newsSentiment?.interpretation}</p>
-
-        {marketAnalysis.newsSentiment?.topHeadlines && (
-          <div className="mt-2 text-xs">
-            <p className="font-semibold text-cyan-200">Notable Headlines:</p>
-            <ul className="list-disc list-inside text-gray-400">
-              {marketAnalysis.newsSentiment.topHeadlines.slice(0, 3).map((title, i) => (
-                <li key={i}>{title}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* Actionable Sentiment Signals */}
-      {marketAnalysis.actionableSentimentSummary && (
-        <div className="p-3 bg-gray-700/50 rounded-md mb-4">
-          <h3 className="font-semibold text-indigo-300 mb-1">🔍 Actionable Sentiment Signals</h3>
-          <p className="text-indigo-200 text-sm mb-1">
-            Bullish Opportunities: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bullishCount}</span>
-          </p>
-          <p className="text-indigo-200 text-sm mb-1">
-            Bearish Risks: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bearishCount}</span>
-          </p>
-          <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
-        </div>
+  <div className="mt-2 text-xs">
+    <p className="font-semibold text-pink-200">Candidates:</p>
+    <ul className="list-disc list-inside text-pink-100 text-sm">
+      {fundingImbalanceData.topLongTrap.length > 0 ? (
+        fundingImbalanceData.topLongTrap.map((d) => (
+          <li key={d.symbol}>
+            <span className="font-semibold">{d.symbol}</span> — Funding: <span className="text-red-300">{(d.fundingRate * 100).toFixed(4)}%</span> | Change: <span className="text-red-300">{d.priceChangePercent.toFixed(2)}%</span> | Volume: {formatVolume(d.volume)}
+          </li>
+        ))
+      ) : (
+        <li>No strong long trap candidates at the moment.</li>
       )}
+    </ul>
+  </div>
+</div>       
+
+  {/* Volume Sentiment */}
+  <div className="p-3 bg-gray-700/50 rounded-md mb-4">
+    <h3 className="font-semibold text-purple-300 mb-1">📊 Volume Sentiment</h3>
+    <p className="text-purple-300">{marketAnalysis.volumeSentiment?.rating}</p>
+    <p className="text-purple-200 text-xs mt-1">{marketAnalysis.volumeSentiment?.interpretation}</p>
+  </div>
+
+  {/* Liquidation Sentiment */}
+  <div className="p-3 bg-gray-700/50 rounded-md mb-4">
+    <h3 className="font-semibold text-pink-300 mb-1">💥 Liquidation Sentiment</h3>
+    <p className="text-pink-300">{marketAnalysis.liquidationHeatmap?.rating}</p>
+    <p className="text-pink-200 text-xs mt-1">{marketAnalysis.liquidationHeatmap?.interpretation}</p>
+  </div>
+
+  {/* News Sentiment */}
+  <div className="p-3 bg-gray-700/50 rounded-md mb-4">
+    <h3 className="font-semibold text-cyan-300 mb-1">📰 News Sentiment</h3>
+    <p className="text-cyan-300">{marketAnalysis.newsSentiment?.rating}</p>
+    <p className="text-cyan-200 text-xs mt-1">{marketAnalysis.newsSentiment?.interpretation}</p>
+   
+    {marketAnalysis.newsSentiment?.topHeadlines && (
+      <div className="mt-2 text-xs">
+        <p className="font-semibold text-cyan-200">Notable Headlines:</p>
+        <ul className="list-disc list-inside text-gray-400">
+          {marketAnalysis.newsSentiment.topHeadlines.slice(0, 3).map((title, i) => (
+            <li key={i}>{title}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+
+  {/* Actionable Sentiment Signals */}
+  {marketAnalysis.actionableSentimentSummary && (
+    <div className="p-3 bg-gray-700/50 rounded-md mb-4">
+      <h3 className="font-semibold text-indigo-300 mb-1">🔍 Actionable Sentiment Signals</h3>
+      <p className="text-indigo-200 text-sm mb-1">
+        Bullish Opportunities: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bullishCount}</span>
+      </p>
+      <p className="text-indigo-200 text-sm mb-1">
+        Bearish Risks: <span className="font-bold">{marketAnalysis.actionableSentimentSummary.bearishCount}</span>
+      </p>
+      <p className="text-indigo-100 italic text-xs mt-1">{marketAnalysis.actionableSentimentSummary.interpretation}</p>
     </div>
+  )}
+</div>
 
     </div>
   );
