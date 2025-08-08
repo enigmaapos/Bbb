@@ -513,8 +513,8 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           </div>
         </div>
 
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="border border-gray-700 bg-gray-800 p-4 rounded mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <h2 className="text-lg font-semibold text-white mb-2">📘 Flag + Funding Interpretation Guide</h2>
         <table className="w-full text-sm text-left text-gray-300">
           <thead className="text-gray-400">
@@ -548,6 +548,7 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           </tbody>
         </table>
       </div>
+    </div>
 
         {loading ? (
           <div className="flex justify-center items-center h-[50vh]">
