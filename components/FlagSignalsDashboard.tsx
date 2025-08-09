@@ -14,7 +14,7 @@ const getMillis = (timeframe: string) => {
     case '15m': return 15 * 60 * 1000;
     case '4h': return 4 * 60 * 60 * 1000;
     case '1d': return 24 * 60 * 60 * 1000;
-    default: return 15 * 60 * 1000;
+    default: return 15 * 60 * 60 * 1000;
   }
 };
 
@@ -42,23 +42,24 @@ interface Metrics {
     breakout: 'bullish' | 'bearish' | null;
     isDojiAfterBreakout: boolean;
   };
-  // New metrics for MACD and Volume Confirmation
   macdLine: number;
   macdSignal: number;
   macdHistogram: number;
   volumeConfirmation: 'bullish' | 'bearish' | null;
 }
 
+type SignalStrength = 'Strong' | 'Medium' | 'Weak' | null;
+
 interface CombinedSignal {
   symbol: string;
   type: 'bullish' | 'bearish' | null;
+  strength: SignalStrength;
 }
 
 const getSessions = (timeframe: string, nowMillis: number) => {
   const tfMillis = getMillis(timeframe);
   let currentSessionStart;
   if (timeframe === '1d') {
-    // Custom daily session starting at 8 AM Philippine Time (UTC+8)
     const phTimeOffset = 8 * 60 * 60 * 1000;
     const today = new Date(nowMillis + phTimeOffset);
     today.setUTCHours(8, 0, 0, 0);
@@ -84,7 +85,6 @@ const calculateEMA = (candles: Candle[], period: number) => {
   if (candles.length < period) return [];
   const alpha = 2 / (period + 1);
   let emaValues: number[] = [];
-  // Calculate initial SMA for the first EMA
   const initialSMA = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period;
   emaValues.push(initialSMA);
   for (let i = period; i < candles.length; i++) {
@@ -111,7 +111,7 @@ const getMACD = (candles: Candle[]) => {
   const macdLine = shortEMA.map((short, i) => short - longEMA[i + longPeriod - shortPeriod]);
 
   const signalLine = calculateEMA(
-      macdLine.slice(-signalPeriod).map(val => ({ close: val } as any)), // Use a dummy candle object for EMA calculation
+      macdLine.slice(-signalPeriod).map(val => ({ close: val } as any)),
       signalPeriod
   );
 
@@ -152,8 +152,7 @@ const getRSI = (candles: Candle[], period = 14) => {
   };
 
 const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
-  if (!candles || candles.length < 50) return null; // Increased length check for EMA50 and MACD
-
+  if (!candles || candles.length < 50) return null;
   const nowMillis = Date.now();
   const { currentSessionStart, prevSessionStart } = getSessions(timeframe, nowMillis);
 
@@ -194,11 +193,8 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   const lastEma50 = ema50[ema50.length - 1];
 
   const rsi = getRSI(candles, 14);
-
-  // Calculate MACD values
   const { macdLine, macdSignal, macdHistogram } = getMACD(candles);
 
-  // Calculate Volume Confirmation
   const avgVolume = candles.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20;
   let volumeConfirmation: 'bullish' | 'bearish' | null = null;
   if (lastCandle.volume > avgVolume) {
@@ -219,7 +215,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
     ema10: lastEma10,
     ema20: lastEma20,
     ema50: lastEma50,
-    rsi: rsi!, // Non-null assertion, as we check for length
+    rsi: rsi!,
     mainTrend,
     macdLine,
     macdSignal,
@@ -254,7 +250,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const fetchIntervalRef = useRef<number | null>(null);
-  // This function fetches the candle data for the given symbols
+
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
@@ -278,7 +274,6 @@ const FlagSignalsDashboard: React.FC = () => {
           }));
           return { symbol, data: { candles, metrics: calculateMetrics(candles, timeframe) } };
         } else {
-         
           console.error(`Failed to fetch data for ${symbol}. Data:`, data);
           return null;
         }
@@ -291,7 +286,6 @@ const FlagSignalsDashboard: React.FC = () => {
         }
       });
       setSymbolsData(prevData => ({ ...prevData, ...newSymbolsData }));
-
       setLoading(false);
       setLastUpdated(Date.now());
     } catch (error) {
@@ -300,24 +294,22 @@ const FlagSignalsDashboard: React.FC = () => {
       setLoading(false);
     }
   };
-  // Background refresh strategy for candles
+
   useEffect(() => {
     let isMounted = true;
     const BATCH_SIZE = 10;
-    const INTERVAL_MS = 1000; // Base interval between batches
+    const INTERVAL_MS = 1000;
     let currentIndex = 0;
     let symbolsToLoad: string[] = [];
 
     const initialize = async () => {
       setLoading(true);
       const fetchedSymbols = await fetchFuturesSymbols();
-      setAllSymbols(fetchedSymbols); // Store all symbols for later
+      setAllSymbols(fetchedSymbols);
       symbolsToLoad = fetchedSymbols;
-      // Load a small initial batch to display something quickly
       const initialBatch = symbolsToLoad.slice(0, 30);
       await fetchData(initialBatch);
 
-      // Start the background refresh for the rest of the symbols
       if (symbolsToLoad.length > 30) {
         currentIndex = 30;
         loadBatch();
@@ -328,18 +320,15 @@ const FlagSignalsDashboard: React.FC = () => {
       if (!symbolsToLoad.length || !isMounted) return;
       const batch = symbolsToLoad.slice(currentIndex, currentIndex + BATCH_SIZE);
       await fetchData(batch);
-  
       currentIndex += BATCH_SIZE;
 
       if (currentIndex < symbolsToLoad.length && isMounted) {
         setTimeout(loadBatch, INTERVAL_MS);
       } else {
-        // Once all symbols are loaded, set up a full refresh interval
         if (isMounted) {
           if (fetchIntervalRef.current) {
             clearInterval(fetchIntervalRef.current);
           }
-  
           fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 60000);
         }
       }
@@ -347,7 +336,6 @@ const FlagSignalsDashboard: React.FC = () => {
 
     initialize();
 
-    // Cleanup function for the interval
     return () => {
       isMounted = false;
       if (fetchIntervalRef.current) {
@@ -363,22 +351,53 @@ const FlagSignalsDashboard: React.FC = () => {
 
       const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation } = metrics;
       
-      const isBull = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
-      const isBear = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
+      const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
+      const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
       
-      // New logic for MACD and Volume Confirmation
       const macdBullishConfirmation = macdLine > macdSignal;
       const macdBearishConfirmation = macdLine < macdSignal;
       const volumeBullishConfirmation = volumeConfirmation === 'bullish';
       const volumeBearishConfirmation = volumeConfirmation === 'bearish';
 
-      const finalBullishSignal = isBull && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation;
-      const finalBearishSignal = isBear && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation;
+      let type: 'bullish' | 'bearish' | null = null;
+      let strength: SignalStrength = null;
 
-      return {
-        symbol,
-        type: finalBullishSignal ? 'bullish' : finalBearishSignal ? 'bearish' : null,
-      } as CombinedSignal;
+      // Check for Strong Bullish Signal
+      if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation) {
+        type = 'bullish';
+        strength = 'Strong';
+      } 
+      // Check for Strong Bearish Signal
+      else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation) {
+        type = 'bearish';
+        strength = 'Strong';
+      }
+      // Check for Medium Bullish Signal
+      else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation)) {
+        type = 'bullish';
+        strength = 'Medium';
+      }
+      // Check for Medium Bearish Signal
+      else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation)) {
+        type = 'bearish';
+        strength = 'Medium';
+      }
+      // Check for Weak Bullish Signal
+      else if (isEmaBullish) {
+        type = 'bullish';
+        strength = 'Weak';
+      }
+      // Check for Weak Bearish Signal
+      else if (isEmaBearish) {
+        type = 'bearish';
+        strength = 'Weak';
+      }
+      
+      if (type) {
+        return { symbol, type, strength };
+      }
+      
+      return null;
     }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData]);
 
@@ -414,6 +433,14 @@ duration-200"
         {data.length > 0 ?
 (
           data.map((item: any) => {
+            const getStrengthColor = (strength: SignalStrength) => {
+              switch (strength) {
+                case 'Strong': return 'text-yellow-400';
+                case 'Medium': return 'text-teal-400';
+                case 'Weak': return 'text-gray-400';
+                default: return '';
+              }
+            };
             
             const bgClass =
               item.type === 'bullish' ? 'bg-green-600' :
@@ -429,6 +456,9 @@ duration-200"
                 <div>
                     <div className="font-semibold">{item.symbol}</div>
                   </div>
+                  <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
+                    {item.strength}
+                  </span>
                 </div>
               </div>
             );
