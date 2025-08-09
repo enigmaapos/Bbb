@@ -48,7 +48,7 @@ interface Metrics {
   macdHistogram: number;
   volumeConfirmation: 'bullish' | 'bearish' | null;
   adx: number;
-  atr: number; // New metric for ATR
+  atr: number;
 }
 
 type SignalStrength = 'Strong' | 'Medium' | 'Weak' | null;
@@ -108,20 +108,16 @@ const getMACD = (candles: Candle[]) => {
 
   const shortEMA = calculateEMA(candles, shortPeriod);
   const longEMA = calculateEMA(candles, longPeriod);
-  
   if (shortEMA.length < 1 || longEMA.length < 1) {
       return { macdLine: 0, macdSignal: 0, macdHistogram: 0 };
   }
 
   const macdLine = shortEMA.map((short, i) => short - longEMA[i + longPeriod - shortPeriod]);
-
   const signalLine = calculateEMA(
       macdLine.slice(-signalPeriod).map(val => ({ close: val } as any)),
       signalPeriod
   );
-
   const macdHistogram = macdLine[macdLine.length - 1] - signalLine[signalLine.length - 1];
-
   return {
       macdLine: macdLine[macdLine.length - 1],
       macdSignal: signalLine[signalLine.length - 1],
@@ -164,7 +160,6 @@ const getADX = (candles: Candle[], period = 14) => {
 
     let upMoves: number[] = [];
     let downMoves: number[] = [];
-
     for (let i = 1; i < candles.length; i++) {
         const upMove = candles[i].high - candles[i - 1].high;
         const downMove = candles[i - 1].low - candles[i].low;
@@ -196,7 +191,6 @@ const getADX = (candles: Candle[], period = 14) => {
 
     plusDIValues.push((sumUp / atrValues[0]) * 100);
     minusDIValues.push((sumDown / atrValues[0]) * 100);
-
     for (let i = period; i < upMoves.length; i++) {
         const plusDI = (plusDIValues[i - period] * (period - 1) + upMoves[i]) / atrValues[i];
         const minusDI = (minusDIValues[i - period] * (period - 1) + downMoves[i]) / atrValues[i];
@@ -212,10 +206,8 @@ const getADX = (candles: Candle[], period = 14) => {
     }
 
     if (dxValues.length === 0) return 0;
-    
     let sumADX = dxValues.slice(0, period).reduce((sum, val) => sum + val, 0);
     let adxValue = sumADX / period;
-    
     for (let i = period; i < dxValues.length; i++) {
         adxValue = (adxValue * (period - 1) + dxValues[i]) / period;
     }
@@ -300,7 +292,6 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
 
   const adx = getADX(candles, 14);
   const atr = getATR(candles, 14);
-
   return {
     price: lastCandle.close,
     prevSessionHigh,
@@ -351,6 +342,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const fetchIntervalRef = useRef<number | null>(null);
 
+  // FIXED: The fetchData function now handles requests sequentially and with backoff logic.
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
@@ -359,61 +351,79 @@ const FlagSignalsDashboard: React.FC = () => {
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
       const startTime = nowMillis - (100 * tfMillis);
-      const fetchPromises = symbolsToFetch.map(async (symbol) => {
-        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
-        const response = await fetch(url);
+      
+      // Use a for...of loop to fetch data for each symbol sequentially
+      for (const symbol of symbolsToFetch) {
+        // Fetch main timeframe data
+        let response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`);
+        
+        // Backoff strategy: Wait and retry on rate limit errors
+        if (response.status === 429 || response.status === 418) {
+          console.warn(`Rate limit hit for ${symbol}. Retrying in 15 seconds.`);
+          await new Promise(resolve => setTimeout(resolve, 15000));
+          response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`);
+        }
+        
         const data = await response.json();
 
-        // Fetch higher timeframe data
-        const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`;
-        const response4h = await fetch(url4h);
+        // Introduce a small delay between requests to different timeframes
+        await new Promise(resolve => setTimeout(resolve, 500)); 
+
+        // Fetch higher timeframe data (4h)
+        let response4h = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`);
+        if (response4h.status === 429 || response4h.status === 418) {
+            console.warn(`Rate limit hit for 4h data of ${symbol}. Retrying in 15 seconds.`);
+            await new Promise(resolve => setTimeout(resolve, 15000));
+            response4h = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`);
+        }
         const data4h = await response4h.json();
 
-        const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`;
-        const response1d = await fetch(url1d);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Fetch higher timeframe data (1d)
+        let response1d = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`);
+        if (response1d.status === 429 || response1d.status === 418) {
+            console.warn(`Rate limit hit for 1d data of ${symbol}. Retrying in 15 seconds.`);
+            await new Promise(resolve => setTimeout(resolve, 15000));
+            response1d = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`);
+        }
         const data1d = await response1d.json();
 
         if (data && Array.isArray(data) && data.length > 0) {
-          const candles = data.map((d: any[]) => ({
-            openTime: d[0],
-            open: parseFloat(d[1]),
-            high: parseFloat(d[2]),
-            low: parseFloat(d[3]),
-            close: parseFloat(d[4]),
-            volume: parseFloat(d[5]),
-          }));
-          newSymbolsHigherTimeframeData[symbol] = {
-            candles4h: data4h.map((d: any[]) => ({
-              openTime: d[0],
-              open: parseFloat(d[1]),
-              high: parseFloat(d[2]),
-              low: parseFloat(d[3]),
-              close: parseFloat(d[4]),
-              volume: parseFloat(d[5]),
-            })),
-            candles1d: data1d.map((d: any[]) => ({
-              openTime: d[0],
-              open: parseFloat(d[1]),
-              high: parseFloat(d[2]),
-              low: parseFloat(d[3]),
-              close: parseFloat(d[4]),
-              volume: parseFloat(d[5]),
-            }))
-          };
-          
-          return { symbol, data: { candles, metrics: calculateMetrics(candles, timeframe) } };
-        } else {
-          console.error(`Failed to fetch data for ${symbol}. Data:`, data);
-          return null;
-        }
-      });
-      const results = await Promise.all(fetchPromises);
+            const candles = data.map((d: any[]) => ({
+                openTime: d[0],
+                open: parseFloat(d[1]),
+                high: parseFloat(d[2]),
+                low: parseFloat(d[3]),
+                close: parseFloat(d[4]),
+                volume: parseFloat(d[5]),
+            }));
+            
+            newSymbolsHigherTimeframeData[symbol] = {
+                candles4h: data4h.map((d: any[]) => ({
+                    openTime: d[0],
+                    open: parseFloat(d[1]),
+                    high: parseFloat(d[2]),
+                    low: parseFloat(d[3]),
+                    close: parseFloat(d[4]),
+                    volume: parseFloat(d[5]),
+                })),
+                candles1d: data1d.map((d: any[]) => ({
+                    openTime: d[0],
+                    open: parseFloat(d[1]),
+                    high: parseFloat(d[2]),
+                    low: parseFloat(d[3]),
+                    close: parseFloat(d[4]),
+                    volume: parseFloat(d[5]),
+                }))
+            };
 
-      results.forEach(result => {
-        if (result) {
-          newSymbolsData[result.symbol] = result.data;
+            newSymbolsData[symbol] = { candles, metrics: calculateMetrics(candles, timeframe) };
+        } else {
+            console.error(`Failed to fetch data for ${symbol}. Data:`, data);
         }
-      });
+      }
+
       setSymbolsData(prevData => ({ ...prevData, ...newSymbolsData }));
       setSymbolsHigherTimeframeData(prevData => ({ ...prevData, ...newSymbolsHigherTimeframeData }));
       setLoading(false);
@@ -465,7 +475,6 @@ const FlagSignalsDashboard: React.FC = () => {
     };
 
     initialize();
-
     return () => {
       isMounted = false;
       if (fetchIntervalRef.current) {
@@ -473,7 +482,6 @@ const FlagSignalsDashboard: React.FC = () => {
       }
     };
   }, [timeframe]);
-
 
   const flaggedSignals = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
@@ -491,7 +499,6 @@ const FlagSignalsDashboard: React.FC = () => {
         const isBullish1d = metrics1d && metrics1d.ema5 > metrics1d.ema10 && metrics1d.ema10 > metrics1d.ema20;
         const isBearish4h = metrics4h && metrics4h.ema5 < metrics4h.ema10 && metrics4h.ema10 < metrics4h.ema20;
         const isBearish1d = metrics1d && metrics1d.ema5 < metrics1d.ema10 && metrics1d.ema10 < metrics1d.ema20;
-  
         if (isBullish4h || isBullish1d) {
           higherTimeframeConfirmation = 'bullish';
         } else if (isBearish4h || isBearish1d) {
@@ -503,7 +510,6 @@ const FlagSignalsDashboard: React.FC = () => {
   
       const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
-      
       const macdBullishConfirmation = macdLine > macdSignal;
       const macdBearishConfirmation = macdLine < macdSignal;
       const volumeBullishConfirmation = volumeConfirmation === 'bullish';
@@ -511,7 +517,6 @@ const FlagSignalsDashboard: React.FC = () => {
   
       let type: 'bullish' | 'bearish' | null = null;
       let strength: SignalStrength = null;
-  
       // Define ADX and ATR thresholds
       const isStrongTrend = adx > 25;
       const isMediumTrend = adx >= 20 && adx <= 25;
@@ -558,7 +563,7 @@ const FlagSignalsDashboard: React.FC = () => {
 
   const bullishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bullish'), [flaggedSignals]);
   const bearishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bearish'), [flaggedSignals]);
-  
+
   // New filter function for combined signals
   const filterCombinedSignals = (signals: CombinedSignal[]) => {
     return signals.filter(signal =>
@@ -568,7 +573,6 @@ const FlagSignalsDashboard: React.FC = () => {
 
   const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
     const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
-    
     const sortedData = [...data].sort((a, b) => {
       const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
       const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
@@ -597,13 +601,11 @@ const FlagSignalsDashboard: React.FC = () => {
             </button>
             <button
               onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
-              className="text-gray-400 hover:text-white transition-colors 
-duration-200"
+              className="text-gray-400 hover:text-white transition-colors duration-200"
               title="Copy symbols"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
-/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" />
               </svg>
             </button>
           </div>
@@ -630,8 +632,7 @@ duration-200"
                   className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
                 >
                   <div className="flex items-center justify-between">
-              
-                  <div>
+                    <div>
                       <div className="font-semibold">{item.symbol}</div>
                       <div className="text-sm text-gray-200">
                         Higher TF: {item.higherTimeframeConfirmation}
@@ -655,6 +656,7 @@ duration-200"
   const handleDebugConsole = () => {
     console.table(flaggedSignals);
   };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <script src="https://cdn.tailwindcss.com"></script>
@@ -667,7 +669,6 @@ duration-200"
         }
         ::-webkit-scrollbar-thumb {
           background: #4a5568;
-  
           border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
@@ -677,8 +678,7 @@ duration-200"
       <div className="max-w-7xl mx-auto">
         <header className="mb-8 text-center">
           <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
-            
-Flag Signal Dashboard
+            Flag Signal Dashboard
           </h1>
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
           <p className="text-gray-500 text-sm mt-2">
@@ -687,26 +687,22 @@ Flag Signal Dashboard
         </header>
 
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
-      
           <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
             <button
               onClick={() => setTimeframe('15m')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '15m' ?
-'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '15m' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
             >
               15m
             </button>
             <button
               onClick={() => setTimeframe('4h')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '4h' ?
-'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '4h' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
             >
               4h
             </button>
             <button
               onClick={() => setTimeframe('1d')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ?
-'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ? 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
             >
               1d
             </button>
@@ -715,21 +711,18 @@ Flag Signal Dashboard
           {/* Search Input */}
           <div className="relative w-full md:w-64">
             <input
-          
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search symbols..."
               className="w-full pl-4 pr-10 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200"
             />
-            
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -738,27 +731,23 @@ Flag Signal Dashboard
 
           {/* Debug button */}
           <div className="ml-2">
-  
             <button
               onClick={handleDebugConsole}
               className="bg-gray-800 text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-700 transition"
               title="Dump flaggedSignals to console"
             >
               Debug (console)
-         
             </button>
           </div>
         </div>
 
         {/* Loading / Error / Signals */}
         <div className="mt-8">
-          {loading ?
-(
+          {loading ? (
             <div className="flex justify-center items-center h-[50vh]">
               <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
             </div>
-          ) : errorMessage ?
-(
+          ) : errorMessage ? (
             <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
               <p>{errorMessage}</p>
             </div>
@@ -767,10 +756,8 @@ Flag Signal Dashboard
               {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
               {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
             </div>
-  
           )}
         </div>
-
       </div>
     </div>
   );
