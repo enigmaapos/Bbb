@@ -259,7 +259,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   const prevSessionLow = Math.min(...prevSessionCandles.map(c => c.low));
 
   const todaysHighestHigh = Math.max(...currentSessionCandles.map(c => c.high));
-  const todaysLowestLow = Math.min(...currentSessionCandles.map(c => c.low));
+  const todaysLowestLow = Math.min(...currentSessionCandles.map(c.low));
 
   const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
   const mainTrend = {
@@ -329,7 +329,6 @@ interface BinanceSymbol {
   symbol: string;
   contractType: string;
   quoteAsset: string;
-  // Added the missing status property
   status: string;
 }
 
@@ -437,13 +436,125 @@ const checkSignal = (metrics: Metrics, higherTimeframeConfirmation: 'bullish' | 
   return { type, strength };
 };
 
+// New component for rendering the signal list to make the code cleaner and more modular.
+interface SignalListProps {
+  title: string;
+  data: CombinedSignal[];
+  sortOrder: 'desc' | 'asc';
+  onSortToggle: () => void;
+  onBacktest: (symbol: string, type: 'bullish' | 'bearish') => void;
+  backtestResults: Record<string, BacktestResult | null>;
+  backtesting: boolean;
+}
+
+const SignalList: React.FC<SignalListProps> = ({ title, data, sortOrder, onSortToggle, onBacktest, backtestResults, backtesting }) => {
+  const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
+  
+  const getStrengthColor = (strength: SignalStrength) => {
+    switch (strength) {
+      case 'Strong': return 'text-yellow-400';
+      case 'Medium': return 'text-teal-400';
+      case 'Weak': return 'text-gray-400';
+      default: return '';
+    }
+  };
+
+  const getBacktestResultColor = (result: BacktestResult) => {
+    switch (result) {
+      case 'TP Hit': return 'bg-green-500';
+      case 'SL Hit': return 'bg-red-500';
+      case 'No Result': return 'bg-gray-500';
+      default: return '';
+    }
+  }
+
+  return (
+    <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onSortToggle}
+            className="text-gray-400 hover:text-white transition-colors duration-200"
+            title={`Sort by strength (${sortOrder === 'desc' ? 'Descending' : 'Ascending'})`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transform ${sortOrder === 'desc' ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18m-6 4h6m-6 4h6m-12 4h12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 13l-3 3m0 0l-3-3m3 3V3" />
+            </svg>
+          </button>
+          <button
+            onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
+            className="text-gray-400 hover:text-white transition-colors 
+duration-200"
+            title="Copy symbols"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
+/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div className="overflow-y-auto max-h-[300px] space-y-2">
+        {data.length > 0 ? (
+          data.map((item: any) => {
+            const bgClass =
+              item.type === 'bullish' ? 'bg-green-600' :
+              item.type === 'bearish' ? 'bg-red-600' : '';
+              
+            const backtestResult = backtestResults[item.symbol];
+
+            return (
+              <div
+                key={item.symbol}
+                className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
+              >
+                <div className="flex items-center justify-between">
+            
+                  <div>
+                    <div className="font-semibold">{item.symbol}</div>
+                    <div className="text-sm text-gray-200">
+                      Higher TF: {item.higherTimeframeConfirmation}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
+                      {item.strength}
+                    </span>
+                    <button
+                      onClick={() => onBacktest(item.symbol, item.type)}
+                      className={`px-3 py-1 rounded-lg text-sm text-white ${backtesting && backtestResults[item.symbol] === undefined ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
+                      disabled={backtesting && backtestResults[item.symbol] === undefined}
+                    >
+                      {backtesting && backtestResults[item.symbol] === undefined ? 'Testing...' : 'Test'}
+                    </button>
+                    {backtestResult && (
+                      <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBacktestResultColor(backtestResult)}`}>
+                        {backtestResult}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <p className="text-gray-500">No symbols found.</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
 // Main component starts here
 const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
   const [symbolsHigherTimeframeData, setSymbolsHigherTimeframeData] = useState<Record<string, { candles4h: Candle[], candles1d: Candle[] }>>({});
   const [loading, setLoading] = useState(true);
-  // Default to 15m, can be changed to 12h
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -466,7 +577,6 @@ const FlagSignalsDashboard: React.FC = () => {
       const startTime = nowMillis - (500 * tfMillis);
       
       const fetchPromises = symbolsToFetch.map(async (symbol) => {
-        // Use a single fetch for all required data to be more efficient
         const urlMain = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=500&startTime=${startTime}`;
         const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=500`;
         const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=500`;
@@ -531,7 +641,7 @@ const FlagSignalsDashboard: React.FC = () => {
       setSymbolsHigherTimeframeData(prevData => ({ ...prevData, ...newSymbolsHigherTimeframeData }));
       setLoading(false);
       setLastUpdated(Date.now());
-      setCountdown(300); // Reset countdown on successful fetch
+      setCountdown(300);
     } catch (error: any) {
       console.error('Error fetching data:', error);
       setErrorMessage(`Failed to fetch initial market data: ${error.message}`);
@@ -541,9 +651,8 @@ const FlagSignalsDashboard: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    // Updated constants to be more conservative and avoid the 418 error
-    const BATCH_SIZE = 5; // Reduced batch size
-    const INTERVAL_MS = 5000; // Increased delay to 5 seconds
+    const BATCH_SIZE = 5;
+    const INTERVAL_MS = 5000;
     let currentIndex = 0;
     let symbolsToLoad: string[] = [];
 
@@ -601,7 +710,6 @@ const FlagSignalsDashboard: React.FC = () => {
     };
   }, [timeframe]);
 
-  // New useEffect for the countdown timer
   useEffect(() => {
     const countdownInterval = setInterval(() => {
       setCountdown((prevCountdown) => (prevCountdown > 0 ? prevCountdown - 1 : 300));
@@ -651,11 +759,27 @@ const FlagSignalsDashboard: React.FC = () => {
   const bullishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bullish'), [flaggedSignals]);
   const bearishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bearish'), [flaggedSignals]);
   
-  const filterCombinedSignals = (signals: CombinedSignal[]) => {
-    return signals.filter(signal =>
+  const filterAndSortSignals = (signals: CombinedSignal[], order: 'desc' | 'asc') => {
+    const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
+    
+    const filtered = signals.filter(signal =>
       signal.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    return [...filtered].sort((a, b) => {
+      const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
+      const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
+      
+      if (order === 'desc') {
+        return bStrength - aStrength;
+      } else {
+        return aStrength - bStrength;
+      }
+    });
   };
+
+  const sortedBullishSignals = useMemo(() => filterAndSortSignals(bullishSignals, sortOrder), [bullishSignals, sortOrder, searchTerm]);
+  const sortedBearishSignals = useMemo(() => filterAndSortSignals(bearishSignals, sortOrder), [bearishSignals, sortOrder, searchTerm]);
 
   const handleBacktest = async (symbol: string, signalType: 'bullish' | 'bearish') => {
     setBacktesting(true);
@@ -668,9 +792,7 @@ const FlagSignalsDashboard: React.FC = () => {
       return;
     }
     
-    // Find the last candle that would have generated the signal
     let signalCandleIndex = -1;
-    // Iterate from an earlier point to find a historical signal. Start from second to last candle.
     for (let i = candles.length - 2; i >= 50; i--) { 
       const subCandles = candles.slice(0, i + 1);
       const subHigherTfCandles = {
@@ -738,7 +860,6 @@ const FlagSignalsDashboard: React.FC = () => {
     let totalSignals = 0;
 
     for (const signal of flaggedSignals) {
-      // Add check to ensure signal.type is not null before passing to runBacktest
       if (!signal.type) {
         continue;
       }
@@ -816,121 +937,14 @@ const FlagSignalsDashboard: React.FC = () => {
   };
 
 
-  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
-    const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
-    
-    const sortedData = [...data].sort((a, b) => {
-      const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
-      const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
-      
-      if (sortOrder === 'desc') {
-        return bStrength - aStrength;
-      } else {
-        return aStrength - bStrength;
-      }
-    });
-
-    return (
-      <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-              className="text-gray-400 hover:text-white transition-colors duration-200"
-              title={`Sort by strength (${sortOrder === 'desc' ? 'Descending' : 'Ascending'})`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transform ${sortOrder === 'desc' ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18m-6 4h6m-6 4h6m-12 4h12" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 13l-3 3m0 0l-3-3m3 3V3" />
-              </svg>
-            </button>
-            <button
-              onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
-              className="text-gray-400 hover:text-white transition-colors 
-duration-200"
-              title="Copy symbols"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
-/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div className="overflow-y-auto max-h-[300px] space-y-2">
-          {sortedData.length > 0 ? (
-            sortedData.map((item: any) => {
-              const getStrengthColor = (strength: SignalStrength) => {
-                switch (strength) {
-                  case 'Strong': return 'text-yellow-400';
-                  case 'Medium': return 'text-teal-400';
-                  case 'Weak': return 'text-gray-400';
-                  default: return '';
-                }
-              };
-
-              const getBacktestResultColor = (result: BacktestResult) => {
-                switch (result) {
-                  case 'TP Hit': return 'bg-green-500';
-                  case 'SL Hit': return 'bg-red-500';
-                  case 'No Result': return 'bg-gray-500';
-                  default: return '';
-                }
-              }
-
-              const bgClass =
-                item.type === 'bullish' ? 'bg-green-600' :
-                item.type === 'bearish' ? 'bg-red-600' : '';
-                
-              const backtestResult = backtestResults[item.symbol];
-
-              return (
-                <div
-                  key={item.symbol}
-                  className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
-                >
-                  <div className="flex items-center justify-between">
-              
-                    <div>
-                      <div className="font-semibold">{item.symbol}</div>
-                      <div className="text-sm text-gray-200">
-                        Higher TF: {item.higherTimeframeConfirmation}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
-                        {item.strength}
-                      </span>
-                      <button
-                        onClick={() => handleBacktest(item.symbol, item.type)}
-                        className={`px-3 py-1 rounded-lg text-sm text-white ${backtesting && backtestResults[item.symbol] === undefined ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
-                        disabled={backtesting && backtestResults[item.symbol] === undefined}
-                      >
-                        {backtesting && backtestResults[item.symbol] === undefined ? 'Testing...' : 'Test'}
-                      </button>
-                      {backtestResult && (
-                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBacktestResultColor(backtestResult)}`}>
-                          {backtestResult}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-gray-500">No symbols found.</p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const handleDebugConsole = () => {
     console.table(flaggedSignals);
   };
+
+  const handleSortToggle = () => {
+    setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <script src="https://cdn.tailwindcss.com"></script>
@@ -984,7 +998,6 @@ Flag Signal Dashboard
             >
               4h
             </button>
-            {/* New 12h timeframe button */}
             <button
               onClick={() => setTimeframe('12h')}
               className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '12h' ?
@@ -1001,7 +1014,6 @@ Flag Signal Dashboard
             </button>
           </div>
 
-          {/* Search Input */}
           <div className="relative w-full md:w-64">
             <input
           
@@ -1025,7 +1037,6 @@ Flag Signal Dashboard
             )}
           </div>
 
-          {/* Debug and Overall Backtest buttons */}
           <div className="flex gap-2">
             <button
               onClick={handleOverallBacktest}
@@ -1045,7 +1056,6 @@ Flag Signal Dashboard
           </div>
         </div>
 
-        {/* Loading / Error / Signals */}
         <div className="mt-8">
           {loading ?
 (
@@ -1059,13 +1069,27 @@ Flag Signal Dashboard
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
-              {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
+              <SignalList 
+                title="Bullish Signals"
+                data={sortedBullishSignals}
+                sortOrder={sortOrder}
+                onSortToggle={handleSortToggle}
+                onBacktest={handleBacktest}
+                backtestResults={backtestResults}
+                backtesting={backtesting}
+              />
+              <SignalList 
+                title="Bearish Signals"
+                data={sortedBearishSignals}
+                sortOrder={sortOrder}
+                onSortToggle={handleSortToggle}
+                onBacktest={handleBacktest}
+                backtestResults={backtestResults}
+                backtesting={backtesting}
+              />
             </div>
-  
           )}
         </div>
-
       </div>
     </div>
   );
