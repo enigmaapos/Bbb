@@ -109,110 +109,110 @@ const getMACD = (candles: Candle[]) => {
   const shortEMA = calculateEMA(candles, shortPeriod);
   const longEMA = calculateEMA(candles, longPeriod);
   if (shortEMA.length < 1 || longEMA.length < 1) {
-      return { macdLine: 0, macdSignal: 0, macdHistogram: 0 };
+    return { macdLine: 0, macdSignal: 0, macdHistogram: 0 };
   }
 
   const macdLine = shortEMA.map((short, i) => short - longEMA[i + longPeriod - shortPeriod]);
   const signalLine = calculateEMA(
-      macdLine.slice(-signalPeriod).map(val => ({ close: val } as any)),
-      signalPeriod
+    macdLine.slice(-signalPeriod).map(val => ({ close: val } as any)),
+    signalPeriod
   );
   const macdHistogram = macdLine[macdLine.length - 1] - signalLine[signalLine.length - 1];
   return {
-      macdLine: macdLine[macdLine.length - 1],
-      macdSignal: signalLine[signalLine.length - 1],
-      macdHistogram,
+    macdLine: macdLine[macdLine.length - 1],
+    macdSignal: signalLine[signalLine.length - 1],
+    macdHistogram,
   };
 };
 
 const getRSI = (candles: Candle[], period = 14) => {
-    if (candles.length < period) return null;
-    let gains = 0;
-    let losses = 0;
+  if (candles.length < period) return null;
+  let gains = 0;
+  let losses = 0;
 
-    for (let i = 1; i < period; i++) {
-      const change = candles[i].close - candles[i - 1].close;
-      if (change > 0) {
-        gains += change;
-      } else {
-        losses -= change;
-      }
+  for (let i = 1; i < period; i++) {
+    const change = candles[i].close - candles[i - 1].close;
+    if (change > 0) {
+      gains += change;
+    } else {
+      losses -= change;
     }
+  }
 
-    let avgGain = gains / period;
-    let avgLoss = losses / period;
-    for (let i = period; i < candles.length; i++) {
-      const change = candles[i].close - candles[i - 1].close;
-      avgGain = ((avgGain * (period - 1)) + (change > 0 ? change : 0)) / period;
-      avgLoss = ((avgLoss * (period - 1)) + (change < 0 ? -change : 0)) / period;
-    }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  for (let i = period; i < candles.length; i++) {
+    const change = candles[i].close - candles[i - 1].close;
+    avgGain = ((avgGain * (period - 1)) + (change > 0 ? change : 0)) / period;
+    avgLoss = ((avgLoss * (period - 1)) + (change < 0 ? -change : 0)) / period;
+  }
 
-    const rs = avgLoss === 0 ? 999 : avgGain / avgLoss;
-    const rsi = 100 - (100 / (1 + rs));
-    return rsi;
-  };
+  const rs = avgLoss === 0 ? 999 : avgGain / avgLoss;
+  const rsi = 100 - (100 / (1 + rs));
+  return rsi;
+};
 
 // New function to calculate ADX
 const getADX = (candles: Candle[], period = 14) => {
-    if (candles.length <= period) {
-        return 0;
-    }
+  if (candles.length <= period) {
+    return 0;
+  }
 
-    let upMoves: number[] = [];
-    let downMoves: number[] = [];
-    for (let i = 1; i < candles.length; i++) {
-        const upMove = candles[i].high - candles[i - 1].high;
-        const downMove = candles[i - 1].low - candles[i].low;
-        upMoves.push(upMove > 0 && upMove > downMove ? upMove : 0);
-        downMoves.push(downMove > 0 && downMove > upMove ? downMove : 0);
-    }
+  let upMoves: number[] = [];
+  let downMoves: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const upMove = candles[i].high - candles[i - 1].high;
+    const downMove = candles[i - 1].low - candles[i].low;
+    upMoves.push(upMove > 0 && upMove > downMove ? upMove : 0);
+    downMoves.push(downMove > 0 && downMove > upMove ? downMove : 0);
+  }
 
-    let atrValues: number[] = [];
-    let trValues: number[] = [];
-    for (let i = 1; i < candles.length; i++) {
-        const tr1 = candles[i].high - candles[i].low;
-        const tr2 = Math.abs(candles[i].high - candles[i - 1].close);
-        const tr3 = Math.abs(candles[i].low - candles[i - 1].close);
-        trValues.push(Math.max(tr1, tr2, tr3));
-    }
+  let atrValues: number[] = [];
+  let trValues: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const tr1 = candles[i].high - candles[i].low;
+    const tr2 = Math.abs(candles[i].high - candles[i - 1].close);
+    const tr3 = Math.abs(candles[i].low - candles[i - 1].close);
+    trValues.push(Math.max(tr1, tr2, tr3));
+  }
 
-    let sumATR = trValues.slice(0, period).reduce((sum, val) => sum + val, 0);
-    atrValues.push(sumATR / period);
-    for (let i = period; i < trValues.length; i++) {
-        const newATR = (atrValues[i - period] * (period - 1) + trValues[i]) / period;
-        atrValues.push(newATR);
-    }
-    
-    let sumUp = upMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
-    let sumDown = downMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
-    
-    let plusDIValues: number[] = [];
-    let minusDIValues: number[] = [];
+  let sumATR = trValues.slice(0, period).reduce((sum, val) => sum + val, 0);
+  atrValues.push(sumATR / period);
+  for (let i = period; i < trValues.length; i++) {
+    const newATR = (atrValues[i - period] * (period - 1) + trValues[i]) / period;
+    atrValues.push(newATR);
+  }
 
-    plusDIValues.push((sumUp / atrValues[0]) * 100);
-    minusDIValues.push((sumDown / atrValues[0]) * 100);
-    for (let i = period; i < upMoves.length; i++) {
-        const plusDI = (plusDIValues[i - period] * (period - 1) + upMoves[i]) / atrValues[i];
-        const minusDI = (minusDIValues[i - period] * (period - 1) + downMoves[i]) / atrValues[i];
-        plusDIValues.push((plusDI * 100));
-        minusDIValues.push((minusDI * 100));
-    }
-    
-    let dxValues: number[] = [];
-    for (let i = 0; i < plusDIValues.length; i++) {
-        const sumDI = plusDIValues[i] + minusDIValues[i];
-        const dx = sumDI === 0 ? 0 : (Math.abs(plusDIValues[i] - minusDIValues[i]) / sumDI) * 100;
-        dxValues.push(dx);
-    }
+  let sumUp = upMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
+  let sumDown = downMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
 
-    if (dxValues.length === 0) return 0;
-    let sumADX = dxValues.slice(0, period).reduce((sum, val) => sum + val, 0);
-    let adxValue = sumADX / period;
-    for (let i = period; i < dxValues.length; i++) {
-        adxValue = (adxValue * (period - 1) + dxValues[i]) / period;
-    }
+  let plusDIValues: number[] = [];
+  let minusDIValues: number[] = [];
 
-    return adxValue;
+  plusDIValues.push((sumUp / atrValues[0]) * 100);
+  minusDIValues.push((sumDown / atrValues[0]) * 100);
+  for (let i = period; i < upMoves.length; i++) {
+    const plusDI = (plusDIValues[i - period] * (period - 1) + upMoves[i]) / atrValues[i];
+    const minusDI = (minusDIValues[i - period] * (period - 1) + downMoves[i]) / atrValues[i];
+    plusDIValues.push((plusDI * 100));
+    minusDIValues.push((minusDI * 100));
+  }
+
+  let dxValues: number[] = [];
+  for (let i = 0; i < plusDIValues.length; i++) {
+    const sumDI = plusDIValues[i] + minusDIValues[i];
+    const dx = sumDI === 0 ? 0 : (Math.abs(plusDIValues[i] - minusDIValues[i]) / sumDI) * 100;
+    dxValues.push(dx);
+  }
+
+  if (dxValues.length === 0) return 0;
+  let sumADX = dxValues.slice(0, period).reduce((sum, val) => sum + val, 0);
+  let adxValue = sumADX / period;
+  for (let i = period; i < dxValues.length; i++) {
+    adxValue = (adxValue * (period - 1) + dxValues[i]) / period;
+  }
+
+  return adxValue;
 };
 
 // New function to calculate ATR
@@ -222,21 +222,22 @@ const getATR = (candles: Candle[], period = 14) => {
   }
   let trValues: number[] = [];
   for (let i = 1; i < candles.length; i++) {
-      const tr1 = candles[i].high - candles[i].low;
-      const tr2 = Math.abs(candles[i].high - candles[i - 1].close);
-      const tr3 = Math.abs(candles[i].low - candles[i - 1].close);
-      trValues.push(Math.max(tr1, tr2, tr3));
+    const tr1 = candles[i].high - candles[i].low;
+    const tr2 = Math.abs(candles[i].high - candles[i - 1].close);
+    const tr3 = Math.abs(candles[i].low - candles[i - 1].close);
+    trValues.push(Math.max(tr1, tr2, tr3));
   }
   let sumATR = trValues.slice(0, period).reduce((sum, val) => sum + val, 0);
   let atr = sumATR / period;
   for (let i = period; i < trValues.length; i++) {
-      atr = (atr * (period - 1) + trValues[i]) / period;
+    atr = (atr * (period - 1) + trValues[i]) / period;
   }
   return atr;
 };
 
 
-const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
+const calculateMetrics = (candles: Candle[], timeframe: string): Metrics |
+  null => {
   if (!candles || candles.length < 50) return null;
   const nowMillis = Date.now();
   const { currentSessionStart, prevSessionStart } = getSessions(timeframe, nowMillis);
@@ -283,11 +284,11 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   const avgVolume = candles.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20;
   let volumeConfirmation: 'bullish' | 'bearish' | null = null;
   if (lastCandle.volume > avgVolume) {
-      if (lastCandle.close > lastCandle.open) {
-          volumeConfirmation = 'bullish';
-      } else if (lastCandle.close < lastCandle.open) {
-          volumeConfirmation = 'bearish';
-      }
+    if (lastCandle.close > lastCandle.open) {
+      volumeConfirmation = 'bullish';
+    } else if (lastCandle.close < lastCandle.open) {
+      volumeConfirmation = 'bearish';
+    }
   }
 
   const adx = getADX(candles, 14);
@@ -329,6 +330,21 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
     .map((s) => s.symbol);
 };
 
+// New function to check for potential signals to decide if higher TF data is needed
+const isPotentialSignal = (metrics: Metrics | null): boolean => {
+  if (!metrics) return false;
+
+  const { ema5, ema10, ema20, ema50, rsi, mainTrend } = metrics;
+  const emaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
+  const emaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
+
+  // quick early exit if no trend or breakout
+  if (!(emaBullish || emaBearish)) return false;
+  if (!mainTrend.breakout) return false;
+
+  return true;
+};
+
 // Main component starts here
 const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
@@ -342,7 +358,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const fetchIntervalRef = useRef<number | null>(null);
 
-  // FIXED: The fetchData function now handles requests sequentially and with backoff logic.
+  // New fetchData function implementing the signal-based approach
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
@@ -351,81 +367,58 @@ const FlagSignalsDashboard: React.FC = () => {
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
       const startTime = nowMillis - (100 * tfMillis);
-      
-      // Use a for...of loop to fetch data for each symbol sequentially
+
       for (const symbol of symbolsToFetch) {
-        // Fetch main timeframe data
-        let response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`);
-        
-        // Backoff strategy: Wait and retry on rate limit errors
-        if (response.status === 429 || response.status === 418) {
-          console.warn(`Rate limit hit for ${symbol}. Retrying in 15 seconds.`);
-          await new Promise(resolve => setTimeout(resolve, 15000));
-          response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`);
-        }
-        
+        // --- Fetch main timeframe (always) ---
+        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
+        const response = await fetch(url);
         const data = await response.json();
 
-        // Introduce a small delay between requests to different timeframes
-        await new Promise(resolve => setTimeout(resolve, 500)); 
+        if (!Array.isArray(data) || data.length === 0) continue;
 
-        // Fetch higher timeframe data (4h)
-        let response4h = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`);
-        if (response4h.status === 429 || response4h.status === 418) {
-            console.warn(`Rate limit hit for 4h data of ${symbol}. Retrying in 15 seconds.`);
-            await new Promise(resolve => setTimeout(resolve, 15000));
-            response4h = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`);
-        }
-        const data4h = await response4h.json();
+        const candles = data.map((d: any[]) => ({
+          openTime: d[0],
+          open: parseFloat(d[1]),
+          high: parseFloat(d[2]),
+          low: parseFloat(d[3]),
+          close: parseFloat(d[4]),
+          volume: parseFloat(d[5]),
+        }));
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const metrics = calculateMetrics(candles, timeframe);
+        newSymbolsData[symbol] = { candles, metrics };
 
-        // Fetch higher timeframe data (1d)
-        let response1d = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`);
-        if (response1d.status === 429 || response1d.status === 418) {
-            console.warn(`Rate limit hit for 1d data of ${symbol}. Retrying in 15 seconds.`);
-            await new Promise(resolve => setTimeout(resolve, 15000));
-            response1d = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`);
-        }
-        const data1d = await response1d.json();
+        // --- Only fetch 4h/1d if potential signal ---
+        if (isPotentialSignal(metrics)) {
+          const [data4h, data1d] = await Promise.all([
+            fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`).then(r => r.json()),
+            fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`).then(r => r.json())
+          ]);
 
-        if (data && Array.isArray(data) && data.length > 0) {
-            const candles = data.map((d: any[]) => ({
-                openTime: d[0],
-                open: parseFloat(d[1]),
-                high: parseFloat(d[2]),
-                low: parseFloat(d[3]),
-                close: parseFloat(d[4]),
-                volume: parseFloat(d[5]),
-            }));
-            
-            newSymbolsHigherTimeframeData[symbol] = {
-                candles4h: data4h.map((d: any[]) => ({
-                    openTime: d[0],
-                    open: parseFloat(d[1]),
-                    high: parseFloat(d[2]),
-                    low: parseFloat(d[3]),
-                    close: parseFloat(d[4]),
-                    volume: parseFloat(d[5]),
-                })),
-                candles1d: data1d.map((d: any[]) => ({
-                    openTime: d[0],
-                    open: parseFloat(d[1]),
-                    high: parseFloat(d[2]),
-                    low: parseFloat(d[3]),
-                    close: parseFloat(d[4]),
-                    volume: parseFloat(d[5]),
-                }))
-            };
-
-            newSymbolsData[symbol] = { candles, metrics: calculateMetrics(candles, timeframe) };
-        } else {
-            console.error(`Failed to fetch data for ${symbol}. Data:`, data);
+          newSymbolsHigherTimeframeData[symbol] = {
+            candles4h: data4h.map((d: any[]) => ({
+              openTime: d[0],
+              open: parseFloat(d[1]),
+              high: parseFloat(d[2]),
+              low: parseFloat(d[3]),
+              close: parseFloat(d[4]),
+              volume: parseFloat(d[5]),
+            })),
+            candles1d: data1d.map((d: any[]) => ({
+              openTime: d[0],
+              open: parseFloat(d[1]),
+              high: parseFloat(d[2]),
+              low: parseFloat(d[3]),
+              close: parseFloat(d[4]),
+              volume: parseFloat(d[5]),
+            })),
+          };
         }
       }
 
-      setSymbolsData(prevData => ({ ...prevData, ...newSymbolsData }));
-      setSymbolsHigherTimeframeData(prevData => ({ ...prevData, ...newSymbolsHigherTimeframeData }));
+      setSymbolsData(prev => ({ ...prev, ...newSymbolsData }));
+      setSymbolsHigherTimeframeData(prev => ({ ...prev, ...newSymbolsHigherTimeframeData }));
+
       setLoading(false);
       setLastUpdated(Date.now());
     } catch (error) {
@@ -435,10 +428,12 @@ const FlagSignalsDashboard: React.FC = () => {
     }
   };
 
+
+  // Updated useEffect to use the new batching logic
   useEffect(() => {
     let isMounted = true;
-    const BATCH_SIZE = 10;
-    const INTERVAL_MS = 1000;
+    const BATCH_SIZE = 5; // Smaller batches
+    const INTERVAL_MS = 1500; // 1.5 sec between batches (~3.3 requests/sec for 1 timeframe)
     let currentIndex = 0;
     let symbolsToLoad: string[] = [];
 
@@ -447,19 +442,23 @@ const FlagSignalsDashboard: React.FC = () => {
       const fetchedSymbols = await fetchFuturesSymbols();
       setAllSymbols(fetchedSymbols);
       symbolsToLoad = fetchedSymbols;
-      const initialBatch = symbolsToLoad.slice(0, 30);
+
+      // Initial batch
+      const initialBatch = symbolsToLoad.slice(0, BATCH_SIZE);
       await fetchData(initialBatch);
 
-      if (symbolsToLoad.length > 30) {
-        currentIndex = 30;
+      if (symbolsToLoad.length > BATCH_SIZE) {
+        currentIndex = BATCH_SIZE;
         loadBatch();
       }
     };
 
     const loadBatch = async () => {
       if (!symbolsToLoad.length || !isMounted) return;
+
       const batch = symbolsToLoad.slice(currentIndex, currentIndex + BATCH_SIZE);
       await fetchData(batch);
+
       currentIndex += BATCH_SIZE;
 
       if (currentIndex < symbolsToLoad.length && isMounted) {
@@ -469,12 +468,16 @@ const FlagSignalsDashboard: React.FC = () => {
           if (fetchIntervalRef.current) {
             clearInterval(fetchIntervalRef.current);
           }
-          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 60000);
+          fetchIntervalRef.current = window.setInterval(() => {
+            currentIndex = 0;
+            loadBatch();
+          }, 60000);
         }
       }
     };
 
     initialize();
+
     return () => {
       isMounted = false;
       if (fetchIntervalRef.current) {
@@ -483,18 +486,19 @@ const FlagSignalsDashboard: React.FC = () => {
     };
   }, [timeframe]);
 
+
   const flaggedSignals = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
-  
+
       const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = metrics;
       const higherTimeframeData = symbolsHigherTimeframeData[symbol];
-  
+
       let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
       if (higherTimeframeData) {
         const metrics4h = calculateMetrics(higherTimeframeData.candles4h, '4h');
         const metrics1d = calculateMetrics(higherTimeframeData.candles1d, '1d');
-        
+
         const isBullish4h = metrics4h && metrics4h.ema5 > metrics4h.ema10 && metrics4h.ema10 > metrics4h.ema20;
         const isBullish1d = metrics1d && metrics1d.ema5 > metrics1d.ema10 && metrics1d.ema10 > metrics1d.ema20;
         const isBearish4h = metrics4h && metrics4h.ema5 < metrics4h.ema10 && metrics4h.ema10 < metrics4h.ema20;
@@ -507,26 +511,27 @@ const FlagSignalsDashboard: React.FC = () => {
           higherTimeframeConfirmation = 'neutral';
         }
       }
-  
+
       const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
       const macdBullishConfirmation = macdLine > macdSignal;
       const macdBearishConfirmation = macdLine < macdSignal;
       const volumeBullishConfirmation = volumeConfirmation === 'bullish';
       const volumeBearishConfirmation = volumeConfirmation === 'bearish';
-  
+
       let type: 'bullish' | 'bearish' | null = null;
       let strength: SignalStrength = null;
       // Define ADX and ATR thresholds
       const isStrongTrend = adx > 25;
       const isMediumTrend = adx >= 20 && adx <= 25;
-      const isHighVolatility = atr > 0.005; // Example threshold
-  
+      const isHighVolatility = atr > 0.005;
+      // Example threshold
+
       // Check for Strong Bullish Signal
       if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bullish') {
         type = 'bullish';
         strength = 'Strong';
-      } 
+      }
       // Check for Strong Bearish Signal
       else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bearish') {
         type = 'bearish';
@@ -552,18 +557,17 @@ const FlagSignalsDashboard: React.FC = () => {
         type = 'bearish';
         strength = 'Weak';
       }
-      
+
       if (type) {
         return { symbol, type, strength, higherTimeframeConfirmation };
       }
-      
+
       return null;
     }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData, symbolsHigherTimeframeData]);
 
   const bullishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bullish'), [flaggedSignals]);
   const bearishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bearish'), [flaggedSignals]);
-
   // New filter function for combined signals
   const filterCombinedSignals = (signals: CombinedSignal[]) => {
     return signals.filter(signal =>
@@ -576,14 +580,13 @@ const FlagSignalsDashboard: React.FC = () => {
     const sortedData = [...data].sort((a, b) => {
       const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
       const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
-      
+
       if (sortOrder === 'desc') {
         return bStrength - aStrength;
       } else {
         return aStrength - bStrength;
       }
     });
-
     return (
       <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
         <div className="flex justify-between items-center mb-4">
@@ -605,49 +608,51 @@ const FlagSignalsDashboard: React.FC = () => {
               title="Copy symbols"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6"
+                />
               </svg>
             </button>
           </div>
         </div>
         <div className="overflow-y-auto max-h-[300px] space-y-2">
-          {sortedData.length > 0 ? (
-            sortedData.map((item: any) => {
-              const getStrengthColor = (strength: SignalStrength) => {
-                switch (strength) {
-                  case 'Strong': return 'text-yellow-400';
-                  case 'Medium': return 'text-teal-400';
-                  case 'Weak': return 'text-gray-400';
-                  default: return '';
-                }
-              };
-              
-              const bgClass =
-                item.type === 'bullish' ? 'bg-green-600' :
-                item.type === 'bearish' ? 'bg-red-600' : '';
+          {sortedData.length > 0 ?
+            (
+              sortedData.map((item: any) => {
+                const getStrengthColor = (strength: SignalStrength) => {
+                  switch (strength) {
+                    case 'Strong': return 'text-yellow-400';
+                    case 'Medium': return 'text-teal-400';
+                    case 'Weak': return 'text-gray-400';
+                    default: return '';
+                  }
+                };
 
-              return (
-                <div
-                  key={item.symbol}
-                  className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold">{item.symbol}</div>
-                      <div className="text-sm text-gray-200">
-                        Higher TF: {item.higherTimeframeConfirmation}
+                const bgClass =
+                  item.type === 'bullish' ? 'bg-green-600' :
+                    item.type === 'bearish' ? 'bg-red-600' : '';
+
+                return (
+                  <div
+                    key={item.symbol}
+                    className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold">{item.symbol}</div>
+                        <div className="text-sm text-gray-200">
+                          Higher TF: {item.higherTimeframeConfirmation}
+                        </div>
                       </div>
+                      <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
+                        {item.strength}
+                      </span>
                     </div>
-                    <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
-                      {item.strength}
-                    </span>
                   </div>
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-gray-500">No symbols found.</p>
-          )}
+                );
+              })
+            ) : (
+              <p className="text-gray-500">No symbols found.</p>
+            )}
         </div>
       </div>
     );
@@ -656,7 +661,6 @@ const FlagSignalsDashboard: React.FC = () => {
   const handleDebugConsole = () => {
     console.table(flaggedSignals);
   };
-
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <script src="https://cdn.tailwindcss.com"></script>
@@ -743,21 +747,24 @@ const FlagSignalsDashboard: React.FC = () => {
 
         {/* Loading / Error / Signals */}
         <div className="mt-8">
-          {loading ? (
-            <div className="flex justify-center items-center h-[50vh]">
-              <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
-            </div>
-          ) : errorMessage ? (
-            <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
-              <p>{errorMessage}</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
-              {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
-            </div>
-          )}
+          {loading ?
+            (
+              <div className="flex justify-center items-center h-[50vh]">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
+              </div>
+            ) : errorMessage ?
+              (
+                <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
+                  <p>{errorMessage}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
+                  {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
+                </div>
+              )}
         </div>
+
       </div>
     </div>
   );
