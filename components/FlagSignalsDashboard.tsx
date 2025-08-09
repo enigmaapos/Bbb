@@ -713,6 +713,11 @@ const FlagSignalsDashboard: React.FC = () => {
     let totalSignals = 0;
 
     for (const signal of flaggedSignals) {
+      // Add check to ensure signal.type is not null before passing to runBacktest
+      if (!signal.type) {
+        continue;
+      }
+      
       const candles = symbolsData[signal.symbol]?.candles;
       const higherTfCandles = symbolsHigherTimeframeData[signal.symbol];
       if (!candles || !higherTfCandles) {
