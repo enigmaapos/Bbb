@@ -567,254 +567,256 @@ export default function SiteADataLoader() {
     };
   }, [signals, bullFlagSymbols, bearFlagSymbols]);
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-purple-400 mb-6 text-center">
-          Crypto Signals Dashboard 🚀
-        </h1>
+    <>
+      <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-purple-400 mb-6 text-center">
+            Crypto Signals Dashboard 🚀
+          </h1>
 
-        <div className="flex justify-center mb-6 space-x-4">
-          {['15m', '4h', '1d'].map((tf) => (
-            <button
-         
-            key={tf}
-              onClick={() => setTimeframe(tf)}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200
-                ${timeframe === tf
-                  ? 'bg-purple-600 text-white shadow-lg'
-                  : 'bg-gray-700 text-gray-300 
-      hover:bg-gray-600'
-                }`}
-            >
-              {tf.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        {lastUpdated && (
-          <p className="text-center text-sm text-gray-400 mb-4">
-    
-            Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
-            </p>
-        )}
-
-        <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
-            <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
-                Market Overview
-            </h2>
- 
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Green Price Change</p>
-                    <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
-                </div>
- 
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Red Price Change</p>
-                    <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 
-      rounded-lg">
-                    <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
-                    <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                 
-      <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
-                    <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Bullish Trend</p>
+          <div className="flex justify-center mb-6 space-x-4">
+            {['15m', '4h', '1d'].map((tf) => (
+              <button
            
-          <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Bearish Trend</p>
-                    <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
-       
+              key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200
+                  ${timeframe === tf
+                    ? 'bg-purple-600 text-white shadow-lg'
+                    : 'bg-gray-700 text-gray-300 
+        hover:bg-gray-600'
+                  }`}
+              >
+                {tf.toUpperCase()}
+              </button>
+            ))}
           </div>
-  <>
-    <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bull Flag</p>
-      <p className="text-lg font-semibold text-blue-400">{marketStats.bullFlagCount}</p>
-    </div>
-    <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bear Flag</p>
-      <p className="text-lg font-semibold text-orange-400">{marketStats.bearFlagCount}</p>
-    </div>
-  </>
-            </div>
-        </div>
 
-        {loading 
-      && (
-          <div className="text-center text-lg text-gray-400 mt-10">
-            Loading signals... This might take a moment.
-      ⏳
-          </div>
-        )}
+          {lastUpdated && (
+            <p className="text-center text-sm text-gray-400 mb-4">
+      
+              Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
+              </p>
+          )}
 
-        {!loading && bullFlagSymbols.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
-            <h2 className="text-2xl sm:text-3xl font-bold text-blue-300 mb-5 text-center">
-              Bull Flag Signals ({bullFlagSymbols.length})
-            </h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
+                  Market Overview
+              </h2>
    
-          <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
-          
-           <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
-                  </tr>
-                </thead>
-                <tbody 
-      className="divide-y divide-gray-700">
-                  {bullFlagSymbols.map((s) => (
-                    <tr key={s.symbol}>
-                      <td className="px-4 py-4 text-blue-200 font-medium">{s.symbol}</td>
-                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
-      'N/A'}</td>
-                      <td className="px-4 py-4">
-                        <span className={`font-semibold ${s.priceChangePercent > 0 ?
-      'text-green-400' : 'text-red-400'}`}>
-                          {s.priceChangePercent?.toFixed(2) ||
-      'N/A'}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                
-      </tbody>
-              </table>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
+                  <div className="p-3 bg-gray-700 rounded-lg">
+                      <p className="text-sm text-gray-400">Green Price Change</p>
+                      <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
+                  </div>
+   
+                  <div className="p-3 bg-gray-700 rounded-lg">
+                      <p className="text-sm text-gray-400">Red Price Change</p>
+                      <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
+                  </div>
+                  <div className="p-3 bg-gray-700 
+        rounded-lg">
+                      <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
+                      <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
+                  </div>
+                  <div className="p-3 bg-gray-700 rounded-lg">
+                   
+        <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
+                      <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
+                  </div>
+                  <div className="p-3 bg-gray-700 rounded-lg">
+                      <p className="text-sm text-gray-400">Bullish Trend</p>
+             
+            <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
+                  </div>
+                  <div className="p-3 bg-gray-700 rounded-lg">
+                      <p className="text-sm text-gray-400">Bearish Trend</p>
+                      <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
+         
             </div>
+    <>
+      <div className="p-3 bg-gray-700 rounded-lg">
+        <p className="text-sm text-gray-400">Bull Flag</p>
+        <p className="text-lg font-semibold text-blue-400">{marketStats.bullFlagCount}</p>
+      </div>
+      <div className="p-3 bg-gray-700 rounded-lg">
+        <p className="text-sm text-gray-400">Bear Flag</p>
+        <p className="text-lg font-semibold text-orange-400">{marketStats.bearFlagCount}</p>
+      </div>
+    </>
+              </div>
           </div>
-        )}
 
-        {!loading && bearFlagSymbols.length > 0 && (
-          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-orange-700">
-            <h2 className="text-2xl sm:text-3xl font-bold text-orange-300 mb-5 text-center">
-      
-            Bear Flag Signals ({bearFlagSymbols.length})
-            </h2>
+          {loading 
+        && (
+            <div className="text-center text-lg text-gray-400 mt-10">
+              Loading signals... This might take a moment.
+        ⏳
+            </div>
+          )}
+
+          {!loading && bullFlagSymbols.length > 0 && (
+            <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
+              <h2 className="text-2xl sm:text-3xl font-bold text-blue-300 mb-5 text-center">
+                Bull Flag Signals ({bullFlagSymbols.length})
+              </h2>
+     
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  <tr>
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
             
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
-                  </tr>
-       
-          </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {bearFlagSymbols.map((s) => (
-                    <tr key={s.symbol}>
-                      <td className="px-4 py-4 text-orange-200 font-medium">{s.symbol}</td>
-      
-                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
-      'N/A'}</td>
-                      <td className="px-4 py-4">
-                        <span className={`font-semibold ${s.priceChangePercent > 0 ?
-      'text-green-400' : 'text-red-400'}`}>
-                          {s.priceChangePercent?.toFixed(2) ||
-      'N/A'}%
-                        </span>
-                      </td>
+             <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
                     </tr>
-                  ))}
-                
-      </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-
-        {!loading && maxPumpZoneSignals.length === 0 && (
-          <div className="text-center text-lg text-gray-400 mt-10">
-            No "MAX ZONE PUMP" signals found for the selected timeframe.
-       
-          </div>
-        )}
-
-        {!loading && maxPumpZoneSignals.length > 0 && (
-          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
-            <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
-              MAX ZONE PUMP Signals ({maxPumpZoneSignals.length})
-            </h2>
-         
-          <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
-               
-                Symbol
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                     Current Price
-                    </th>
-   
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      24h Change (%)
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-   
-                    RSI Pump Strength
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
-                      Prev Session Volume
-      
-                </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                    {maxPumpZoneSignals.map((s) => {
-            
-                    const pumpDump = getRecentRSIDiff(s.rsi14, 14);
-                    const currentPrice = s.closes ?
-      s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
-                    return (
-                      <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
-                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-200">
-                          {s.symbol}
-            
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                          ${currentPrice}
-                        </td>
-         
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {s.priceChangePercent?.toFixed(2) || 'N/A'}%
-                 
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {pumpDump?.pumpStrength?.toFixed(2) || 'N/A'}
-          
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ?
-      'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
-                            {s.highestVolumeColorPrev ?
-      s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
+                  </thead>
+                  <tbody 
+        className="divide-y divide-gray-700">
+                    {bullFlagSymbols.map((s) => (
+                      <tr key={s.symbol}>
+                        <td className="px-4 py-4 text-blue-200 font-medium">{s.symbol}</td>
+                        <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
+        'N/A'}</td>
+                        <td className="px-4 py-4">
+                          <span className={`font-semibold ${s.priceChangePercent > 0 ?
+        'text-green-400' : 'text-red-400'}`}>
+                            {s.priceChangePercent?.toFixed(2) ||
+        'N/A'}%
                           </span>
                         </td>
                       </tr>
-                    );
-      })}
-                </tbody>
-              </table>
+                    ))}
+                  
+        </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {!loading && bearFlagSymbols.length > 0 && (
+            <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-orange-700">
+              <h2 className="text-2xl sm:text-3xl font-bold text-orange-300 mb-5 text-center">
+        
+              Bear Flag Signals ({bearFlagSymbols.length})
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="bg-gray-700">
+                    <tr>
+              
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
+                    </tr>
+         
+            </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {bearFlagSymbols.map((s) => (
+                      <tr key={s.symbol}>
+                        <td className="px-4 py-4 text-orange-200 font-medium">{s.symbol}</td>
+        
+                        <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
+        'N/A'}</td>
+                        <td className="px-4 py-4">
+                          <span className={`font-semibold ${s.priceChangePercent > 0 ?
+        'text-green-400' : 'text-red-400'}`}>
+                            {s.priceChangePercent?.toFixed(2) ||
+        'N/A'}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  
+        </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+
+          {!loading && maxPumpZoneSignals.length === 0 && (
+            <div className="text-center text-lg text-gray-400 mt-10">
+              No "MAX ZONE PUMP" signals found for the selected timeframe.
+         
+            </div>
+          )}
+
+          {!loading && maxPumpZoneSignals.length > 0 && (
+            <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
+              <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
+                MAX ZONE PUMP Signals ({maxPumpZoneSignals.length})
+              </h2>
+           
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                 
+                  Symbol
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                       Current Price
+                      </th>
+     
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        24h Change (%)
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+     
+                      RSI Pump Strength
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                        Prev Session Volume
+        
+                  </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                      {maxPumpZoneSignals.map((s) => {
+              
+                      const pumpDump = getRecentRSIDiff(s.rsi14, 14);
+                      const currentPrice = s.closes ?
+        s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
+                      return (
+                        <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-200">
+                            {s.symbol}
+              
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${currentPrice}
+                          </td>
+           
+                          <td className="px-4 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                   
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                            {pumpDump?.pumpStrength?.toFixed(2) || 'N/A'}
+            
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ?
+        'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
+                              {s.highestVolumeColorPrev ?
+        s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+        })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-         <FlagSignalsDashboard fundingRates={fundingRates} />
-    </div>
+      <FlagSignalsDashboard fundingRates={fundingRates} />
+    </>
   );
 }
