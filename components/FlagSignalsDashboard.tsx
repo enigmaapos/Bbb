@@ -329,6 +329,8 @@ interface BinanceSymbol {
   symbol: string;
   contractType: string;
   quoteAsset: string;
+  // Added the missing status property
+  status: string;
 }
 
 const fetchFuturesSymbols = async (): Promise<string[]> => {
