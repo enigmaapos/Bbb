@@ -740,7 +740,7 @@ export default function SiteADataLoader() {
           </div>
         )}
       </div>
-         <FlagSignalsDashboard />
+         <FlagSignalsDashboard fundingRates={fundingRates} />
     </div>
   );
 }
