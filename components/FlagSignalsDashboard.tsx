@@ -42,6 +42,11 @@ interface Metrics {
     breakout: 'bullish' | 'bearish' | null;
     isDojiAfterBreakout: boolean;
   };
+  // New metrics for MACD and Volume Confirmation
+  macdLine: number;
+  macdSignal: number;
+  macdHistogram: number;
+  volumeConfirmation: 'bullish' | 'bearish' | null;
 }
 
 interface CombinedSignal {
@@ -74,65 +79,52 @@ const isDoji = (candle: Candle) => {
   return totalRange > 0 && (bodySize / totalRange) < 0.2;
 };
 
-const calculateMetrics = (candles: Candle[], timeframe: string): Metrics |
-null => {
-  if (!candles || candles.length < 2) return null;
+// Helper function to calculate EMA
+const calculateEMA = (candles: Candle[], period: number) => {
+  if (candles.length < period) return [];
+  const alpha = 2 / (period + 1);
+  let emaValues: number[] = [];
+  // Calculate initial SMA for the first EMA
+  const initialSMA = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period;
+  emaValues.push(initialSMA);
+  for (let i = period; i < candles.length; i++) {
+    const prevEma = emaValues[i - period];
+    const newEma = (candles[i].close - prevEma) * alpha + prevEma;
+    emaValues.push(newEma);
+  }
+  return emaValues;
+};
 
-  const nowMillis = Date.now();
-  const { currentSessionStart, prevSessionStart } = getSessions(timeframe, nowMillis);
+// New function to calculate MACD
+const getMACD = (candles: Candle[]) => {
+  const shortPeriod = 12;
+  const longPeriod = 26;
+  const signalPeriod = 9;
 
-  const prevSessionCandles = candles.filter(c => c.openTime >= prevSessionStart && c.openTime < currentSessionStart);
-  const currentSessionCandles = candles.filter(c => c.openTime >= currentSessionStart);
-
-  if (prevSessionCandles.length === 0 || currentSessionCandles.length === 0) return null;
-  const prevSessionHigh = Math.max(...prevSessionCandles.map(c => c.high));
-  const prevSessionLow = Math.min(...prevSessionCandles.map(c => c.low));
-
-  const todaysHighestHigh = Math.max(...currentSessionCandles.map(c => c.high));
-  const todaysLowestLow = Math.min(...currentSessionCandles.map(c => c.low));
-
-  const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
-  const mainTrend = {
-    breakout: null as 'bullish' | 'bearish' |
-null,
-    isDojiAfterBreakout: false,
-  };
-
-  const isDojiAfterBreakout = isDoji(lastCandle);
-  if (todaysHighestHigh > prevSessionHigh) {
-    mainTrend.breakout = 'bullish';
-    mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
+  const shortEMA = calculateEMA(candles, shortPeriod);
+  const longEMA = calculateEMA(candles, longPeriod);
+  
+  if (shortEMA.length < 1 || longEMA.length < 1) {
+      return { macdLine: 0, macdSignal: 0, macdHistogram: 0 };
   }
 
-  if (todaysLowestLow < prevSessionLow) {
-    mainTrend.breakout = 'bearish';
-    mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
-  }
+  const macdLine = shortEMA.map((short, i) => short - longEMA[i + longPeriod - shortPeriod]);
 
-  const ema = (candles: Candle[], period: number) => {
-    if (candles.length < period) return [];
-    const alpha = 2 / (period + 1);
-    let emaValues: number[] = [];
-    // Calculate initial SMA for the first EMA
-    const initialSMA = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period;
-    emaValues.push(initialSMA);
-    for (let i = period; i < candles.length; i++) {
-      const prevEma = emaValues[i - period];
-      const newEma = (candles[i].close - prevEma) * alpha + prevEma;
-      emaValues.push(newEma);
-    }
-    return emaValues;
+  const signalLine = calculateEMA(
+      macdLine.slice(-signalPeriod).map(val => ({ close: val } as any)), // Use a dummy candle object for EMA calculation
+      signalPeriod
+  );
+
+  const macdHistogram = macdLine[macdLine.length - 1] - signalLine[signalLine.length - 1];
+
+  return {
+      macdLine: macdLine[macdLine.length - 1],
+      macdSignal: signalLine[signalLine.length - 1],
+      macdHistogram,
   };
-  const ema5 = ema(candles, 5);
-  const ema10 = ema(candles, 10);
-  const ema20 = ema(candles, 20);
-  const ema50 = ema(candles, 50);
-  const lastEma5 = ema5[ema5.length - 1];
-  const lastEma10 = ema10[ema10.length - 1];
-  const lastEma20 = ema20[ema20.length - 1];
-  const lastEma50 = ema50[ema50.length - 1];
+};
 
-  const getRSI = (candles: Candle[], period = 14) => {
+const getRSI = (candles: Candle[], period = 14) => {
     if (candles.length < period) return null;
     let gains = 0;
     let losses = 0;
@@ -159,7 +151,64 @@ null,
     return rsi;
   };
 
+const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
+  if (!candles || candles.length < 50) return null; // Increased length check for EMA50 and MACD
+
+  const nowMillis = Date.now();
+  const { currentSessionStart, prevSessionStart } = getSessions(timeframe, nowMillis);
+
+  const prevSessionCandles = candles.filter(c => c.openTime >= prevSessionStart && c.openTime < currentSessionStart);
+  const currentSessionCandles = candles.filter(c => c.openTime >= currentSessionStart);
+
+  if (prevSessionCandles.length === 0 || currentSessionCandles.length === 0) return null;
+  const prevSessionHigh = Math.max(...prevSessionCandles.map(c => c.high));
+  const prevSessionLow = Math.min(...prevSessionCandles.map(c => c.low));
+
+  const todaysHighestHigh = Math.max(...currentSessionCandles.map(c => c.high));
+  const todaysLowestLow = Math.min(...currentSessionCandles.map(c => c.low));
+
+  const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
+  const mainTrend = {
+    breakout: null as 'bullish' | 'bearish' | null,
+    isDojiAfterBreakout: false,
+  };
+
+  const isDojiAfterBreakout = isDoji(lastCandle);
+  if (todaysHighestHigh > prevSessionHigh) {
+    mainTrend.breakout = 'bullish';
+    mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
+  }
+
+  if (todaysLowestLow < prevSessionLow) {
+    mainTrend.breakout = 'bearish';
+    mainTrend.isDojiAfterBreakout = isDojiAfterBreakout;
+  }
+
+  const ema5 = calculateEMA(candles, 5);
+  const ema10 = calculateEMA(candles, 10);
+  const ema20 = calculateEMA(candles, 20);
+  const ema50 = calculateEMA(candles, 50);
+  const lastEma5 = ema5[ema5.length - 1];
+  const lastEma10 = ema10[ema10.length - 1];
+  const lastEma20 = ema20[ema20.length - 1];
+  const lastEma50 = ema50[ema50.length - 1];
+
   const rsi = getRSI(candles, 14);
+
+  // Calculate MACD values
+  const { macdLine, macdSignal, macdHistogram } = getMACD(candles);
+
+  // Calculate Volume Confirmation
+  const avgVolume = candles.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20;
+  let volumeConfirmation: 'bullish' | 'bearish' | null = null;
+  if (lastCandle.volume > avgVolume) {
+      if (lastCandle.close > lastCandle.open) {
+          volumeConfirmation = 'bullish';
+      } else if (lastCandle.close < lastCandle.open) {
+          volumeConfirmation = 'bearish';
+      }
+  }
+
   return {
     price: lastCandle.close,
     prevSessionHigh,
@@ -172,6 +221,10 @@ null,
     ema50: lastEma50,
     rsi: rsi!, // Non-null assertion, as we check for length
     mainTrend,
+    macdLine,
+    macdSignal,
+    macdHistogram,
+    volumeConfirmation,
   };
 };
 
@@ -226,7 +279,7 @@ const FlagSignalsDashboard: React.FC = () => {
           return { symbol, data: { candles, metrics: calculateMetrics(candles, timeframe) } };
         } else {
          
-  console.error(`Failed to fetch data for ${symbol}. Data:`, data);
+          console.error(`Failed to fetch data for ${symbol}. Data:`, data);
           return null;
         }
       });
@@ -255,6 +308,22 @@ const FlagSignalsDashboard: React.FC = () => {
     let currentIndex = 0;
     let symbolsToLoad: string[] = [];
 
+    const initialize = async () => {
+      setLoading(true);
+      const fetchedSymbols = await fetchFuturesSymbols();
+      setAllSymbols(fetchedSymbols); // Store all symbols for later
+      symbolsToLoad = fetchedSymbols;
+      // Load a small initial batch to display something quickly
+      const initialBatch = symbolsToLoad.slice(0, 30);
+      await fetchData(initialBatch);
+
+      // Start the background refresh for the rest of the symbols
+      if (symbolsToLoad.length > 30) {
+        currentIndex = 30;
+        loadBatch();
+      }
+    };
+
     const loadBatch = async () => {
       if (!symbolsToLoad.length || !isMounted) return;
       const batch = symbolsToLoad.slice(currentIndex, currentIndex + BATCH_SIZE);
@@ -276,22 +345,6 @@ const FlagSignalsDashboard: React.FC = () => {
       }
     };
 
-    const initialize = async () => {
-      setLoading(true);
-      const fetchedSymbols = await fetchFuturesSymbols();
-      setAllSymbols(fetchedSymbols); // Store all symbols for later
-      symbolsToLoad = fetchedSymbols;
-      // Load a small initial batch to display something quickly
-      const initialBatch = symbolsToLoad.slice(0, 30);
-      await fetchData(initialBatch);
-
-      // Start the background refresh for the rest of the symbols
-      if (symbolsToLoad.length > 30) {
-        currentIndex = 30;
-        loadBatch();
-      }
-    };
-
     initialize();
 
     // Cleanup function for the interval
@@ -308,13 +361,23 @@ const FlagSignalsDashboard: React.FC = () => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
 
-      const { ema5, ema10, ema20, ema50, rsi } = metrics;
+      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation } = metrics;
+      
       const isBull = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isBear = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
+      
+      // New logic for MACD and Volume Confirmation
+      const macdBullishConfirmation = macdLine > macdSignal;
+      const macdBearishConfirmation = macdLine < macdSignal;
+      const volumeBullishConfirmation = volumeConfirmation === 'bullish';
+      const volumeBearishConfirmation = volumeConfirmation === 'bearish';
+
+      const finalBullishSignal = isBull && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation;
+      const finalBearishSignal = isBear && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation;
 
       return {
         symbol,
-        type: isBull ? 'bullish' : isBear ? 'bearish' : null,
+        type: finalBullishSignal ? 'bullish' : finalBearishSignal ? 'bearish' : null,
       } as CombinedSignal;
     }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData]);
