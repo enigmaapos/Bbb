@@ -291,7 +291,7 @@ const FlagSignalsDashboard: React.FC = () => {
         }
       });
       setSymbolsData(prevData => ({ ...prevData, ...newSymbolsData }));
-      
+
       setLoading(false);
       setLastUpdated(Date.now());
     } catch (error) {
@@ -432,10 +432,10 @@ const FlagSignalsDashboard: React.FC = () => {
   }, [symbolsData, fundingRates, fundingTimestamps]);
 
 
-  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
-  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
 
   // Helper function to filter the symbol lists based on the search term
   const filterSymbols = (symbols: string[]) => {
@@ -445,7 +445,7 @@ const FlagSignalsDashboard: React.FC = () => {
   };
   
   // New filter function for combined signals
-  const filterCombinedSignals = (signals: CombinedSignal[]) => {
+  const filterCombinedSignals = (signals: (CombinedSignal & { fundingFresh: boolean })[]) => {
     return signals.filter(signal =>
       signal.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -544,11 +544,6 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
       </div>
     </div>
   );
-
-  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
-  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
-  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s: CombinedSignal) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
 
   // Debug function to inspect fundingRates & flaggedSymbolsWithFunding quickly
   const handleDebugConsole = () => {
