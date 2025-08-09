@@ -6,7 +6,6 @@ import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
 import SiteADataLoader from "../components/SiteADataLoader";
-import FlagSignalsDashboard from "../components/FlagSignalsDashboard";
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -14,6 +13,7 @@ import {
   LiquidationEvent,
   AggregatedLiquidationData,
   MarketAnalysisResults,
+  // SentimentSignal, // Removed import from types.ts temporarily to define locally
   SentimentArticle,
 } from "../types";
 import {
@@ -23,18 +23,26 @@ import {
   BinancePremiumIndex,
 } from "../types/binance";
 import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import { detectSentimentSignals } from "../utils/signalDetector";
+import { detectSentimentSignals } from "../utils/signalDetector"; // Re-enabled original import
 import axios, { AxiosError } from 'axios';
 import { fetchCryptoNews } from "../utils/newsFetcher";
 
+// --- TEMPORARY SentimentSignal DEFINITION ---
+// YOU SHOULD MOVE THIS TO YOUR types.ts FILE
 interface SentimentSignal {
   symbol: string;
   signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Early Squeeze Signal' | 'Early Long Trap' | string;
-  reason?: string;
-  strongBuy?: boolean;
-  strongSell?: boolean;
+  reason?: string; // Made optional, as it might not always be present
+  strongBuy?: boolean; // Made optional
+  strongSell?: boolean; // Made optional
+  priceChangePercent: number; // Added this based on the error message
+  // Add any other properties that your actual detectSentimentSignals function might return
+  // or that are part of your existing SentimentSignal type in types.ts
 }
+// --- END TEMPORARY SentimentSignal DEFINITION ---
 
+
+// Custom type guard for AxiosError
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
   return (
     typeof error === 'object' &&
@@ -47,6 +55,7 @@ function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError 
 const BINANCE_API = "https://fapi.binance.com";
 const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr";
 
+// Helper function to format large numbers with M, B, T suffixes
 const formatVolume = (num: number): string => {
   if (num === 0) return "0";
   const formatter = new Intl.NumberFormat("en-US", {
@@ -58,8 +67,10 @@ const formatVolume = (num: number): string => {
   return formatter.format(num);
 };
 
+// Helper function to format time for Davao City
 const formatDavaoTime = (): string => {
   const now = new Date();
+  // Ensure the timeZone is 'Asia/Manila' for Davao City
   const davaoTime = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
     hour: 'numeric',
@@ -78,6 +89,7 @@ export default function PriceFundingTracker() {
   const mediumPriceChangeThreshold = 3;
   const mediumFundingRateThreshold = 0.0002;
   const volumeThreshold = 50_000_000;
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +104,8 @@ export default function PriceFundingTracker() {
   const [priceUpFundingNegativeCount, setPriceUpFundingNegativeCount] = useState(0);
   const [priceDownFundingPositiveCount, setPriceDownFundingPositiveCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+
+
   const [sortConfig, setSortConfig] = useState<{
     key: "fundingRate" | "priceChangePercent" | "signal" | null;
     direction: "asc" | "desc" | null;
@@ -106,14 +120,21 @@ export default function PriceFundingTracker() {
     return [];
   });
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // This state already holds all sentiment signals
   const [actionableSentimentSignals, setActionableSentimentSignals] = useState<SentimentSignal[]>([]);
+
+  // State for news data
   const [cryptoNews, setCryptoNews] = useState<SentimentArticle[]>([]);
 
+  // Liquidation data states
   const liquidationEventsRef = useRef<LiquidationEvent[]>([]);
   const [recentLiquidationEvents, setRecentLiquidationEvents] = useState<LiquidationEvent[]>([]);
   const [aggregatedLiquidationForSentiment, setAggregatedLiquidationForSentiment] = useState<
     AggregatedLiquidationData | undefined
   >(undefined);
+
+  // WebSocket specific refs for persistent instances
   const liquidationWsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsPingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -217,10 +238,10 @@ export default function PriceFundingTracker() {
 
     recentEvents.forEach((event) => {
       const volumeUSD = event.price * event.quantity;
-      if (event.side === "SELL") {
+      if (event.side === "SELL") { // SELL means long position liquidated
         totalLongLiquidationsUSD += volumeUSD;
         longLiquidationCount++;
-      } else {
+      } else { // BUY means short position liquidated
         totalShortLiquidationsUSD += volumeUSD;
         shortLiquidationCount++;
       }
@@ -270,10 +291,12 @@ export default function PriceFundingTracker() {
             quantity: parseFloat(data.o.q),
             timestamp: data.o.T,
           };
+
           setRecentLiquidationEvents(prev => {
             const updated = [liquidationEvent, ...prev].slice(0, 10);
             return updated;
           });
+
           liquidationEventsRef.current.push(liquidationEvent);
 
           if (liquidationEventsRef.current.length > 1000) {
@@ -320,6 +343,7 @@ export default function PriceFundingTracker() {
     liquidationWsRef.current = ws;
   }, [aggregateLiquidationEvents]);
 
+  // --- Main Data Fetching and WebSocket Management Effect ---
   useEffect(() => {
     const fetchAllData = async () => {
       if (rawData.length === 0) {
@@ -327,23 +351,25 @@ export default function PriceFundingTracker() {
       }
       setError(null);
       try {
+        // Fetch news concurrently with market data
         const [infoRes, tickerRes, fundingRes, btcNews, ethNews] = await Promise.all([
           axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`),
           axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
-          fetchCryptoNews("bitcoin"),
-          fetchCryptoNews("ethereum"),
+          fetchCryptoNews("bitcoin"), // Fetch Bitcoin news
+          fetchCryptoNews("ethereum"), // Fetch Ethereum news
         ]);
 
         const allFetchedNews: SentimentArticle[] = [
           ...btcNews,
           ...ethNews,
         ];
-        setCryptoNews(allFetchedNews);
+        setCryptoNews(allFetchedNews); // Store news in state
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: BinanceSymbol) => s.symbol);
+
         const tickerData = tickerRes.data;
         const fundingData = fundingRes.data;
 
@@ -361,7 +387,7 @@ export default function PriceFundingTracker() {
             volume: volume,
           };
         }).filter((d: SymbolData) => d.volume > 0);
-        
+
         const allSentimentSignals = detectSentimentSignals(combinedData);
 
         combinedData = combinedData.map(d => ({
@@ -380,12 +406,13 @@ export default function PriceFundingTracker() {
           .slice(0, 5);
 
         const filteredActionableSignals = allSentimentSignals.filter(s =>
-          s.signal === 'Bullish Opportunity' ||
-          s.signal === 'Bearish Risk' ||
-          s.signal === 'Early Squeeze Signal' ||
-          s.signal === 'Early Long Trap'
+            s.signal === 'Bullish Opportunity' ||
+            s.signal === 'Bearish Risk' ||
+            s.signal === 'Early Squeeze Signal' ||
+            s.signal === 'Early Long Trap'
         );
         setActionableSentimentSignals(filteredActionableSignals);
+
 
         setRawData(combinedData);
 
@@ -393,6 +420,7 @@ export default function PriceFundingTracker() {
         const red = combinedData.length - green;
         setGreenCount(green);
         setRedCount(red);
+
         const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
         const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
         const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
@@ -409,6 +437,7 @@ export default function PriceFundingTracker() {
         const priceDownFundingPositive = combinedData.filter(
           (d) => d.priceChangePercent < 0 && d.fundingRate > 0
         ).length;
+
         setPriceUpFundingNegativeCount(priceUpFundingNegative);
         setPriceDownFundingPositiveCount(priceDownFundingPositive);
 
@@ -416,6 +445,7 @@ export default function PriceFundingTracker() {
         const priceUpLongsPaying = combinedData.filter((d) => d.priceChangePercent > 0 && d.fundingRate > 0).length;
         const priceDownLongsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate > 0).length;
         const priceDownShortsPaying = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+
         setFundingImbalanceData({
           priceUpShortsPaying,
           priceUpLongsPaying,
@@ -428,6 +458,8 @@ export default function PriceFundingTracker() {
         const signals = generateTradeSignals(combinedData);
         setTradeSignals(signals);
         setLastUpdated(formatDavaoTime());
+
+
       } catch (err: any) {
         console.error("Error fetching initial market data or news:", err);
         if (isAxiosErrorTypeGuard(err) && err.response) {
@@ -453,7 +485,7 @@ export default function PriceFundingTracker() {
         reconnectTimeoutRef.current = null;
       }
       if (wsPingIntervalRef.current) {
-        clearInterval(wsPingInterval.current);
+        clearInterval(wsPingIntervalRef.current);
         wsPingIntervalRef.current = null;
       }
       if (liquidationWsRef.current) {
@@ -467,7 +499,9 @@ export default function PriceFundingTracker() {
     };
   }, [generateTradeSignals, aggregateLiquidationEvents, rawData.length, connectLiquidationWs]);
 
+  // --- Effect to run Sentiment Analysis when market data or liquidation data or news data changes ---
   useEffect(() => {
+    // Only run sentiment analysis if we have rawData, liquidation data, or news
     if (rawData.length === 0 && !aggregatedLiquidationForSentiment && cryptoNews.length === 0) return;
 
     const marketStatsForAnalysis: MarketStats = {
@@ -494,6 +528,7 @@ export default function PriceFundingTracker() {
     cryptoNews,
     priceUpFundingNegativeCount, priceDownFundingPositiveCount, fundingImbalanceData.topShortSqueeze, fundingImbalanceData.topLongTrap,
   ]);
+
 
   const handleSort = (key: "fundingRate" | "priceChangePercent" | "signal") => {
     setSortConfig((prevConfig) => {
@@ -554,6 +589,7 @@ export default function PriceFundingTracker() {
     });
   }, [sortedData, searchTerm, showFavoritesOnly, favorites]);
 
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen text-white text-lg bg-gray-900">
@@ -570,13 +606,17 @@ export default function PriceFundingTracker() {
     );
   }
 
+  // Filter actionable signals to only include BTCUSDT and ETHUSDT
   const btcEthActionableSignals = actionableSentimentSignals.filter(s =>
     s.symbol === 'BTCUSDT' || s.symbol === 'ETHUSDT'
   );
+
   const bullishActionableSignals = btcEthActionableSignals.filter(s => s.signal === 'Bullish Opportunity');
   const bearishActionableSignals = btcEthActionableSignals.filter(s => s.signal === 'Bearish Risk');
   const earlySqueezeSignals = btcEthActionableSignals.filter(s => s.signal === 'Early Squeeze Signal');
   const earlyLongTrapSignals = btcEthActionableSignals.filter(s => s.signal === 'Early Long Trap');
+
+  // These now correctly filter from actionableSentimentSignals, which should adhere to the new SentimentSignal type
   const top5BullishPositiveFundingSignals = bullishActionableSignals.slice(0, 5);
   const top5BearishNegativeFundingSignals = bearishActionableSignals.slice(0, 5);
 
@@ -592,6 +632,7 @@ export default function PriceFundingTracker() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-3 text-blue-400">📈 Binance USDT Perpetual Tracker</h1>
         <p className="text-sm text-gray-400 mb-6">Last Updated (Davao City): {lastUpdated}</p>
+
 
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
           <h2 className="text-lg font-bold text-white mb-3">
@@ -657,8 +698,7 @@ export default function PriceFundingTracker() {
           <div className="bg-green-900/40 border border-green-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-green-300 mb-2">🟢 Bullish Divergence</h2>
             <p className="text-sm text-green-100 mb-2">
-              Shorts are paying while price is going up.
-              This creates **squeeze potential**, especially near resistance.
+              Shorts are paying while price is going up. This creates **squeeze potential**, especially near resistance.
             </p>
 
             <div className="flex items-center justify-between text-sm text-green-200 mb-2">
@@ -676,8 +716,7 @@ export default function PriceFundingTracker() {
           <div className="bg-red-900/40 border border-red-600 p-4 rounded-lg shadow-sm">
             <h2 className="text-lg font-bold text-red-300 mb-2">🔴 Bearish Trap</h2>
             <p className="text-sm text-red-100 mb-2">
-              Longs are paying while price is dropping.
-              This means bulls are **trapped**, and deeper selloffs may follow.
+              Longs are paying while price is dropping. This means bulls are **trapped**, and deeper selloffs may follow.
             </p>
 
             <div className="flex items-center justify-between text-sm text-red-200 mb-2">
@@ -733,7 +772,7 @@ export default function PriceFundingTracker() {
             </ul>
           </section>
         )}
-       
+
         {(
           top5BullishPositiveFundingSignals.length > 0 ||
           earlySqueezeSignals.length > 0 ||
@@ -758,8 +797,10 @@ export default function PriceFundingTracker() {
                     <div key={index} className="p-3 rounded-md bg-green-700/50 border border-green-500">
                       <div className="flex justify-between items-center mb-1">
                         <h4 className="font-bold text-green-300">{signal.symbol}</h4>
+                        {/* Render strongBuy only if it exists and is true */}
                         {signal.strongBuy && <span className="text-xs text-white bg-green-800 px-2 py-0.5 rounded-md">✅ Strong Buy</span>}
                       </div>
+                      {/* Render reason only if it exists */}
                       {signal.reason && <p className="text-gray-200 text-xs">{signal.reason}</p>}
                     </div>
                   ))}
@@ -827,14 +868,15 @@ export default function PriceFundingTracker() {
         </div>
 
         <SiteADataLoader />
-      
+        
+
         <div className="my-8 h-px bg-gray-700" />
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between mb-4">
           <div className="relative w-full sm:w-64">
             <input
               type="text"
-              placeholder="🔍 Search symbol (e.g. BTCUSDT)"
+              placeholder="🔍 Search symbol (e.e. BTCUSDT)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
               className="bg-gray-800 border border-gray-700 px-4 py-2 pr-10 rounded-md text-sm w-full"
@@ -869,6 +911,7 @@ export default function PriceFundingTracker() {
             </button>
           </div>
         </div>
+
 
         <div className="overflow-auto max-h-[480px]">
           <table className="w-full text-sm text-left border border-gray-700">
@@ -906,15 +949,19 @@ export default function PriceFundingTracker() {
                   return (
                     <tr key={item.symbol} className="border-t border-gray-700 hover:bg-gray-800">
                       <td className="p-2 flex items-center gap-2">{item.symbol}</td>
+
                       <td className={item.priceChangePercent >= 0 ? "text-green-400" : "text-red-400"}>
                         {item.priceChangePercent.toFixed(2)}%
                       </td>
+
                       <td className="p-2">
                         {formatVolume(item.volume)}
                       </td>
+
                       <td className={item.fundingRate >= 0 ? "text-green-400" : "text-red-400"}>
                         {(item.fundingRate * 100).toFixed(4)}%
                       </td>
+
                       <td className="p-2 space-y-1 text-xs text-gray-200">
                         {signal && signal.signal ? (
                           <div className="flex flex-col">
@@ -928,6 +975,7 @@ export default function PriceFundingTracker() {
                           <span className="text-gray-500">-</span>
                         )}
                       </td>
+
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
                         setFavorites((prev) =>
                           prev.includes(item.symbol)
@@ -941,7 +989,7 @@ export default function PriceFundingTracker() {
                   );
                 })}
             </tbody>
-          </table>
+          </table>   
         </div>
         <p className="text-gray-500 text-xs mt-6">Auto-refreshes every 30 seconds | Powered by Binance API & NewsAPI</p>
       </div>
