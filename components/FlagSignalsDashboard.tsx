@@ -334,9 +334,9 @@ interface BinanceSymbol {
 const fetchFuturesSymbols = async (): Promise<string[]> => {
   const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
   const data: { symbols: BinanceSymbol[] } = await res.json();
-
+  // Filter out any symbols that might be delisted
   return data.symbols
-    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING')
     .map((s) => s.symbol);
 };
 
@@ -462,19 +462,25 @@ const FlagSignalsDashboard: React.FC = () => {
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
       const startTime = nowMillis - (500 * tfMillis);
+      
       const fetchPromises = symbolsToFetch.map(async (symbol) => {
-        // Updated to use the dynamic timeframe variable
-        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=500&startTime=${startTime}`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        // Fetch higher timeframe data
+        // Use a single fetch for all required data to be more efficient
+        const urlMain = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=500&startTime=${startTime}`;
         const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=500`;
-        const response4h = await fetch(url4h);
-        const data4h = await response4h.json();
-
         const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=500`;
-        const response1d = await fetch(url1d);
+
+        const [responseMain, response4h, response1d] = await Promise.all([
+          fetch(urlMain),
+          fetch(url4h),
+          fetch(url1d)
+        ]);
+
+        if (!responseMain.ok || !response4h.ok || !response1d.ok) {
+          throw new Error(`Failed to fetch data for ${symbol}: ${responseMain.statusText || response4h.statusText || response1d.statusText}`);
+        }
+
+        const data = await responseMain.json();
+        const data4h = await response4h.json();
         const data1d = await response1d.json();
 
         if (data && Array.isArray(data) && data.length > 0) {
@@ -511,6 +517,7 @@ const FlagSignalsDashboard: React.FC = () => {
           return null;
         }
       });
+      
       const results = await Promise.all(fetchPromises);
 
       results.forEach(result => {
@@ -523,50 +530,62 @@ const FlagSignalsDashboard: React.FC = () => {
       setLoading(false);
       setLastUpdated(Date.now());
       setCountdown(300); // Reset countdown on successful fetch
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching data:', error);
-      setErrorMessage('Failed to fetch data. Please check your connection or try again later.');
+      setErrorMessage(`Failed to fetch initial market data: ${error.message}`);
       setLoading(false);
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-    const BATCH_SIZE = 10;
-    const INTERVAL_MS = 1000;
+    // Updated constants to be more conservative and avoid the 418 error
+    const BATCH_SIZE = 5; // Reduced batch size
+    const INTERVAL_MS = 5000; // Increased delay to 5 seconds
     let currentIndex = 0;
     let symbolsToLoad: string[] = [];
 
     const initialize = async () => {
       setLoading(true);
-      const fetchedSymbols = await fetchFuturesSymbols();
-      setAllSymbols(fetchedSymbols);
-      symbolsToLoad = fetchedSymbols;
-      const initialBatch = symbolsToLoad.slice(0, 30);
-      await fetchData(initialBatch);
-
-      if (symbolsToLoad.length > 30) {
-        currentIndex = 30;
-        loadBatch();
+      setErrorMessage(null);
+      try {
+        const fetchedSymbols = await fetchFuturesSymbols();
+        setAllSymbols(fetchedSymbols);
+        symbolsToLoad = fetchedSymbols;
+        const initialBatch = symbolsToLoad.slice(0, 30);
+        await fetchData(initialBatch);
+        if (symbolsToLoad.length > 30) {
+          currentIndex = 30;
+          loadBatch();
+        } else {
+          if (fetchIntervalRef.current) {
+            clearInterval(fetchIntervalRef.current);
+          }
+          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 300000);
+        }
+      } catch (error: any) {
+        console.error('Error in initialization:', error);
+        setErrorMessage(`Failed to fetch initial market data: ${error.message}`);
+        setLoading(false);
       }
     };
 
     const loadBatch = async () => {
       if (!symbolsToLoad.length || !isMounted) return;
       const batch = symbolsToLoad.slice(currentIndex, currentIndex + BATCH_SIZE);
+      if (batch.length === 0) {
+        if (fetchIntervalRef.current) {
+          clearInterval(fetchIntervalRef.current);
+        }
+        fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 300000);
+        return;
+      }
+      
       await fetchData(batch);
       currentIndex += BATCH_SIZE;
 
       if (currentIndex < symbolsToLoad.length && isMounted) {
         setTimeout(loadBatch, INTERVAL_MS);
-      } else {
-        if (isMounted) {
-          if (fetchIntervalRef.current) {
-            clearInterval(fetchIntervalRef.current);
-          }
-          // The refresh interval has been changed from 60 seconds (60000) to 5 minutes (300000) to avoid rate limits.
-          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 300000);
-        }
       }
     };
 
