@@ -48,7 +48,7 @@ interface Metrics {
   macdHistogram: number;
   volumeConfirmation: 'bullish' | 'bearish' | null;
   adx: number;
-  atr: number; // New metric for ATR
+  atr: number;
 }
 
 type SignalStrength = 'Strong' | 'Medium' | 'Weak' | null;
@@ -338,6 +338,55 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
     .map((s) => s.symbol);
 };
 
+// Backtesting functionality
+type BacktestResult = 'TP Hit' | 'SL Hit' | 'No Result';
+
+const runBacktest = (
+  candles: Candle[],
+  signalType: 'bullish' | 'bearish',
+  entryPrice: number,
+  tp: number,
+  sl: number,
+  signalTimestamp: number,
+  timeframe: string
+): BacktestResult => {
+  const signalIndex = candles.findIndex(c => c.openTime === signalTimestamp);
+  if (signalIndex === -1) return 'No Result';
+
+  // Backtest from the candle after the signal candle
+  const startIndex = signalIndex + 1;
+
+  for (let i = startIndex; i < candles.length; i++) {
+    const candle = candles[i];
+    const high = candle.high;
+    const low = candle.low;
+
+    if (signalType === 'bullish') {
+      const tpPrice = entryPrice * (1 + tp);
+      const slPrice = entryPrice * (1 - sl);
+
+      if (high >= tpPrice) {
+        return 'TP Hit';
+      }
+      if (low <= slPrice) {
+        return 'SL Hit';
+      }
+    } else if (signalType === 'bearish') {
+      const tpPrice = entryPrice * (1 - tp);
+      const slPrice = entryPrice * (1 + sl);
+
+      if (low <= tpPrice) {
+        return 'TP Hit';
+      }
+      if (high >= slPrice) {
+        return 'SL Hit';
+      }
+    }
+  }
+
+  return 'No Result';
+};
+
 // Main component starts here
 const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
@@ -349,6 +398,8 @@ const FlagSignalsDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [backtestResults, setBacktestResults] = useState<Record<string, BacktestResult | null>>({});
+  const [backtesting, setBacktesting] = useState(false);
   const fetchIntervalRef = useRef<number | null>(null);
 
   const fetchData = async (symbolsToFetch: string[]) => {
@@ -358,9 +409,9 @@ const FlagSignalsDashboard: React.FC = () => {
       const newSymbolsHigherTimeframeData: Record<string, { candles4h: Candle[], candles1d: Candle[] }> = {};
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
-      const startTime = nowMillis - (100 * tfMillis);
+      const startTime = nowMillis - (500 * tfMillis); // Fetch more data for backtesting
       const fetchPromises = symbolsToFetch.map(async (symbol) => {
-        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
+        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=500&startTime=${startTime}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -512,37 +563,30 @@ const FlagSignalsDashboard: React.FC = () => {
       let type: 'bullish' | 'bearish' | null = null;
       let strength: SignalStrength = null;
   
-      // Define ADX and ATR thresholds
       const isStrongTrend = adx > 25;
       const isMediumTrend = adx >= 20 && adx <= 25;
-      const isHighVolatility = atr > 0.005; // Example threshold
+      const isHighVolatility = atr > 0.005;
   
-      // Check for Strong Bullish Signal
       if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bullish') {
         type = 'bullish';
         strength = 'Strong';
       } 
-      // Check for Strong Bearish Signal
       else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bearish') {
         type = 'bearish';
         strength = 'Strong';
       }
-      // Check for Medium Bullish Signal
       else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bearish') {
         type = 'bullish';
         strength = 'Medium';
       }
-      // Check for Medium Bearish Signal
       else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bullish') {
         type = 'bearish';
         strength = 'Medium';
       }
-      // Check for Weak Bullish Signal
       else if (isEmaBullish && higherTimeframeConfirmation !== 'bearish') {
         type = 'bullish';
         strength = 'Weak';
       }
-      // Check for Weak Bearish Signal
       else if (isEmaBearish && higherTimeframeConfirmation !== 'bullish') {
         type = 'bearish';
         strength = 'Weak';
@@ -559,13 +603,73 @@ const FlagSignalsDashboard: React.FC = () => {
   const bullishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bullish'), [flaggedSignals]);
   const bearishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bearish'), [flaggedSignals]);
   
-  // New filter function for combined signals
   const filterCombinedSignals = (signals: CombinedSignal[]) => {
     return signals.filter(signal =>
       signal.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
 
+  const handleBacktest = async (symbol: string, signalType: 'bullish' | 'bearish') => {
+    setBacktesting(true);
+    setBacktestResults(prev => ({ ...prev, [symbol]: null }));
+    const candles = symbolsData[symbol]?.candles;
+    if (!candles) {
+      setBacktestResults(prev => ({ ...prev, [symbol]: 'No Result' }));
+      setBacktesting(false);
+      return;
+    }
+    
+    // Find the last candle that would have generated the signal
+    let signalCandleIndex = -1;
+    for (let i = candles.length - 2; i >= 50; i--) { // Start from the second to last candle, need enough history
+      const subCandles = candles.slice(0, i + 1);
+      const subMetrics = calculateMetrics(subCandles, timeframe);
+      if (subMetrics) {
+        const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = subMetrics;
+        const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
+        const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
+        const macdBullishConfirmation = macdLine > macdSignal;
+        const macdBearishConfirmation = macdLine < macdSignal;
+        const volumeBullishConfirmation = volumeConfirmation === 'bullish';
+        const volumeBearishConfirmation = volumeConfirmation === 'bearish';
+        const isStrongTrend = adx > 25;
+        const isHighVolatility = atr > 0.005;
+
+        // Simple signal check for backtest
+        if (
+          (signalType === 'bullish' && isEmaBullish && isStrongTrend && isHighVolatility && macdBullishConfirmation) ||
+          (signalType === 'bearish' && isEmaBearish && isStrongTrend && isHighVolatility && macdBearishConfirmation)
+        ) {
+          signalCandleIndex = i;
+          break;
+        }
+      }
+    }
+
+    if (signalCandleIndex === -1) {
+      setBacktestResults(prev => ({ ...prev, [symbol]: 'No Result' }));
+      setBacktesting(false);
+      return;
+    }
+    
+    const entryPrice = candles[signalCandleIndex].close;
+    const tpPercentage = 0.005; // 0.5%
+    const slPercentage = 0.005; // -0.5%
+
+    const result = runBacktest(
+      candles,
+      signalType,
+      entryPrice,
+      tpPercentage,
+      slPercentage,
+      candles[signalCandleIndex].openTime,
+      timeframe
+    );
+    
+    setBacktestResults(prev => ({ ...prev, [symbol]: result }));
+    setBacktesting(false);
+  };
+  
   const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
     const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
     
@@ -619,10 +723,21 @@ duration-200"
                   default: return '';
                 }
               };
-              
+
+              const getBacktestResultColor = (result: BacktestResult) => {
+                switch (result) {
+                  case 'TP Hit': return 'bg-green-500';
+                  case 'SL Hit': return 'bg-red-500';
+                  case 'No Result': return 'bg-gray-500';
+                  default: return '';
+                }
+              }
+
               const bgClass =
                 item.type === 'bullish' ? 'bg-green-600' :
                 item.type === 'bearish' ? 'bg-red-600' : '';
+                
+              const backtestResult = backtestResults[item.symbol];
 
               return (
                 <div
@@ -631,15 +746,29 @@ duration-200"
                 >
                   <div className="flex items-center justify-between">
               
-                  <div>
+                    <div>
                       <div className="font-semibold">{item.symbol}</div>
                       <div className="text-sm text-gray-200">
                         Higher TF: {item.higherTimeframeConfirmation}
                       </div>
                     </div>
-                    <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
-                      {item.strength}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
+                        {item.strength}
+                      </span>
+                      <button
+                        onClick={() => handleBacktest(item.symbol, item.type)}
+                        className={`px-3 py-1 rounded-lg text-sm text-white ${backtesting ? 'bg-gray-500' : 'bg-blue-500 hover:bg-blue-600'}`}
+                        disabled={backtesting}
+                      >
+                        {backtesting && backtestResults[item.symbol] === undefined ? 'Testing...' : 'Test'}
+                      </button>
+                      {backtestResult && (
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBacktestResultColor(backtestResult)}`}>
+                          {backtestResult}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
