@@ -387,6 +387,52 @@ const runBacktest = (
   return 'No Result';
 };
 
+const checkSignal = (metrics: Metrics, higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null): { type: 'bullish' | 'bearish' | null, strength: SignalStrength } => {
+  const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = metrics;
+  
+  const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
+  const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
+  
+  const macdBullishConfirmation = macdLine > macdSignal;
+  const macdBearishConfirmation = macdLine < macdSignal;
+  const volumeBullishConfirmation = volumeConfirmation === 'bullish';
+  const volumeBearishConfirmation = volumeConfirmation === 'bearish';
+
+  const isStrongTrend = adx > 25;
+  const isMediumTrend = adx >= 20 && adx <= 25;
+  const isHighVolatility = atr > 0.005;
+
+  let type: 'bullish' | 'bearish' | null = null;
+  let strength: SignalStrength = null;
+
+  if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bullish') {
+    type = 'bullish';
+    strength = 'Strong';
+  } 
+  else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bearish') {
+    type = 'bearish';
+    strength = 'Strong';
+  }
+  else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bearish') {
+    type = 'bullish';
+    strength = 'Medium';
+  }
+  else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bullish') {
+    type = 'bearish';
+    strength = 'Medium';
+  }
+  else if (isEmaBullish && higherTimeframeConfirmation !== 'bearish') {
+    type = 'bullish';
+    strength = 'Weak';
+  }
+  else if (isEmaBearish && higherTimeframeConfirmation !== 'bullish') {
+    type = 'bearish';
+    strength = 'Weak';
+  }
+  
+  return { type, strength };
+};
+
 // Main component starts here
 const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
@@ -409,18 +455,18 @@ const FlagSignalsDashboard: React.FC = () => {
       const newSymbolsHigherTimeframeData: Record<string, { candles4h: Candle[], candles1d: Candle[] }> = {};
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
-      const startTime = nowMillis - (500 * tfMillis); // Fetch more data for backtesting
+      const startTime = nowMillis - (500 * tfMillis);
       const fetchPromises = symbolsToFetch.map(async (symbol) => {
         const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=500&startTime=${startTime}`;
         const response = await fetch(url);
         const data = await response.json();
 
         // Fetch higher timeframe data
-        const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`;
+        const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=500`;
         const response4h = await fetch(url4h);
         const data4h = await response4h.json();
 
-        const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`;
+        const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=500`;
         const response1d = await fetch(url1d);
         const data1d = await response1d.json();
 
@@ -529,8 +575,6 @@ const FlagSignalsDashboard: React.FC = () => {
   const flaggedSignals = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
-  
-      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = metrics;
       const higherTimeframeData = symbolsHigherTimeframeData[symbol];
   
       let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
@@ -551,51 +595,11 @@ const FlagSignalsDashboard: React.FC = () => {
           higherTimeframeConfirmation = 'neutral';
         }
       }
-  
-      const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
-      const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
       
-      const macdBullishConfirmation = macdLine > macdSignal;
-      const macdBearishConfirmation = macdLine < macdSignal;
-      const volumeBullishConfirmation = volumeConfirmation === 'bullish';
-      const volumeBearishConfirmation = volumeConfirmation === 'bearish';
-  
-      let type: 'bullish' | 'bearish' | null = null;
-      let strength: SignalStrength = null;
-  
-      const isStrongTrend = adx > 25;
-      const isMediumTrend = adx >= 20 && adx <= 25;
-      const isHighVolatility = atr > 0.005;
-  
-      if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bullish') {
-        type = 'bullish';
-        strength = 'Strong';
-      } 
-      else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bearish') {
-        type = 'bearish';
-        strength = 'Strong';
-      }
-      else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bearish') {
-        type = 'bullish';
-        strength = 'Medium';
-      }
-      else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bullish') {
-        type = 'bearish';
-        strength = 'Medium';
-      }
-      else if (isEmaBullish && higherTimeframeConfirmation !== 'bearish') {
-        type = 'bullish';
-        strength = 'Weak';
-      }
-      else if (isEmaBearish && higherTimeframeConfirmation !== 'bullish') {
-        type = 'bearish';
-        strength = 'Weak';
-      }
-      
+      const { type, strength } = checkSignal(metrics, higherTimeframeConfirmation);
       if (type) {
         return { symbol, type, strength, higherTimeframeConfirmation };
       }
-      
       return null;
     }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData, symbolsHigherTimeframeData]);
@@ -613,7 +617,8 @@ const FlagSignalsDashboard: React.FC = () => {
     setBacktesting(true);
     setBacktestResults(prev => ({ ...prev, [symbol]: null }));
     const candles = symbolsData[symbol]?.candles;
-    if (!candles) {
+    const higherTfCandles = symbolsHigherTimeframeData[symbol];
+    if (!candles || !higherTfCandles) {
       setBacktestResults(prev => ({ ...prev, [symbol]: 'No Result' }));
       setBacktesting(false);
       return;
@@ -621,25 +626,36 @@ const FlagSignalsDashboard: React.FC = () => {
     
     // Find the last candle that would have generated the signal
     let signalCandleIndex = -1;
-    for (let i = candles.length - 2; i >= 50; i--) { // Start from the second to last candle, need enough history
+    // Iterate from an earlier point to find a historical signal. Start from second to last candle.
+    for (let i = candles.length - 2; i >= 50; i--) { 
       const subCandles = candles.slice(0, i + 1);
+      const subHigherTfCandles = {
+        candles4h: higherTfCandles.candles4h.slice(0, i + 1),
+        candles1d: higherTfCandles.candles1d.slice(0, i + 1)
+      };
+
       const subMetrics = calculateMetrics(subCandles, timeframe);
       if (subMetrics) {
-        const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = subMetrics;
-        const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
-        const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
-        const macdBullishConfirmation = macdLine > macdSignal;
-        const macdBearishConfirmation = macdLine < macdSignal;
-        const volumeBullishConfirmation = volumeConfirmation === 'bullish';
-        const volumeBearishConfirmation = volumeConfirmation === 'bearish';
-        const isStrongTrend = adx > 25;
-        const isHighVolatility = atr > 0.005;
+        const metrics4h = calculateMetrics(subHigherTfCandles.candles4h, '4h');
+        const metrics1d = calculateMetrics(subHigherTfCandles.candles1d, '1d');
 
-        // Simple signal check for backtest
-        if (
-          (signalType === 'bullish' && isEmaBullish && isStrongTrend && isHighVolatility && macdBullishConfirmation) ||
-          (signalType === 'bearish' && isEmaBearish && isStrongTrend && isHighVolatility && macdBearishConfirmation)
-        ) {
+        const isBullish4h = metrics4h && metrics4h.ema5 > metrics4h.ema10 && metrics4h.ema10 > metrics4h.ema20;
+        const isBullish1d = metrics1d && metrics1d.ema5 > metrics1d.ema10 && metrics1d.ema10 > metrics1d.ema20;
+        const isBearish4h = metrics4h && metrics4h.ema5 < metrics4h.ema10 && metrics4h.ema10 < metrics4h.ema20;
+        const isBearish1d = metrics1d && metrics1d.ema5 < metrics1d.ema10 && metrics1d.ema10 < metrics1d.ema20;
+  
+        let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
+        if (isBullish4h || isBullish1d) {
+          higherTimeframeConfirmation = 'bullish';
+        } else if (isBearish4h || isBearish1d) {
+          higherTimeframeConfirmation = 'bearish';
+        } else {
+          higherTimeframeConfirmation = 'neutral';
+        }
+
+        const { type } = checkSignal(subMetrics, higherTimeframeConfirmation);
+
+        if (type === signalType) {
           signalCandleIndex = i;
           break;
         }
@@ -758,8 +774,8 @@ duration-200"
                       </span>
                       <button
                         onClick={() => handleBacktest(item.symbol, item.type)}
-                        className={`px-3 py-1 rounded-lg text-sm text-white ${backtesting ? 'bg-gray-500' : 'bg-blue-500 hover:bg-blue-600'}`}
-                        disabled={backtesting}
+                        className={`px-3 py-1 rounded-lg text-sm text-white ${backtesting && backtestResults[item.symbol] === undefined ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
+                        disabled={backtesting && backtestResults[item.symbol] === undefined}
                       >
                         {backtesting && backtestResults[item.symbol] === undefined ? 'Testing...' : 'Test'}
                       </button>
