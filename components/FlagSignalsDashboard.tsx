@@ -446,8 +446,9 @@ const FlagSignalsDashboard: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [backtestResults, setBacktestResults] = useState<Record<string, BacktestResult | null>>({});
   const [backtesting, setBacktesting] = useState(false);
+  const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
   const fetchIntervalRef = useRef<number | null>(null);
-
+  
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
@@ -515,6 +516,7 @@ const FlagSignalsDashboard: React.FC = () => {
       setSymbolsHigherTimeframeData(prevData => ({ ...prevData, ...newSymbolsHigherTimeframeData }));
       setLoading(false);
       setLastUpdated(Date.now());
+      setCountdown(300); // Reset countdown on successful fetch
     } catch (error) {
       console.error('Error fetching data:', error);
       setErrorMessage('Failed to fetch data. Please check your connection or try again later.');
@@ -556,7 +558,8 @@ const FlagSignalsDashboard: React.FC = () => {
           if (fetchIntervalRef.current) {
             clearInterval(fetchIntervalRef.current);
           }
-          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 60000);
+          // The refresh interval has been changed from 60 seconds (60000) to 5 minutes (300000) to avoid rate limits.
+          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 300000);
         }
       }
     };
@@ -571,6 +574,20 @@ const FlagSignalsDashboard: React.FC = () => {
     };
   }, [timeframe]);
 
+  // New useEffect for the countdown timer
+  useEffect(() => {
+    const countdownInterval = setInterval(() => {
+      setCountdown((prevCountdown) => (prevCountdown > 0 ? prevCountdown - 1 : 300));
+    }, 1000);
+    
+    return () => clearInterval(countdownInterval);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  };
 
   const flaggedSignals = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
@@ -722,7 +739,8 @@ duration-200"
               title="Copy symbols"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
+    
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
 />
               </svg>
             </button>
@@ -827,7 +845,7 @@ Flag Signal Dashboard
           </h1>
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
           <p className="text-gray-500 text-sm mt-2">
-            Last updated: {new Date(lastUpdated).toLocaleTimeString()}
+            Last updated: {new Date(lastUpdated).toLocaleTimeString()} | Next refresh in: {formatTime(countdown)}
           </p>
         </header>
 
