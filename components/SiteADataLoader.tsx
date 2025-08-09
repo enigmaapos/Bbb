@@ -96,7 +96,7 @@ function calculateRSI(closes: number[], period = 3): number[] {
     avgLoss = (avgLoss * (period - 1) + loss) / period;
 
     rs = avgLoss === 0 ?
-    Number.POSITIVE_INFINITY : avgGain / avgLoss;
+      Number.POSITIVE_INFINITY : avgGain / avgLoss;
     rsi[i] = 100 - 100 / (1 + rs);
   }
 
@@ -160,7 +160,7 @@ function getRecentRSIDiff(
  */
 const getSignal = (s: { rsi14?: number[] }): string => {
   const pumpDump = s.rsi14 ?
-  getRecentRSIDiff(s.rsi14, 14) : null;
+    getRecentRSIDiff(s.rsi14, 14) : null;
   if (!pumpDump) return 'NO DATA';
 
   const { direction, pumpStrength: pump, dumpStrength: dump } = pumpDump;
@@ -175,6 +175,7 @@ const getSignal = (s: { rsi14?: number[] }): string => {
   const dumpInRange_21_26 = inRange(dump, 21, 26);
   const pumpInRange_1_10 = inRange(pump, 1, 10);
   const dumpInRange_1_10 = inRange(dump, 1, 10);
+
   if (direction === 'pump' && pumpAbove30) return 'MAX ZONE PUMP';
   if (direction === 'dump' && dumpAbove30) return 'MAX ZONE DUMP';
   if (pumpInRange_21_26 && direction === 'pump') return 'BALANCE ZONE PUMP';
@@ -206,10 +207,8 @@ export default function SiteADataLoader() {
 
       const getUTCMillisFor1d = (y: number, m: number, d: number, hPH: number, min: number) =>
         Date.UTC(y, m, d, hPH - 8, min);
-
       const today8AM_UTC = getUTCMillisFor1d(year, month, date, 8, 0);
       const tomorrow745AM_UTC = getUTCMillisFor1d(year, month, date + 1, 7, 45);
-
       let sessionStart: number, sessionEnd: number;
       if (now.getTime() >= today8AM_UTC) {
         sessionStart = today8AM_UTC;
@@ -241,7 +240,8 @@ export default function SiteADataLoader() {
     }
   };
 
-  const fetchWithRetry = async (url: string, retries = 5, delay = 1000): Promise<any | null> => {
+  const fetchWithRetry = async (url: string, retries = 5, delay = 1000): Promise<any |
+    null> => {
     for (let i = 0; i < retries; i++) {
       try {
         const response = await fetch(url);
@@ -307,13 +307,15 @@ export default function SiteADataLoader() {
         volume: +c[5],
       }));
       const closes: number[] = candles.map((c: Candle) => c.close);
-      const opens: number[] = candles.map((c: Candle) => c.open);
+      const opens: number[] = candles.map((c:
+        Candle) => c.open);
       const highs: number[] = candles.map((c: Candle) => c.high);
       const lows: number[] = candles.map((c: Candle) => c.low);
       const ema14 = calculateEMA(closes, 14);
       const ema70 = calculateEMA(closes, 70);
       const ema200 = calculateEMA(closes, 200);
       const rsi14 = calculateRSI(closes, 14);
+
       const ticker24h = await fetchWithRetry(
         `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`
       );
@@ -323,10 +325,12 @@ export default function SiteADataLoader() {
 
       const priceChangePercent = parseFloat(ticker24h.priceChangePercent);
       const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(interval);
+
       const candlesCurrentSession = candles.filter((c: Candle) => c.timestamp >= sessionStart && c.timestamp <= sessionEnd);
       const candlesPrevSession = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
 
-      let highestVolumeColorPrev: 'green' | 'red' | null = null;
+      let highestVolumeColorPrev: 'green' | 'red' |
+        null = null;
       if (candlesPrevSession.length > 0) {
         let maxVolume = -1;
         let highestVolumeCandle: Candle | null = null;
@@ -337,11 +341,13 @@ export default function SiteADataLoader() {
           }
         }
         if (highestVolumeCandle) {
-          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ? 'green' : 'red';
+          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ?
+            'green' : 'red';
         }
       }
 
-      let prevClosedGreen: boolean | null = null;
+      let prevClosedGreen: boolean |
+        null = null;
       let prevClosedRed: boolean | null = null;
       if (candles.length >= 2) {
         const prevCandle = candles[candles.length - 2];
@@ -370,14 +376,19 @@ export default function SiteADataLoader() {
         }
       }
 
-      const todaysHighestHigh = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const todaysLowestLow = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const todaysHighestHigh = candlesCurrentSession.length > 0 ?
+        candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const todaysLowestLow = candlesCurrentSession.length > 0 ?
+        candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
-      const prevSessionHigh = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const prevSessionLow = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const prevSessionHigh = candlesPrevSession.length > 0 ?
+        candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const prevSessionLow = candlesPrevSession.length > 0 ?
+        candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
       const bullishBreakout = todaysHighestHigh !== null && prevSessionHigh !== null && todaysHighestHigh > prevSessionHigh;
       const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && todaysLowestLow < prevSessionLow;
+
       if (bullishBreakout) {
         mainTrend.breakout = 'bullish';
       } else if (bearishBreakout) {
@@ -448,50 +459,49 @@ export default function SiteADataLoader() {
     currentIndex = 0;
     symbols = [];
     setLastUpdated(null);
-
     processBatch();
     return () => {
       isMounted = false;
     };
   }, [timeframe]);
 
-  const maxPumpZoneSignals = useMemo(() => {
-    return signals.filter(s => getSignal(s) === 'MAX ZONE PUMP');
-  }, [signals]);
+
   const bullFlagSymbols = useMemo(() => {
-  return signals.filter(s => {
-    if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
+    return signals.filter(s => {
+      if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
 
-    const signal = getSignal(s);
-    if (signal !== 'MAX ZONE PUMP') return false;
+      const signal = getSignal(s);
+      if (signal !== 'MAX ZONE PUMP') return false;
 
-    const ema5 = calculateEMA(s.closes, 5).at(-1);
-    const ema10 = calculateEMA(s.closes, 10).at(-1);
-    const ema20 = calculateEMA(s.closes, 20).at(-1);
-    const ema50 = calculateEMA(s.closes, 50).at(-1);
-    const rsi = s.rsi14.at(-1);
+      const ema5 = calculateEMA(s.closes, 5).at(-1);
+      const ema10 = calculateEMA(s.closes, 10).at(-1);
+      const ema20 = calculateEMA(s.closes, 20).at(-1);
+      const ema50 = calculateEMA(s.closes, 50).at(-1);
+      const rsi = s.rsi14.at(-1);
 
-    const isBullishEma = ema5! > ema10! && ema10! > ema20! && ema20! > ema50!;
-    return isBullishEma && rsi! > 50;
-  });
-}, [signals]);
+      const isBullishEma = ema5! > ema10! && ema10! > ema20! && ema20! > ema50!;
+      return isBullishEma && rsi! > 50;
+    });
+  }, [signals]);
+
   const bearFlagSymbols = useMemo(() => {
-  return signals.filter(s => {
-    if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
+    return signals.filter(s => {
+      if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
 
-    const signal = getSignal(s);
-    if (signal !== 'MAX ZONE DUMP') return false;
+      const signal = getSignal(s);
+      if (signal !== 'MAX ZONE DUMP') return false;
 
-    const ema5 = calculateEMA(s.closes, 5).at(-1);
-    const ema10 = calculateEMA(s.closes, 10).at(-1);
-    const ema20 = calculateEMA(s.closes, 20).at(-1);
-    const ema50 = calculateEMA(s.closes, 50).at(-1);
-    const rsi = s.rsi14.at(-1);
+      const ema5 = calculateEMA(s.closes, 5).at(-1);
+      const ema10 = calculateEMA(s.closes, 10).at(-1);
+      const ema20 = calculateEMA(s.closes, 20).at(-1);
+      const ema50 = calculateEMA(s.closes, 50).at(-1);
+      const rsi = s.rsi14.at(-1);
 
-    const isBearishEma = ema5! < ema10! && ema10! < ema20! && ema20! < ema50!;
-    return isBearishEma && rsi! < 50;
-  });
-}, [signals]);
+      const isBearishEma = ema5! < ema10! && ema10! < ema20! && ema20! < ema50!;
+      return isBearishEma && rsi! < 50;
+    });
+  }, [signals]);
+
   const marketStats = useMemo(() => {
     const greenPriceChangeCount = signals.filter(
       (t) => parseFloat(String(t.priceChangePercent)) > 0
@@ -510,15 +520,19 @@ export default function SiteADataLoader() {
     ).length;
 
     const bullishTrendCount = signals.filter(
-        (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
+      (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
     ).length;
 
     const bearishTrendCount = signals.filter(
-        (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
+      (s) => s.mainTrend && s.mainTrend.trend === 'bearish'
     ).length;
+
+    const maxPumpZoneCount = signals.filter(s => getSignal(s) === 'MAX ZONE PUMP').length;
+    const maxDumpZoneCount = signals.filter(s => getSignal(s) === 'MAX ZONE DUMP').length;
+
     const bullFlagCount = bullFlagSymbols.length;
     const bearFlagCount = bearFlagSymbols.length;
-    
+
     return {
       greenPriceChangeCount,
       redPriceChangeCount,
@@ -526,11 +540,12 @@ export default function SiteADataLoader() {
       redVolumeCount,
       bullishTrendCount,
       bearishTrendCount,
+      maxPumpZoneCount,
+      maxDumpZoneCount,
       bullFlagCount,
       bearFlagCount,
     };
   }, [signals, bullFlagSymbols, bearFlagSymbols]);
-
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
@@ -557,50 +572,56 @@ export default function SiteADataLoader() {
 
         {lastUpdated && (
           <p className="text-center text-sm text-gray-400 mb-4">
-                Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
-            </p>
+            Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
+          </p>
         )}
 
         <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
-            <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
-                Market Overview
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Green Price Change</p>
-                    <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Red Price Change</p>
-                    <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
-                    <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
-                    <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Bullish Trend</p>
-                    <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
-                </div>
-                <div className="p-3 bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400">Bearish Trend</p>
-                    <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
-                </div>
-  <>
-    <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bull Flag</p>
-      <p className="text-lg font-semibold text-blue-400">{marketStats.bullFlagCount}</p>
-    </div>
-    <div className="p-3 bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400">Bear Flag</p>
-      <p className="text-lg font-semibold text-orange-400">{marketStats.bearFlagCount}</p>
-    </div>
-  </>
+          <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
+            Market Overview
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4 text-center">
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Green Price Change</p>
+              <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
             </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Red Price Change</p>
+              <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
+              <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
+              <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Bullish Trend</p>
+              <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Bearish Trend</p>
+              <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Bull Flag</p>
+              <p className="text-lg font-semibold text-blue-400">{marketStats.bullFlagCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Bear Flag</p>
+              <p className="text-lg font-semibold text-orange-400">{marketStats.bearFlagCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Max Zone Pump</p>
+              <p className="text-lg font-semibold text-purple-400">{marketStats.maxPumpZoneCount}</p>
+            </div>
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-400">Max Zone Dump</p>
+              <p className="text-lg font-semibold text-purple-400">{marketStats.maxDumpZoneCount}</p>
+            </div>
+          </div>
         </div>
 
         {loading && (
@@ -673,74 +694,13 @@ export default function SiteADataLoader() {
           </div>
         )}
 
-
-        {!loading && maxPumpZoneSignals.length === 0 && (
+        {!loading && bullFlagSymbols.length === 0 && bearFlagSymbols.length === 0 && (
           <div className="text-center text-lg text-gray-400 mt-10">
-            No "MAX ZONE PUMP" signals found for the selected timeframe.
-          </div>
-        )}
-
-        {!loading && maxPumpZoneSignals.length > 0 && (
-          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
-            <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
-              MAX ZONE PUMP Signals ({maxPumpZoneSignals.length})
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
-                      Symbol
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                     Current Price
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      24h Change (%)
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      RSI Pump Strength
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
-                      Prev Session Volume
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                    {maxPumpZoneSignals.map((s) => {
-                    const pumpDump = getRecentRSIDiff(s.rsi14, 14);
-                    const currentPrice = s.closes ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
-                    return (
-                      <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
-                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-200">
-                          {s.symbol}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                          ${currentPrice}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {s.priceChangePercent?.toFixed(2) || 'N/A'}%
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {pumpDump?.pumpStrength?.toFixed(2) || 'N/A'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ? 'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
-                            {s.highestVolumeColorPrev ? s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-})}
-                </tbody>
-              </table>
-            </div>
+            No Bull or Bear Flag signals found for the selected timeframe.
           </div>
         )}
       </div>
-         <FlagSignalsDashboard />
+      <FlagSignalsDashboard />
     </div>
   );
 }
