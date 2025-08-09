@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+
 // Use this for clipboard functionality
 const copyToClipboard = (text: string) => {
   const el = document.createElement('textarea');
@@ -249,6 +250,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc'); // New state for sorting
   const fetchIntervalRef = useRef<number | null>(null);
 
   const fetchData = async (symbolsToFetch: string[]) => {
@@ -411,65 +413,91 @@ const FlagSignalsDashboard: React.FC = () => {
     );
   };
 
-  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => (
-    <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
-            className="text-gray-400 hover:text-white transition-colors 
+  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
+    // Define the custom sort order
+    const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
+    
+    // Sort the data based on the current sort order
+    const sortedData = [...data].sort((a, b) => {
+      const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
+      const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
+      
+      if (sortOrder === 'desc') {
+        return bStrength - aStrength;
+      } else {
+        return aStrength - bStrength;
+      }
+    });
+
+    return (
+      <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+              className="text-gray-400 hover:text-white transition-colors duration-200"
+              title={`Sort by strength (${sortOrder === 'desc' ? 'Descending' : 'Ascending'})`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transform ${sortOrder === 'desc' ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18m-6 4h6m-6 4h6m-12 4h12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 13l-3 3m0 0l-3-3m3 3V3" />
+              </svg>
+            </button>
+            <button
+              onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
+              className="text-gray-400 hover:text-white transition-colors 
 duration-200"
-            title="Copy symbols"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
+              title="Copy symbols"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
 />
-            </svg>
-          </button>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="overflow-y-auto max-h-[300px] space-y-2">
+          {sortedData.length > 0 ? (
+            sortedData.map((item: any) => {
+              const getStrengthColor = (strength: SignalStrength) => {
+                switch (strength) {
+                  case 'Strong': return 'text-yellow-400';
+                  case 'Medium': return 'text-teal-400';
+                  case 'Weak': return 'text-gray-400';
+                  default: return '';
+                }
+              };
+              
+              const bgClass =
+                item.type === 'bullish' ? 'bg-green-600' :
+                item.type === 'bearish' ? 'bg-red-600' : '';
+
+              return (
+                <div
+                  key={item.symbol}
+                  className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
+                >
+                  <div className="flex items-center justify-between">
+              
+                  <div>
+                      <div className="font-semibold">{item.symbol}</div>
+                    </div>
+                    <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
+                      {item.strength}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-gray-500">No symbols found.</p>
+          )}
         </div>
       </div>
-      <div className="overflow-y-auto max-h-[300px] space-y-2">
-        {data.length > 0 ?
-(
-          data.map((item: any) => {
-            const getStrengthColor = (strength: SignalStrength) => {
-              switch (strength) {
-                case 'Strong': return 'text-yellow-400';
-                case 'Medium': return 'text-teal-400';
-                case 'Weak': return 'text-gray-400';
-                default: return '';
-              }
-            };
-            
-            const bgClass =
-              item.type === 'bullish' ? 'bg-green-600' :
-              item.type === 'bearish' ? 'bg-red-600' : '';
+    );
+  };
 
-            return (
-              <div
-                key={item.symbol}
-                className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
-              >
-                <div className="flex items-center justify-between">
-           
-                <div>
-                    <div className="font-semibold">{item.symbol}</div>
-                  </div>
-                  <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
-                    {item.strength}
-                  </span>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <p className="text-gray-500">No symbols found.</p>
-        )}
-      </div>
-    </div>
-  );
-  // Debug function to inspect flaggedSignals quickly
   const handleDebugConsole = () => {
     console.table(flaggedSignals);
   };
@@ -485,7 +513,7 @@ duration-200"
         }
         ::-webkit-scrollbar-thumb {
           background: #4a5568;
- 
+  
           border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
@@ -505,7 +533,7 @@ Flag Signal Dashboard
         </header>
 
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
-     
+      
           <div className="flex space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner">
             <button
               onClick={() => setTimeframe('15m')}
@@ -556,14 +584,14 @@ Flag Signal Dashboard
 
           {/* Debug button */}
           <div className="ml-2">
- 
+  
             <button
               onClick={handleDebugConsole}
               className="bg-gray-800 text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-700 transition"
               title="Dump flaggedSignals to console"
             >
               Debug (console)
-        
+         
             </button>
           </div>
         </div>
@@ -585,7 +613,7 @@ Flag Signal Dashboard
               {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
               {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
             </div>
- 
+  
           )}
         </div>
 
