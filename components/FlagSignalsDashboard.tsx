@@ -65,7 +65,7 @@ interface FlaggedSymbol {
   strongBearishSignal: boolean;
   signal: string; // The combined signal text
   fundingBiasText: string; // Text for the funding bias
-  fundingBias: 'bullish' | 'bearish'; // New field for the funding bias
+  fundingBias: 'bullish' | 'bearish' | null; // New field for the funding bias, allow null
   ema5: number;
   ema10: number;
   ema20: number;
@@ -204,11 +204,15 @@ const FlagSignalsDashboard = ({ fundingRates }: { fundingRates: any }) => {
       const ema20 = calculateEMA(closingPrices, 20);
       const ema50 = calculateEMA(closingPrices, 50);
       const rsi = calculateRSI(closingPrices, 14);
+      
+      let fundingBias: 'bullish' | 'bearish' | null = null;
+      if (fundingRates[symbol]?.rate !== undefined) {
+        fundingBias = fundingRates[symbol].rate < 0 ? 'bearish' : 'bullish';
+      }
 
       // Signal logic
       const isBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
-      const fundingBias = fundingRates[symbol]?.rate < 0 ? 'bearish' : 'bullish';
 
       // Combined signals
       const isStrongBullish = isBullish && fundingBias === 'bearish';
@@ -244,7 +248,7 @@ const FlagSignalsDashboard = ({ fundingRates }: { fundingRates: any }) => {
   const combinedSignals = useMemo(() => {
     const symbolData = Object.values(flaggedSymbols);
     return symbolData.map(data => {
-      let fundingBiasText = '';
+      let fundingBiasText = 'Funding data unavailable';
       if (data.fundingBias === 'bearish') {
         fundingBiasText = 'Funding is Negative';
       } else if (data.fundingBias === 'bullish') {
