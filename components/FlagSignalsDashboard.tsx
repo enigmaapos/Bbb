@@ -14,6 +14,8 @@ const getMillis = (timeframe: string) => {
   switch (timeframe) {
     case '15m': return 15 * 60 * 1000;
     case '4h': return 4 * 60 * 60 * 1000;
+    // Added 12h timeframe support
+    case '12h': return 12 * 60 * 60 * 1000;
     case '1d': return 24 * 60 * 60 * 1000;
     default: return 15 * 60 * 60 * 1000;
   }
@@ -439,6 +441,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
   const [symbolsHigherTimeframeData, setSymbolsHigherTimeframeData] = useState<Record<string, { candles4h: Candle[], candles1d: Candle[] }>>({});
   const [loading, setLoading] = useState(true);
+  // Default to 15m, can be changed to 12h
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -460,6 +463,7 @@ const FlagSignalsDashboard: React.FC = () => {
       const tfMillis = getMillis(timeframe);
       const startTime = nowMillis - (500 * tfMillis);
       const fetchPromises = symbolsToFetch.map(async (symbol) => {
+        // Updated to use the dynamic timeframe variable
         const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=500&startTime=${startTime}`;
         const response = await fetch(url);
         const data = await response.json();
@@ -958,6 +962,14 @@ Flag Signal Dashboard
 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
             >
               4h
+            </button>
+            {/* New 12h timeframe button */}
+            <button
+              onClick={() => setTimeframe('12h')}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '12h' ?
+'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+            >
+              12h
             </button>
             <button
               onClick={() => setTimeframe('1d')}
