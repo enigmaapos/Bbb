@@ -448,7 +448,9 @@ const FlagSignalsDashboard: React.FC = () => {
   const [backtesting, setBacktesting] = useState(false);
   const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
   const fetchIntervalRef = useRef<number | null>(null);
-  
+  const [overallBacktestResult, setOverallBacktestResult] = useState<string | null>(null);
+  const [isOverallBacktesting, setIsOverallBacktesting] = useState(false);
+
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
@@ -703,6 +705,87 @@ const FlagSignalsDashboard: React.FC = () => {
     setBacktesting(false);
   };
   
+  const handleOverallBacktest = async () => {
+    setIsOverallBacktesting(true);
+    setOverallBacktestResult(null);
+    let tpHits = 0;
+    let slHits = 0;
+    let totalSignals = 0;
+
+    for (const signal of flaggedSignals) {
+      const candles = symbolsData[signal.symbol]?.candles;
+      const higherTfCandles = symbolsHigherTimeframeData[signal.symbol];
+      if (!candles || !higherTfCandles) {
+        continue;
+      }
+      
+      let signalCandleIndex = -1;
+      for (let i = candles.length - 2; i >= 50; i--) { 
+        const subCandles = candles.slice(0, i + 1);
+        const subHigherTfCandles = {
+          candles4h: higherTfCandles.candles4h.slice(0, i + 1),
+          candles1d: higherTfCandles.candles1d.slice(0, i + 1)
+        };
+
+        const subMetrics = calculateMetrics(subCandles, timeframe);
+        if (subMetrics) {
+          const metrics4h = calculateMetrics(subHigherTfCandles.candles4h, '4h');
+          const metrics1d = calculateMetrics(subHigherTfCandles.candles1d, '1d');
+
+          const isBullish4h = metrics4h && metrics4h.ema5 > metrics4h.ema10 && metrics4h.ema10 > metrics4h.ema20;
+          const isBullish1d = metrics1d && metrics1d.ema5 > metrics1d.ema10 && metrics1d.ema10 > metrics1d.ema20;
+          const isBearish4h = metrics4h && metrics4h.ema5 < metrics4h.ema10 && metrics4h.ema10 < metrics4h.ema20;
+          const isBearish1d = metrics1d && metrics1d.ema5 < metrics1d.ema10 && metrics1d.ema10 < metrics1d.ema20;
+    
+          let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
+          if (isBullish4h || isBullish1d) {
+            higherTimeframeConfirmation = 'bullish';
+          } else if (isBearish4h || isBearish1d) {
+            higherTimeframeConfirmation = 'bearish';
+          } else {
+            higherTimeframeConfirmation = 'neutral';
+          }
+
+          const { type } = checkSignal(subMetrics, higherTimeframeConfirmation);
+
+          if (type === signal.type) {
+            signalCandleIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (signalCandleIndex !== -1) {
+        totalSignals++;
+        const entryPrice = candles[signalCandleIndex].close;
+        const tpPercentage = 0.005;
+        const slPercentage = 0.005;
+
+        const result = runBacktest(
+          candles,
+          signal.type,
+          entryPrice,
+          tpPercentage,
+          slPercentage,
+          candles[signalCandleIndex].openTime,
+          timeframe
+        );
+
+        if (result === 'TP Hit') {
+          tpHits++;
+        } else if (result === 'SL Hit') {
+          slHits++;
+        }
+      }
+    }
+    
+    const winRate = totalSignals > 0 ? (tpHits / (tpHits + slHits)) * 100 : 0;
+    const finalResult = `Overall Backtest Result (0.5% TP vs 0.5% SL): ${winRate.toFixed(2)}% TP Hit Rate from ${tpHits + slHits} signals tested.`;
+    setOverallBacktestResult(finalResult);
+    setIsOverallBacktesting(false);
+  };
+
+
   const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
     const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
     
@@ -847,6 +930,11 @@ Flag Signal Dashboard
           <p className="text-gray-500 text-sm mt-2">
             Last updated: {new Date(lastUpdated).toLocaleTimeString()} | Next refresh in: {formatTime(countdown)}
           </p>
+          {overallBacktestResult && (
+            <div className="mt-4 p-4 rounded-lg bg-green-900 text-green-200">
+              <p className="font-semibold">{overallBacktestResult}</p>
+            </div>
+          )}
         </header>
 
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
@@ -899,9 +987,15 @@ Flag Signal Dashboard
             )}
           </div>
 
-          {/* Debug button */}
-          <div className="ml-2">
-  
+          {/* Debug and Overall Backtest buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleOverallBacktest}
+              className={`bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${isOverallBacktesting ? 'bg-blue-800 cursor-not-allowed' : 'hover:bg-blue-500'}`}
+              disabled={isOverallBacktesting}
+            >
+              {isOverallBacktesting ? 'Backtesting...' : 'Run Overall Backtest'}
+            </button>
             <button
               onClick={handleDebugConsole}
               className="bg-gray-800 text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-700 transition"
