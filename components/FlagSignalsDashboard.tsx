@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+
 // Use this for clipboard functionality
 const copyToClipboard = (text: string) => {
   const el = document.createElement('textarea');
@@ -44,6 +45,12 @@ interface Metrics {
   };
 }
 
+interface CombinedSignal {
+  symbol: string;
+  type: 'bullish' | 'bearish' | null;
+  funding: 'positive' | 'negative' | null;
+}
+
 const getSessions = (timeframe: string, nowMillis: number) => {
   const tfMillis = getMillis(timeframe);
   let currentSessionStart;
@@ -69,8 +76,7 @@ const isDoji = (candle: Candle) => {
   return totalRange > 0 && (bodySize / totalRange) < 0.2;
 };
 
-const calculateMetrics = (candles: Candle[], timeframe: string): Metrics |
-null => {
+const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
   if (!candles || candles.length < 2) return null;
 
   const nowMillis = Date.now();
@@ -88,8 +94,7 @@ null => {
 
   const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
   const mainTrend = {
-    breakout: null as 'bullish' | 'bearish' |
-null,
+    breakout: null as 'bullish' | 'bearish' | null,
     isDojiAfterBreakout: false,
   };
 
@@ -186,36 +191,53 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
     .map((s) => s.symbol);
 };
 
-/**
- * Fetch funding rates for a chunk of symbols.
- * Returns an object mapping symbol -> number (fundingRate)
- * If a symbol is missing in the response or cannot be parsed, it will not be set in the returned object.
- */
-const fetchFundingRates = async (symbols: string[]) => {
-  const fundingData: Record<string, number> = {};
-  await Promise.all(symbols.map(async (symbol) => {
-    try {
-      const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`);
-      const json = await res.json();
-      // Debug log of raw response
-      console.debug('Funding raw response for', symbol, json);
-      if (json && Array.isArray(json) && json[0] && typeof json[0].fundingRate === 'string') {
-        fundingData[symbol] = parseFloat(json[0].fundingRate);
-      } else {
-        console.warn('Unexpected funding payload for', symbol, json);
-      }
-    } catch (err) {
-      console.error(`Funding fetch error for ${symbol}`, err);
-    }
-  }));
-  return fundingData;
-};
+// Configurable constants
+const FUNDING_BATCH_SIZE = 20;       // smaller batch size for safety
+const FUNDING_BATCH_DELAY_MS = 1500; // delay between batches to ease API load
+const FUNDING_FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes freshness
 
-interface CombinedSignal {
-    symbol: string;
-    type: 'bullish' | 'bearish' | null;
-    funding: 'positive' | 'negative' | null;
+// New async batch fetch helper with delay between chunks
+async function fetchFundingRatesBatched(
+  symbols: string[],
+  onProgress?: (updatedRates: Record<string, number>, now: number) => void
+) {
+  const fundingData: Record<string, number> = {};
+  for (let i = 0; i < symbols.length; i += FUNDING_BATCH_SIZE) {
+    const batch = symbols.slice(i, i + FUNDING_BATCH_SIZE);
+
+    // Fetch funding for this batch in parallel
+    const batchResults = await Promise.all(
+      batch.map(async (symbol) => {
+        try {
+          const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`);
+          const json = await res.json();
+          if (json && Array.isArray(json) && json[0] && typeof json[0].fundingRate === 'string') {
+            return { symbol, rate: parseFloat(json[0].fundingRate) };
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const now = Date.now();
+    // Update the fundingData and call progress callback with latest batch
+    batchResults.forEach(item => {
+      if (item) fundingData[item.symbol] = item.rate;
+    });
+
+    if (onProgress) onProgress(fundingData, now);
+
+    // Delay before next batch to avoid rate limits
+    if (i + FUNDING_BATCH_SIZE < symbols.length) {
+      await new Promise(r => setTimeout(r, FUNDING_BATCH_DELAY_MS));
+    }
+  }
+
+  return fundingData;
 }
+
 
 // Main component starts here
 const FlagSignalsDashboard: React.FC = () => {
@@ -232,6 +254,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const fetchIntervalRef = useRef<number | null>(null);
+
   // This function fetches the candle data for the given symbols
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
@@ -269,19 +292,6 @@ const FlagSignalsDashboard: React.FC = () => {
       });
       setSymbolsData(prevData => ({ ...prevData, ...newSymbolsData }));
       
-      // fetch funding for this batch and merge (we will also have a separate dedicated refresh)
-      const newFundingRates = await fetchFundingRates(symbolsToFetch);
-      // Build timestamps for those that succeeded
-      const now = Date.now();
-      setFundingRates(prevRates => ({ ...prevRates, ...newFundingRates }));
-      setFundingTimestamps(prev => {
-        const copy = { ...prev };
-        Object.keys(newFundingRates).forEach(sym => {
-          copy[sym] = now;
-        });
-        return copy;
-      });
-
       setLoading(false);
       setLastUpdated(Date.now());
     } catch (error) {
@@ -290,6 +300,7 @@ const FlagSignalsDashboard: React.FC = () => {
       setLoading(false);
     }
   };
+
   // Background refresh strategy for candles (unchanged logic, but funding has its own refresh below)
   useEffect(() => {
     let isMounted = true;
@@ -345,40 +356,53 @@ const FlagSignalsDashboard: React.FC = () => {
     };
   }, [timeframe]);
 
-  // DEDICATED funding refresh - refresh funding independently every minute
+
+  // DEDICATED funding refresh - now with batched fetching
   useEffect(() => {
     if (!allSymbols || allSymbols.length === 0) return;
-    let mounted = true;
 
-    const refreshFunding = async () => {
+    let mounted = true;
+    let ongoing = false;
+
+    const refreshFundingSafely = async () => {
+      if (ongoing || !mounted) return; // prevent overlapping refreshes
+      ongoing = true;
+
       try {
-        // chunk requests to avoid too many parallel requests
-        const BATCH = 50;
-        for (let i = 0; i < allSymbols.length; i += BATCH) {
-          const chunk = allSymbols.slice(i, i + BATCH);
-          const rates = await fetchFundingRates(chunk);
+        await fetchFundingRatesBatched(allSymbols, (partialRates, now) => {
           if (!mounted) return;
-          const now = Date.now();
-          // Merge the results and update timestamps for those returned
-          setFundingRates(prev => ({ ...prev, ...rates }));
+          setFundingRates(prev => ({ ...prev, ...partialRates }));
           setFundingTimestamps(prev => {
             const copy = { ...prev };
-            Object.keys(rates).forEach(sym => (copy[sym] = now));
+            Object.keys(partialRates).forEach(sym => {
+              copy[sym] = now;
+            });
             return copy;
           });
-        }
-      } catch (err) {
-        console.error('Funding refresh error', err);
+        });
+      } catch (e) {
+        console.error('Funding refresh error', e);
+      } finally {
+        ongoing = false;
       }
     };
 
-    // initial immediate refresh then interval
-    refreshFunding();
-    const iv = window.setInterval(refreshFunding, 60_000);
-    return () => { mounted = false; clearInterval(iv); };
+    refreshFundingSafely();
+
+    const intervalId = window.setInterval(() => {
+      refreshFundingSafely();
+    }, 60_000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
   }, [allSymbols]);
 
+
   const flaggedSymbolsWithFunding = useMemo(() => {
+    const now = Date.now();
+
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
 
@@ -386,11 +410,14 @@ const FlagSignalsDashboard: React.FC = () => {
       const isBull = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isBear = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
 
-      // Use hasOwnProperty to detect whether we actually have a funding rate for this symbol.
-      const fundingRate = Object.prototype.hasOwnProperty.call(fundingRates, symbol) ? fundingRates[symbol] : null;
+      // Funding rate & timestamp
+      const fundingRate = fundingRates[symbol] ?? null;
+      const ts = fundingTimestamps[symbol] ?? 0;
+      const age = now - ts;
+      const isFundingFresh = ts !== 0 && age < FUNDING_FRESHNESS_THRESHOLD_MS;
 
       let fundingBias: 'positive' | 'negative' | null = null;
-      if (fundingRate !== null && typeof fundingRate === 'number') {
+      if (isFundingFresh && fundingRate !== null && typeof fundingRate === 'number') {
         if (fundingRate > 0) fundingBias = 'positive';
         else if (fundingRate < 0) fundingBias = 'negative';
       }
@@ -399,22 +426,17 @@ const FlagSignalsDashboard: React.FC = () => {
         symbol,
         type: isBull ? 'bullish' : isBear ? 'bearish' : null,
         funding: fundingBias,
-      } as CombinedSignal;
-    }).filter(Boolean) as CombinedSignal[];
-  }, [symbolsData, fundingRates]);
+        fundingFresh: isFundingFresh,
+      } as CombinedSignal & { fundingFresh: boolean };
+    }).filter(Boolean) as (CombinedSignal & { fundingFresh: boolean })[];
+  }, [symbolsData, fundingRates, fundingTimestamps]);
 
-  const bullishBreakoutSymbols = useMemo(() => {
-    return Object.keys(symbolsData).filter(symbol => {
-      const s = symbolsData[symbol]?.metrics;
-      return s && s.mainTrend && s.mainTrend.breakout === 'bullish';
-    });
-  }, [symbolsData]);
-  const bearishBreakoutSymbols = useMemo(() => {
-    return Object.keys(symbolsData).filter(symbol => {
-      const s = symbolsData[symbol]?.metrics;
-      return s && s.mainTrend && s.mainTrend.breakout === 'bearish';
-    });
-  }, [symbolsData]);
+
+  const strongBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bullish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+  const weakBullSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bullish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const strongBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bearish' && s.funding === 'positive'), [flaggedSymbolsWithFunding]);
+  const weakBearSignals = useMemo(() => flaggedSymbolsWithFunding.filter((s) => s.type === 'bearish' && s.funding === 'negative'), [flaggedSymbolsWithFunding]);
+
   // Helper function to filter the symbol lists based on the search term
   const filterSymbols = (symbols: string[]) => {
     return symbols.filter(symbol =>
@@ -428,7 +450,7 @@ const FlagSignalsDashboard: React.FC = () => {
       signal.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
-  
+
   const renderSymbolsList = (title: string, symbols: string[], color: string) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
@@ -456,9 +478,8 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
       </div>
     </div>
   );
-
-  const TWO_MIN_MS = 2 * 60 * 1000;
-  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => (
+  
+  const renderCombinedSignalsList = (title: string, data: (CombinedSignal & { fundingFresh: boolean })[]) => (
     <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
@@ -479,10 +500,7 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           data.map((item: any) => {
             const fundingKnown = Object.prototype.hasOwnProperty.call(fundingRates, item.symbol);
             const fundingValue = fundingKnown ? fundingRates[item.symbol] : null;
-            const ts = fundingTimestamps[item.symbol] ?? 0;
-            const age = ts ? Date.now() - ts : Infinity;
-            const isStale = ts === 0 || age > TWO_MIN_MS;
-
+            
             // color mapping (kept from original but will be accurate with fundingBias)
             const bgClass =
               item.type === 'bullish' && item.funding === 'negative' ? 'bg-green-600' :
@@ -509,13 +527,11 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Stale badge */}
-                    {!fundingKnown ? (
-                      <span className="text-xs bg-gray-700 text-gray-200 px-2 py-1 rounded">n/a</span>
-                    ) : isStale ? (
-                      <span className="text-xs bg-yellow-700 text-white px-2 py-1 rounded">stale</span>
-                    ) : (
+                    {/* Stale/Fresh badge */}
+                    {item.fundingFresh ? (
                       <span className="text-xs bg-green-700 text-white px-2 py-1 rounded">fresh</span>
+                    ) : (
+                      <span className="text-xs bg-yellow-700 text-white px-2 py-1 rounded">stale</span>
                     )}
                   </div>
                 </div>
@@ -705,12 +721,12 @@ fill="none" viewBox="0 0 24 24" stroke="currentColor">
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* BUYING GROUP */}
-              {renderCombinedSignalsList('Buying Positions — Strong Bull Setups', filterCombinedSignals(strongBullSignals as CombinedSignal[]))}
-              {renderCombinedSignalsList('Buying Positions — Bear Trap / Weakness', filterCombinedSignals(weakBearSignals as CombinedSignal[]))}
+              {renderCombinedSignalsList('Buying Positions — Strong Bull Setups', filterCombinedSignals(strongBullSignals))}
+              {renderCombinedSignalsList('Buying Positions — Bear Trap / Weakness', filterCombinedSignals(weakBearSignals))}
 
               {/* SELLING GROUP */}
-              {renderCombinedSignalsList('Selling Positions — Bull Trap Risk', filterCombinedSignals(weakBullSignals as CombinedSignal[]))}
-              {renderCombinedSignalsList('Selling Positions — Strong Bear Setups', filterCombinedSignals(strongBearSignals as CombinedSignal[]))}
+              {renderCombinedSignalsList('Selling Positions — Bull Trap Risk', filterCombinedSignals(weakBullSignals))}
+              {renderCombinedSignalsList('Selling Positions — Strong Bear Setups', filterCombinedSignals(strongBearSignals))}
             </div>
           )}
         </div>
