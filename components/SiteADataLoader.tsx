@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import FlagSignalsDashboard from './FlagSignalsDashboard';
 
 // --- Type Definitions ---
@@ -29,11 +29,6 @@ interface SignalData {
   prevClosedGreen: boolean | null;
   prevClosedRed: boolean | null;
   highestVolumeColorPrev: 'green' | 'red' | null;
-}
-
-interface FundingRate {
-    symbol: string;
-    rate: number;
 }
 
 // --- Utility Functions ---
@@ -195,7 +190,7 @@ export default function SiteADataLoader() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [fundingRates, setFundingRates] = useState<Record<string, FundingRate>>({});
+
   const getUTCMillis = (year: number, month: number, date: number, hour: number, minute: number): number => {
     return Date.UTC(year, month, date, hour, minute);
   };
@@ -211,8 +206,10 @@ export default function SiteADataLoader() {
 
       const getUTCMillisFor1d = (y: number, m: number, d: number, hPH: number, min: number) =>
         Date.UTC(y, m, d, hPH - 8, min);
+
       const today8AM_UTC = getUTCMillisFor1d(year, month, date, 8, 0);
       const tomorrow745AM_UTC = getUTCMillisFor1d(year, month, date + 1, 7, 45);
+
       let sessionStart: number, sessionEnd: number;
       if (now.getTime() >= today8AM_UTC) {
         sessionStart = today8AM_UTC;
@@ -285,25 +282,6 @@ export default function SiteADataLoader() {
     return null;
   };
 
-  const fetchFundingRates = async () => {
-    try {
-      const data = await fetchWithRetry('https://fapi.binance.com/fapi/v1/premiumIndex');
-      if (data) {
-        const rates = data.reduce((acc: Record<string, FundingRate>, item: any) => {
-          acc[item.symbol] = {
-            symbol: item.symbol,
-            rate: parseFloat(item.lastFundingRate)
-          };
-          return acc;
-        }, {});
-        setFundingRates(rates);
-      }
-    } catch (error) {
-      console.error("Error fetching funding rates:", error);
-    }
-  };
-
-
   useEffect(() => {
     let isMounted = true;
     const BATCH_SIZE = 10;
@@ -318,7 +296,6 @@ export default function SiteADataLoader() {
 
       if (raw === null) {
         return null;
-   
       }
 
       const candles: Candle[] = raw.map((c: any[]) => ({
@@ -329,8 +306,7 @@ export default function SiteADataLoader() {
         close: +c[4],
         volume: +c[5],
       }));
-      const closes: number[] = candles.map((c: 
-      Candle) => c.close);
+      const closes: number[] = candles.map((c: Candle) => c.close);
       const opens: number[] = candles.map((c: Candle) => c.open);
       const highs: number[] = candles.map((c: Candle) => c.high);
       const lows: number[] = candles.map((c: Candle) => c.low);
@@ -350,29 +326,26 @@ export default function SiteADataLoader() {
       const candlesCurrentSession = candles.filter((c: Candle) => c.timestamp >= sessionStart && c.timestamp <= sessionEnd);
       const candlesPrevSession = candles.filter((c: Candle) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
 
-      let highestVolumeColorPrev: 'green' | 'red' |
-      null = null;
+      let highestVolumeColorPrev: 'green' | 'red' | null = null;
       if (candlesPrevSession.length > 0) {
         let maxVolume = -1;
-      let highestVolumeCandle: Candle | null = null;
+        let highestVolumeCandle: Candle | null = null;
         for (const candle of candlesPrevSession) {
           if (candle.volume > maxVolume) {
             maxVolume = candle.volume;
-      highestVolumeCandle = candle;
+            highestVolumeCandle = candle;
           }
         }
         if (highestVolumeCandle) {
-          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ?
-      'green' : 'red';
+          highestVolumeColorPrev = highestVolumeCandle.close > highestVolumeCandle.open ? 'green' : 'red';
         }
       }
 
-      let prevClosedGreen: boolean |
-      null = null;
+      let prevClosedGreen: boolean | null = null;
       let prevClosedRed: boolean | null = null;
       if (candles.length >= 2) {
         const prevCandle = candles[candles.length - 2];
-      prevClosedGreen = prevCandle.close > prevCandle.open;
+        prevClosedGreen = prevCandle.close > prevCandle.open;
         prevClosedRed = prevCandle.close < prevCandle.open;
       }
 
@@ -390,22 +363,18 @@ export default function SiteADataLoader() {
       if (lastEma70Full !== undefined && lastEma200Full !== undefined) {
         if (lastEma70Full > lastEma200Full) {
           mainTrend.trend = 'bullish';
-      mainTrend.type = 'support';
+          mainTrend.type = 'support';
         } else if (lastEma70Full < lastEma200Full) {
           mainTrend.trend = 'bearish';
-      mainTrend.type = 'resistance';
+          mainTrend.type = 'resistance';
         }
       }
 
-      const todaysHighestHigh = candlesCurrentSession.length > 0 ?
-      candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const todaysLowestLow = candlesCurrentSession.length > 0 ?
-      candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const todaysHighestHigh = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const todaysLowestLow = candlesCurrentSession.length > 0 ? candlesCurrentSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
-      const prevSessionHigh = candlesPrevSession.length > 0 ?
-      candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
-      const prevSessionLow = candlesPrevSession.length > 0 ?
-      candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
+      const prevSessionHigh = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((max, c) => Math.max(max, c.high), -Infinity) : null;
+      const prevSessionLow = candlesPrevSession.length > 0 ? candlesPrevSession.reduce((min, c) => Math.min(min, c.low), Infinity) : null;
 
       const bullishBreakout = todaysHighestHigh !== null && prevSessionHigh !== null && todaysHighestHigh > prevSessionHigh;
       const bearishBreakout = todaysLowestLow !== null && prevSessionLow !== null && todaysLowestLow < prevSessionLow;
@@ -417,11 +386,11 @@ export default function SiteADataLoader() {
 
       if (mainTrend.breakout && candlesCurrentSession.length > 0) {
         const lastCandleCurrentSession = candlesCurrentSession[candlesCurrentSession.length - 1];
-      const bodySize = Math.abs(lastCandleCurrentSession.close - lastCandleCurrentSession.open);
+        const bodySize = Math.abs(lastCandleCurrentSession.close - lastCandleCurrentSession.open);
         const totalRange = lastCandleCurrentSession.high - lastCandleCurrentSession.low;
-      if (totalRange > 0 && bodySize / totalRange < 0.2) {
+        if (totalRange > 0 && bodySize / totalRange < 0.2) {
           mainTrend.isDojiAfterBreakout = true;
-      }
+        }
       }
 
       return {
@@ -434,28 +403,28 @@ export default function SiteADataLoader() {
         prevClosedRed,
         highestVolumeColorPrev,
       };
-      };
+    };
 
     const processBatch = async () => {
       if (!isMounted) return;
       if (symbols.length === 0) {
         try {
           const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
-      if (exchangeInfo === null) {
+          if (exchangeInfo === null) {
             console.error('Failed to fetch exchange info, cannot proceed.');
-      setLoading(false);
+            setLoading(false);
             return;
           }
           if (exchangeInfo && Array.isArray(exchangeInfo.symbols)) {
             symbols = exchangeInfo.symbols.map((s: { symbol: string }) => s.symbol).filter((s: string) => s.endsWith('USDT'));
-      } else {
+          } else {
             console.error('Exchange info did not contain a valid symbols array:', exchangeInfo);
-      setLoading(false);
+            setLoading(false);
             return;
           }
         } catch (error) {
           console.error('Error fetching exchange info:', error);
-      setLoading(false);
+          setLoading(false);
           return;
         }
       }
@@ -466,12 +435,12 @@ export default function SiteADataLoader() {
       if (isMounted) {
         setSignals((prev) => [...prev, ...newSignals.filter(Boolean) as SignalData[]]);
         currentIndex += BATCH_SIZE;
-      setLastUpdated(new Date().toLocaleTimeString());
+        setLastUpdated(new Date().toLocaleTimeString());
         if (currentIndex < symbols.length) {
           setTimeout(processBatch, INTERVAL_MS);
-      } else {
+        } else {
           setLoading(false);
-      }
+        }
       }
     };
     setSignals([]);
@@ -479,53 +448,50 @@ export default function SiteADataLoader() {
     currentIndex = 0;
     symbols = [];
     setLastUpdated(null);
-      processBatch();
-    fetchFundingRates();
-    const interval = setInterval(fetchFundingRates, 300000); // Fetch every 5 minutes
+
+    processBatch();
     return () => {
       isMounted = false;
-      clearInterval(interval);
     };
   }, [timeframe]);
+
   const maxPumpZoneSignals = useMemo(() => {
     return signals.filter(s => getSignal(s) === 'MAX ZONE PUMP');
   }, [signals]);
   const bullFlagSymbols = useMemo(() => {
-    return signals.filter(s => {
-      if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
+  return signals.filter(s => {
+    if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
 
-      const signal = getSignal(s);
-      if (signal !== 'MAX ZONE PUMP') return false;
+    const signal = getSignal(s);
+    if (signal !== 'MAX ZONE PUMP') return false;
 
-      const ema5 = calculateEMA(s.closes, 5).at(-1);
-      const ema10 = calculateEMA(s.closes, 10).at(-1);
-      const ema20 = calculateEMA(s.closes, 20).at(-1);
-      const ema50 = calculateEMA(s.closes, 50).at(-1);
-      const rsi = s.rsi14.at(-1);
+    const ema5 = calculateEMA(s.closes, 5).at(-1);
+    const ema10 = calculateEMA(s.closes, 10).at(-1);
+    const ema20 = calculateEMA(s.closes, 20).at(-1);
+    const ema50 = calculateEMA(s.closes, 50).at(-1);
+    const rsi = s.rsi14.at(-1);
 
-      const isBullishEma = ema5! > ema10! && ema10! > ema20! && ema20! 
-      > ema50!;
-      return isBullishEma && rsi! > 50;
-    });
-  }, [signals]);
+    const isBullishEma = ema5! > ema10! && ema10! > ema20! && ema20! > ema50!;
+    return isBullishEma && rsi! > 50;
+  });
+}, [signals]);
   const bearFlagSymbols = useMemo(() => {
-    return signals.filter(s => {
-      if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
+  return signals.filter(s => {
+    if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 200) return false;
 
-      const signal = getSignal(s);
-      if (signal !== 'MAX ZONE DUMP') return false;
+    const signal = getSignal(s);
+    if (signal !== 'MAX ZONE DUMP') return false;
 
-      const ema5 = calculateEMA(s.closes, 5).at(-1);
-      const ema10 = calculateEMA(s.closes, 10).at(-1);
-      const ema20 = calculateEMA(s.closes, 20).at(-1);
-      const ema50 = calculateEMA(s.closes, 50).at(-1);
-      const rsi = s.rsi14.at(-1);
+    const ema5 = calculateEMA(s.closes, 5).at(-1);
+    const ema10 = calculateEMA(s.closes, 10).at(-1);
+    const ema20 = calculateEMA(s.closes, 20).at(-1);
+    const ema50 = calculateEMA(s.closes, 50).at(-1);
+    const rsi = s.rsi14.at(-1);
 
-      const isBearishEma = ema5! < ema10! && ema10! < ema20! && ema20! 
-      < ema50!;
-      return isBearishEma && rsi! < 50;
-    });
-  }, [signals]);
+    const isBearishEma = ema5! < ema10! && ema10! < ema20! && ema20! < ema50!;
+    return isBearishEma && rsi! < 50;
+  });
+}, [signals]);
   const marketStats = useMemo(() => {
     const greenPriceChangeCount = signals.filter(
       (t) => parseFloat(String(t.priceChangePercent)) > 0
@@ -544,8 +510,7 @@ export default function SiteADataLoader() {
     ).length;
 
     const bullishTrendCount = signals.filter(
-    
-    (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
+        (s) => s.mainTrend && s.mainTrend.trend === 'bullish'
     ).length;
 
     const bearishTrendCount = signals.filter(
@@ -561,261 +526,221 @@ export default function SiteADataLoader() {
       redVolumeCount,
       bullishTrendCount,
       bearishTrendCount,
-  
       bullFlagCount,
       bearFlagCount,
     };
   }, [signals, bullFlagSymbols, bearFlagSymbols]);
+
+
   return (
-    <>
-      <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-purple-400 mb-6 text-center">
-            Crypto Signals Dashboard 🚀
-          </h1>
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-purple-400 mb-6 text-center">
+          Crypto Signals Dashboard 🚀
+        </h1>
 
-          <div className="flex justify-center mb-6 space-x-4">
-            {['15m', '4h', '1d'].map((tf) => (
-              <button
-           
+        <div className="flex justify-center mb-6 space-x-4">
+          {['15m', '4h', '1d'].map((tf) => (
+            <button
               key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200
-                  ${timeframe === tf
-                    ? 'bg-purple-600 text-white shadow-lg'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-              >
-                {tf.toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          {lastUpdated && (
-            <p className="text-center text-sm text-gray-400 mb-4">
-      
-              Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
-              </p>
-          )}
-
-          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
-              <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
-                  Market Overview
-              </h2>
-   
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
-                  <div className="p-3 bg-gray-700 rounded-lg">
-                      <p className="text-sm text-gray-400">Green Price Change</p>
-                      <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
-                  </div>
-   
-                  <div className="p-3 bg-gray-700 rounded-lg">
-                      <p className="text-sm text-gray-400">Red Price Change</p>
-                      <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
-                  </div>
-                  <div className="p-3 bg-gray-700 
-        rounded-lg">
-                      <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
-                      <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
-                  </div>
-                  <div className="p-3 bg-gray-700 rounded-lg">
-                   
-        <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
-                      <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
-                  </div>
-                  <div className="p-3 bg-gray-700 rounded-lg">
-                      <p className="text-sm text-gray-400">Bullish Trend</p>
-             
-            <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
-                  </div>
-                  <div className="p-3 bg-gray-700 rounded-lg">
-                      <p className="text-sm text-gray-400">Bearish Trend</p>
-                      <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
-         
-            </div>
-    <>
-      <div className="p-3 bg-gray-700 rounded-lg">
-        <p className="text-sm text-gray-400">Bull Flag</p>
-        <p className="text-lg font-semibold text-blue-400">{marketStats.bullFlagCount}</p>
-      </div>
-      <div className="p-3 bg-gray-700 rounded-lg">
-        <p className="text-sm text-gray-400">Bear Flag</p>
-        <p className="text-lg font-semibold text-orange-400">{marketStats.bearFlagCount}</p>
-      </div>
-    </>
-              </div>
-          </div>
-
-          {loading 
-        && (
-            <div className="text-center text-lg text-gray-400 mt-10">
-              Loading signals... This might take a moment.
-        ⏳
-            </div>
-          )}
-
-          {!loading && bullFlagSymbols.length > 0 && (
-            <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
-              <h2 className="text-2xl sm:text-3xl font-bold text-blue-300 mb-5 text-center">
-                Bull Flag Signals ({bullFlagSymbols.length})
-              </h2>
-     
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-700">
-                  <thead className="bg-gray-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
-            
-             <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
-                    </tr>
-                  </thead>
-                  <tbody 
-        className="divide-y divide-gray-700">
-                    {bullFlagSymbols.map((s) => (
-                      <tr key={s.symbol}>
-                        <td className="px-4 py-4 text-blue-200 font-medium">{s.symbol}</td>
-                        <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
-        'N/A'}</td>
-                        <td className="px-4 py-4">
-                          <span className={`font-semibold ${s.priceChangePercent > 0 ?
-        'text-green-400' : 'text-red-400'}`}>
-                            {s.priceChangePercent?.toFixed(2) ||
-        'N/A'}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  
-        </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {!loading && bearFlagSymbols.length > 0 && (
-            <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-orange-700">
-              <h2 className="text-2xl sm:text-3xl font-bold text-orange-300 mb-5 text-center">
-        
-              Bear Flag Signals ({bearFlagSymbols.length})
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-700">
-                  <thead className="bg-gray-700">
-                    <tr>
-              
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
-                    </tr>
-         
-            </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {bearFlagSymbols.map((s) => (
-                      <tr key={s.symbol}>
-                        <td className="px-4 py-4 text-orange-200 font-medium">{s.symbol}</td>
-        
-                        <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
-        'N/A'}</td>
-                        <td className="px-4 py-4">
-                          <span className={`font-semibold ${s.priceChangePercent > 0 ?
-        'text-green-400' : 'text-red-400'}`}>
-                            {s.priceChangePercent?.toFixed(2) ||
-        'N/A'}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  
-        </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-
-          {!loading && maxPumpZoneSignals.length === 0 && (
-            <div className="text-center text-lg text-gray-400 mt-10">
-              No "MAX ZONE PUMP" signals found for the selected timeframe.
-         
-            </div>
-          )}
-
-          {!loading && maxPumpZoneSignals.length > 0 && (
-            <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
-              <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
-                MAX ZONE PUMP Signals ({maxPumpZoneSignals.length})
-              </h2>
-           
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-700">
-                  <thead className="bg-gray-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
-                 
-                  Symbol
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                       Current Price
-                      </th>
-     
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        24h Change (%)
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-     
-                      RSI Pump Strength
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
-                        Prev Session Volume
-        
-                  </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                      {maxPumpZoneSignals.map((s) => {
-              
-                      const pumpDump = getRecentRSIDiff(s.rsi14, 14);
-                      const currentPrice = s.closes ?
-        s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
-                      return (
-                        <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-200">
-                            {s.symbol}
-              
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${currentPrice}
-                          </td>
-           
-                          <td className="px-4 py-4 whitespace-nowrap text-sm">
-                            <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {s.priceChangePercent?.toFixed(2) || 'N/A'}%
-                   
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
-                            {pumpDump?.pumpStrength?.toFixed(2) || 'N/A'}
-            
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm">
-                            <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ?
-        'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
-                              {s.highestVolumeColorPrev ?
-        s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-        })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+              onClick={() => setTimeframe(tf)}
+              className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200
+                ${timeframe === tf
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+            >
+              {tf.toUpperCase()}
+            </button>
+          ))}
         </div>
+
+        {lastUpdated && (
+          <p className="text-center text-sm text-gray-400 mb-4">
+                Last updated: <span className="font-medium text-gray-200">{lastUpdated}</span>
+            </p>
+        )}
+
+        <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
+            <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">
+                Market Overview
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Green Price Change</p>
+                    <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Red Price Change</p>
+                    <p className="text-lg font-semibold text-red-400">{marketStats.redPriceChangeCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
+                    <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
+                    <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Bullish Trend</p>
+                    <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
+                </div>
+                <div className="p-3 bg-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-400">Bearish Trend</p>
+                    <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
+                </div>
+  <>
+    <div className="p-3 bg-gray-700 rounded-lg">
+      <p className="text-sm text-gray-400">Bull Flag</p>
+      <p className="text-lg font-semibold text-blue-400">{marketStats.bullFlagCount}</p>
+    </div>
+    <div className="p-3 bg-gray-700 rounded-lg">
+      <p className="text-sm text-gray-400">Bear Flag</p>
+      <p className="text-lg font-semibold text-orange-400">{marketStats.bearFlagCount}</p>
+    </div>
+  </>
+            </div>
+        </div>
+
+        {loading && (
+          <div className="text-center text-lg text-gray-400 mt-10">
+            Loading signals... This might take a moment. ⏳
+          </div>
+        )}
+
+        {!loading && bullFlagSymbols.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-blue-300 mb-5 text-center">
+              Bull Flag Signals ({bullFlagSymbols.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {bullFlagSymbols.map((s) => (
+                    <tr key={s.symbol}>
+                      <td className="px-4 py-4 text-blue-200 font-medium">{s.symbol}</td>
+                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) || 'N/A'}</td>
+                      <td className="px-4 py-4">
+                        <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {!loading && bearFlagSymbols.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-orange-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-orange-300 mb-5 text-center">
+              Bear Flag Signals ({bearFlagSymbols.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {bearFlagSymbols.map((s) => (
+                    <tr key={s.symbol}>
+                      <td className="px-4 py-4 text-orange-200 font-medium">{s.symbol}</td>
+                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) || 'N/A'}</td>
+                      <td className="px-4 py-4">
+                        <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+
+        {!loading && maxPumpZoneSignals.length === 0 && (
+          <div className="text-center text-lg text-gray-400 mt-10">
+            No "MAX ZONE PUMP" signals found for the selected timeframe.
+          </div>
+        )}
+
+        {!loading && maxPumpZoneSignals.length > 0 && (
+          <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-purple-700">
+            <h2 className="text-2xl sm:text-3xl font-bold text-purple-300 mb-5 text-center">
+              MAX ZONE PUMP Signals ({maxPumpZoneSignals.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                      Symbol
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                     Current Price
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      24h Change (%)
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      RSI Pump Strength
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                      Prev Session Volume
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                    {maxPumpZoneSignals.map((s) => {
+                    const pumpDump = getRecentRSIDiff(s.rsi14, 14);
+                    const currentPrice = s.closes ? s.closes[s.closes.length - 1]?.toFixed(2) : 'N/A';
+                    return (
+                      <tr key={s.symbol} className="hover:bg-gray-750 transition-colors duration-150">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-200">
+                          {s.symbol}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                          ${currentPrice}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          <span className={`font-semibold ${s.priceChangePercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {s.priceChangePercent?.toFixed(2) || 'N/A'}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+                          {pumpDump?.pumpStrength?.toFixed(2) || 'N/A'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          <span className={`font-semibold ${s.highestVolumeColorPrev === 'green' ? 'text-green-400' : s.highestVolumeColorPrev === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
+                            {s.highestVolumeColorPrev ? s.highestVolumeColorPrev.toUpperCase() : 'N/A'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+})}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
-      <FlagSignalsDashboard fundingRates={fundingRates} />
-    </>
+         <FlagSignalsDashboard />
+    </div>
   );
 }
