@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import {
   LineChart,
@@ -164,7 +164,6 @@ const renderCombinedSignalsList = (title: string, signals: FlaggedSymbol[]) => (
 );
 
 
-// This is the updated component signature
 const FlagSignalsDashboard = ({ fundingRates }: { fundingRates: any }) => {
   const [timeframe, setTimeframe] = useState('15m');
   const [symbols, setSymbols] = useState<string[]>([]);
