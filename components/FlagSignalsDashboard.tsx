@@ -47,6 +47,7 @@ interface Metrics {
   macdSignal: number;
   macdHistogram: number;
   volumeConfirmation: 'bullish' | 'bearish' | null;
+  adx: number; // New metric for ADX
 }
 
 type SignalStrength = 'Strong' | 'Medium' | 'Weak' | null;
@@ -152,6 +153,78 @@ const getRSI = (candles: Candle[], period = 14) => {
     return rsi;
   };
 
+// New function to calculate ADX
+const getADX = (candles: Candle[], period = 14) => {
+    if (candles.length <= period) {
+        return 0;
+    }
+
+    let upMoves: number[] = [];
+    let downMoves: number[] = [];
+
+    for (let i = 1; i < candles.length; i++) {
+        const upMove = candles[i].high - candles[i - 1].high;
+        const downMove = candles[i - 1].low - candles[i].low;
+        upMoves.push(upMove > 0 && upMove > downMove ? upMove : 0);
+        downMoves.push(downMove > 0 && downMove > upMove ? downMove : 0);
+    }
+
+    let atrValues: number[] = [];
+    let trValues: number[] = [];
+    for (let i = 1; i < candles.length; i++) {
+        const tr1 = candles[i].high - candles[i].low;
+        const tr2 = Math.abs(candles[i].high - candles[i - 1].close);
+        const tr3 = Math.abs(candles[i].low - candles[i - 1].close);
+        trValues.push(Math.max(tr1, tr2, tr3));
+    }
+
+    // Calculate ATR (Average True Range)
+    let sumATR = trValues.slice(0, period).reduce((sum, val) => sum + val, 0);
+    atrValues.push(sumATR / period);
+    for (let i = period; i < trValues.length; i++) {
+        const newATR = (atrValues[i - period] * (period - 1) + trValues[i]) / period;
+        atrValues.push(newATR);
+    }
+    
+    // Calculate Smoothed Up/Down Moves
+    let sumUp = upMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
+    let sumDown = downMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
+    
+    let plusDIValues: number[] = [];
+    let minusDIValues: number[] = [];
+
+    plusDIValues.push((sumUp / atrValues[0]) * 100);
+    minusDIValues.push((sumDown / atrValues[0]) * 100);
+
+    for (let i = period; i < upMoves.length; i++) {
+        const plusDI = (plusDIValues[i - period] * (period - 1) + upMoves[i]) / atrValues[i];
+        const minusDI = (minusDIValues[i - period] * (period - 1) + downMoves[i]) / atrValues[i];
+        plusDIValues.push((plusDI * 100));
+        minusDIValues.push((minusDI * 100));
+    }
+    
+    // Calculate DX
+    let dxValues: number[] = [];
+    for (let i = 0; i < plusDIValues.length; i++) {
+        const sumDI = plusDIValues[i] + minusDIValues[i];
+        const dx = sumDI === 0 ? 0 : (Math.abs(plusDIValues[i] - minusDIValues[i]) / sumDI) * 100;
+        dxValues.push(dx);
+    }
+
+    // Calculate ADX (Smoothed DX)
+    if (dxValues.length === 0) return 0;
+    
+    let sumADX = dxValues.slice(0, period).reduce((sum, val) => sum + val, 0);
+    let adxValue = sumADX / period;
+    
+    for (let i = period; i < dxValues.length; i++) {
+        adxValue = (adxValue * (period - 1) + dxValues[i]) / period;
+    }
+
+    return adxValue;
+};
+
+
 const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
   if (!candles || candles.length < 50) return null;
   const nowMillis = Date.now();
@@ -206,6 +279,8 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
       }
   }
 
+  const adx = getADX(candles, 14);
+
   return {
     price: lastCandle.close,
     prevSessionHigh,
@@ -222,6 +297,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
     macdSignal,
     macdHistogram,
     volumeConfirmation,
+    adx,
   };
 };
 
@@ -351,7 +427,7 @@ const FlagSignalsDashboard: React.FC = () => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
 
-      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation } = metrics;
+      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx } = metrics;
       
       const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
@@ -364,23 +440,27 @@ const FlagSignalsDashboard: React.FC = () => {
       let type: 'bullish' | 'bearish' | null = null;
       let strength: SignalStrength = null;
 
+      // Define ADX thresholds
+      const isStrongTrend = adx > 25;
+      const isMediumTrend = adx >= 20 && adx <= 25;
+
       // Check for Strong Bullish Signal
-      if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation) {
+      if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend) {
         type = 'bullish';
         strength = 'Strong';
       } 
       // Check for Strong Bearish Signal
-      else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation) {
+      else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend) {
         type = 'bearish';
         strength = 'Strong';
       }
       // Check for Medium Bullish Signal
-      else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation)) {
+      else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend) {
         type = 'bullish';
         strength = 'Medium';
       }
       // Check for Medium Bearish Signal
-      else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation)) {
+      else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend) {
         type = 'bearish';
         strength = 'Medium';
       }
