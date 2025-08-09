@@ -14,8 +14,6 @@ const getMillis = (timeframe: string) => {
   switch (timeframe) {
     case '15m': return 15 * 60 * 1000;
     case '4h': return 4 * 60 * 60 * 1000;
-    // Added 12h timeframe support
-    case '12h': return 12 * 60 * 60 * 1000;
     case '1d': return 24 * 60 * 60 * 1000;
     default: return 15 * 60 * 60 * 1000;
   }
@@ -50,7 +48,7 @@ interface Metrics {
   macdHistogram: number;
   volumeConfirmation: 'bullish' | 'bearish' | null;
   adx: number;
-  atr: number;
+  atr: number; // New metric for ATR
 }
 
 type SignalStrength = 'Strong' | 'Medium' | 'Weak' | null;
@@ -259,7 +257,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   const prevSessionLow = Math.min(...prevSessionCandles.map(c => c.low));
 
   const todaysHighestHigh = Math.max(...currentSessionCandles.map(c => c.high));
-  const todaysLowestLow = Math.min(...currentSessionCandles.map(c.low));
+  const todaysLowestLow = Math.min(...currentSessionCandles.map(c => c.low));
 
   const lastCandle = currentSessionCandles[currentSessionCandles.length - 1];
   const mainTrend = {
@@ -329,225 +327,16 @@ interface BinanceSymbol {
   symbol: string;
   contractType: string;
   quoteAsset: string;
-  status: string;
 }
 
 const fetchFuturesSymbols = async (): Promise<string[]> => {
   const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
   const data: { symbols: BinanceSymbol[] } = await res.json();
-  // Filter out any symbols that might be delisted
+
   return data.symbols
-    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING')
+    .filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
     .map((s) => s.symbol);
 };
-
-// Backtesting functionality
-type BacktestResult = 'TP Hit' | 'SL Hit' | 'No Result';
-
-const runBacktest = (
-  candles: Candle[],
-  signalType: 'bullish' | 'bearish',
-  entryPrice: number,
-  tp: number,
-  sl: number,
-  signalTimestamp: number,
-  timeframe: string
-): BacktestResult => {
-  const signalIndex = candles.findIndex(c => c.openTime === signalTimestamp);
-  if (signalIndex === -1) return 'No Result';
-
-  // Backtest from the candle after the signal candle
-  const startIndex = signalIndex + 1;
-
-  for (let i = startIndex; i < candles.length; i++) {
-    const candle = candles[i];
-    const high = candle.high;
-    const low = candle.low;
-
-    if (signalType === 'bullish') {
-      const tpPrice = entryPrice * (1 + tp);
-      const slPrice = entryPrice * (1 - sl);
-
-      if (high >= tpPrice) {
-        return 'TP Hit';
-      }
-      if (low <= slPrice) {
-        return 'SL Hit';
-      }
-    } else if (signalType === 'bearish') {
-      const tpPrice = entryPrice * (1 - tp);
-      const slPrice = entryPrice * (1 + sl);
-
-      if (low <= tpPrice) {
-        return 'TP Hit';
-      }
-      if (high >= slPrice) {
-        return 'SL Hit';
-      }
-    }
-  }
-
-  return 'No Result';
-};
-
-const checkSignal = (metrics: Metrics, higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null): { type: 'bullish' | 'bearish' | null, strength: SignalStrength } => {
-  const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = metrics;
-  
-  const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
-  const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
-  
-  const macdBullishConfirmation = macdLine > macdSignal;
-  const macdBearishConfirmation = macdLine < macdSignal;
-  const volumeBullishConfirmation = volumeConfirmation === 'bullish';
-  const volumeBearishConfirmation = volumeConfirmation === 'bearish';
-
-  const isStrongTrend = adx > 25;
-  const isMediumTrend = adx >= 20 && adx <= 25;
-  const isHighVolatility = atr > 0.005;
-
-  let type: 'bullish' | 'bearish' | null = null;
-  let strength: SignalStrength = null;
-
-  if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bullish') {
-    type = 'bullish';
-    strength = 'Strong';
-  } 
-  else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bearish') {
-    type = 'bearish';
-    strength = 'Strong';
-  }
-  else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bearish') {
-    type = 'bullish';
-    strength = 'Medium';
-  }
-  else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bullish') {
-    type = 'bearish';
-    strength = 'Medium';
-  }
-  else if (isEmaBullish && higherTimeframeConfirmation !== 'bearish') {
-    type = 'bullish';
-    strength = 'Weak';
-  }
-  else if (isEmaBearish && higherTimeframeConfirmation !== 'bullish') {
-    type = 'bearish';
-    strength = 'Weak';
-  }
-  
-  return { type, strength };
-};
-
-// New component for rendering the signal list to make the code cleaner and more modular.
-interface SignalListProps {
-  title: string;
-  data: CombinedSignal[];
-  sortOrder: 'desc' | 'asc';
-  onSortToggle: () => void;
-  onBacktest: (symbol: string, type: 'bullish' | 'bearish') => void;
-  backtestResults: Record<string, BacktestResult | null>;
-  backtesting: boolean;
-}
-
-const SignalList: React.FC<SignalListProps> = ({ title, data, sortOrder, onSortToggle, onBacktest, backtestResults, backtesting }) => {
-  const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
-  
-  const getStrengthColor = (strength: SignalStrength) => {
-    switch (strength) {
-      case 'Strong': return 'text-yellow-400';
-      case 'Medium': return 'text-teal-400';
-      case 'Weak': return 'text-gray-400';
-      default: return '';
-    }
-  };
-
-  const getBacktestResultColor = (result: BacktestResult) => {
-    switch (result) {
-      case 'TP Hit': return 'bg-green-500';
-      case 'SL Hit': return 'bg-red-500';
-      case 'No Result': return 'bg-gray-500';
-      default: return '';
-    }
-  }
-
-  return (
-    <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSortToggle}
-            className="text-gray-400 hover:text-white transition-colors duration-200"
-            title={`Sort by strength (${sortOrder === 'desc' ? 'Descending' : 'Ascending'})`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transform ${sortOrder === 'desc' ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18m-6 4h6m-6 4h6m-12 4h12" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 13l-3 3m0 0l-3-3m3 3V3" />
-            </svg>
-          </button>
-          <button
-            onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
-            className="text-gray-400 hover:text-white transition-colors 
-duration-200"
-            title="Copy symbols"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-  
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
-/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div className="overflow-y-auto max-h-[300px] space-y-2">
-        {data.length > 0 ? (
-          data.map((item: any) => {
-            const bgClass =
-              item.type === 'bullish' ? 'bg-green-600' :
-              item.type === 'bearish' ? 'bg-red-600' : '';
-              
-            const backtestResult = backtestResults[item.symbol];
-
-            return (
-              <div
-                key={item.symbol}
-                className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
-              >
-                <div className="flex items-center justify-between">
-            
-                  <div>
-                    <div className="font-semibold">{item.symbol}</div>
-                    <div className="text-sm text-gray-200">
-                      Higher TF: {item.higherTimeframeConfirmation}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
-                      {item.strength}
-                    </span>
-                    <button
-                      onClick={() => onBacktest(item.symbol, item.type)}
-                      className={`px-3 py-1 rounded-lg text-sm text-white ${backtesting && backtestResults[item.symbol] === undefined ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
-                      disabled={backtesting && backtestResults[item.symbol] === undefined}
-                    >
-                      {backtesting && backtestResults[item.symbol] === undefined ? 'Testing...' : 'Test'}
-                    </button>
-                    {backtestResult && (
-                      <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBacktestResultColor(backtestResult)}`}>
-                        {backtestResult}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <p className="text-gray-500">No symbols found.</p>
-        )}
-      </div>
-    </div>
-  );
-};
-
 
 // Main component starts here
 const FlagSignalsDashboard: React.FC = () => {
@@ -560,12 +349,7 @@ const FlagSignalsDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-  const [backtestResults, setBacktestResults] = useState<Record<string, BacktestResult | null>>({});
-  const [backtesting, setBacktesting] = useState(false);
-  const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
   const fetchIntervalRef = useRef<number | null>(null);
-  const [overallBacktestResult, setOverallBacktestResult] = useState<string | null>(null);
-  const [isOverallBacktesting, setIsOverallBacktesting] = useState(false);
 
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
@@ -574,25 +358,19 @@ const FlagSignalsDashboard: React.FC = () => {
       const newSymbolsHigherTimeframeData: Record<string, { candles4h: Candle[], candles1d: Candle[] }> = {};
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
-      const startTime = nowMillis - (500 * tfMillis);
-      
+      const startTime = nowMillis - (100 * tfMillis);
       const fetchPromises = symbolsToFetch.map(async (symbol) => {
-        const urlMain = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=500&startTime=${startTime}`;
-        const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=500`;
-        const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=500`;
+        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
+        const response = await fetch(url);
+        const data = await response.json();
 
-        const [responseMain, response4h, response1d] = await Promise.all([
-          fetch(urlMain),
-          fetch(url4h),
-          fetch(url1d)
-        ]);
-
-        if (!responseMain.ok || !response4h.ok || !response1d.ok) {
-          throw new Error(`Failed to fetch data for ${symbol}: ${responseMain.statusText || response4h.statusText || response1d.statusText}`);
-        }
-
-        const data = await responseMain.json();
+        // Fetch higher timeframe data
+        const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`;
+        const response4h = await fetch(url4h);
         const data4h = await response4h.json();
+
+        const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`;
+        const response1d = await fetch(url1d);
         const data1d = await response1d.json();
 
         if (data && Array.isArray(data) && data.length > 0) {
@@ -629,7 +407,6 @@ const FlagSignalsDashboard: React.FC = () => {
           return null;
         }
       });
-      
       const results = await Promise.all(fetchPromises);
 
       results.forEach(result => {
@@ -641,62 +418,49 @@ const FlagSignalsDashboard: React.FC = () => {
       setSymbolsHigherTimeframeData(prevData => ({ ...prevData, ...newSymbolsHigherTimeframeData }));
       setLoading(false);
       setLastUpdated(Date.now());
-      setCountdown(300);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching data:', error);
-      setErrorMessage(`Failed to fetch initial market data: ${error.message}`);
+      setErrorMessage('Failed to fetch data. Please check your connection or try again later.');
       setLoading(false);
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-    const BATCH_SIZE = 5;
-    const INTERVAL_MS = 5000;
+    const BATCH_SIZE = 10;
+    const INTERVAL_MS = 1000;
     let currentIndex = 0;
     let symbolsToLoad: string[] = [];
 
     const initialize = async () => {
       setLoading(true);
-      setErrorMessage(null);
-      try {
-        const fetchedSymbols = await fetchFuturesSymbols();
-        setAllSymbols(fetchedSymbols);
-        symbolsToLoad = fetchedSymbols;
-        const initialBatch = symbolsToLoad.slice(0, 30);
-        await fetchData(initialBatch);
-        if (symbolsToLoad.length > 30) {
-          currentIndex = 30;
-          loadBatch();
-        } else {
-          if (fetchIntervalRef.current) {
-            clearInterval(fetchIntervalRef.current);
-          }
-          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 300000);
-        }
-      } catch (error: any) {
-        console.error('Error in initialization:', error);
-        setErrorMessage(`Failed to fetch initial market data: ${error.message}`);
-        setLoading(false);
+      const fetchedSymbols = await fetchFuturesSymbols();
+      setAllSymbols(fetchedSymbols);
+      symbolsToLoad = fetchedSymbols;
+      const initialBatch = symbolsToLoad.slice(0, 30);
+      await fetchData(initialBatch);
+
+      if (symbolsToLoad.length > 30) {
+        currentIndex = 30;
+        loadBatch();
       }
     };
 
     const loadBatch = async () => {
       if (!symbolsToLoad.length || !isMounted) return;
       const batch = symbolsToLoad.slice(currentIndex, currentIndex + BATCH_SIZE);
-      if (batch.length === 0) {
-        if (fetchIntervalRef.current) {
-          clearInterval(fetchIntervalRef.current);
-        }
-        fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 300000);
-        return;
-      }
-      
       await fetchData(batch);
       currentIndex += BATCH_SIZE;
 
       if (currentIndex < symbolsToLoad.length && isMounted) {
         setTimeout(loadBatch, INTERVAL_MS);
+      } else {
+        if (isMounted) {
+          if (fetchIntervalRef.current) {
+            clearInterval(fetchIntervalRef.current);
+          }
+          fetchIntervalRef.current = window.setInterval(() => fetchData(symbolsToLoad), 60000);
+        }
       }
     };
 
@@ -710,23 +474,12 @@ const FlagSignalsDashboard: React.FC = () => {
     };
   }, [timeframe]);
 
-  useEffect(() => {
-    const countdownInterval = setInterval(() => {
-      setCountdown((prevCountdown) => (prevCountdown > 0 ? prevCountdown - 1 : 300));
-    }, 1000);
-    
-    return () => clearInterval(countdownInterval);
-  }, []);
-
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
-  };
 
   const flaggedSignals = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
+  
+      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = metrics;
       const higherTimeframeData = symbolsHigherTimeframeData[symbol];
   
       let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
@@ -747,11 +500,58 @@ const FlagSignalsDashboard: React.FC = () => {
           higherTimeframeConfirmation = 'neutral';
         }
       }
+  
+      const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
+      const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
       
-      const { type, strength } = checkSignal(metrics, higherTimeframeConfirmation);
+      const macdBullishConfirmation = macdLine > macdSignal;
+      const macdBearishConfirmation = macdLine < macdSignal;
+      const volumeBullishConfirmation = volumeConfirmation === 'bullish';
+      const volumeBearishConfirmation = volumeConfirmation === 'bearish';
+  
+      let type: 'bullish' | 'bearish' | null = null;
+      let strength: SignalStrength = null;
+  
+      // Define ADX and ATR thresholds
+      const isStrongTrend = adx > 25;
+      const isMediumTrend = adx >= 20 && adx <= 25;
+      const isHighVolatility = atr > 0.005; // Example threshold
+  
+      // Check for Strong Bullish Signal
+      if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bullish') {
+        type = 'bullish';
+        strength = 'Strong';
+      } 
+      // Check for Strong Bearish Signal
+      else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bearish') {
+        type = 'bearish';
+        strength = 'Strong';
+      }
+      // Check for Medium Bullish Signal
+      else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bearish') {
+        type = 'bullish';
+        strength = 'Medium';
+      }
+      // Check for Medium Bearish Signal
+      else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bullish') {
+        type = 'bearish';
+        strength = 'Medium';
+      }
+      // Check for Weak Bullish Signal
+      else if (isEmaBullish && higherTimeframeConfirmation !== 'bearish') {
+        type = 'bullish';
+        strength = 'Weak';
+      }
+      // Check for Weak Bearish Signal
+      else if (isEmaBearish && higherTimeframeConfirmation !== 'bullish') {
+        type = 'bearish';
+        strength = 'Weak';
+      }
+      
       if (type) {
         return { symbol, type, strength, higherTimeframeConfirmation };
       }
+      
       return null;
     }).filter(Boolean) as CombinedSignal[];
   }, [symbolsData, symbolsHigherTimeframeData]);
@@ -759,192 +559,102 @@ const FlagSignalsDashboard: React.FC = () => {
   const bullishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bullish'), [flaggedSignals]);
   const bearishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bearish'), [flaggedSignals]);
   
-  const filterAndSortSignals = (signals: CombinedSignal[], order: 'desc' | 'asc') => {
-    const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
-    
-    const filtered = signals.filter(signal =>
+  // New filter function for combined signals
+  const filterCombinedSignals = (signals: CombinedSignal[]) => {
+    return signals.filter(signal =>
       signal.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
+  };
 
-    return [...filtered].sort((a, b) => {
+  const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
+    const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
+    
+    const sortedData = [...data].sort((a, b) => {
       const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
       const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
       
-      if (order === 'desc') {
+      if (sortOrder === 'desc') {
         return bStrength - aStrength;
       } else {
         return aStrength - bStrength;
       }
     });
-  };
 
-  const sortedBullishSignals = useMemo(() => filterAndSortSignals(bullishSignals, sortOrder), [bullishSignals, sortOrder, searchTerm]);
-  const sortedBearishSignals = useMemo(() => filterAndSortSignals(bearishSignals, sortOrder), [bearishSignals, sortOrder, searchTerm]);
+    return (
+      <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-2xl font-bold">{title} ({data.length})</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+              className="text-gray-400 hover:text-white transition-colors duration-200"
+              title={`Sort by strength (${sortOrder === 'desc' ? 'Descending' : 'Ascending'})`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transform ${sortOrder === 'desc' ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18m-6 4h6m-6 4h6m-12 4h12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 13l-3 3m0 0l-3-3m3 3V3" />
+              </svg>
+            </button>
+            <button
+              onClick={() => copyToClipboard(data.map((item: any) => item.symbol).join(', '))}
+              className="text-gray-400 hover:text-white transition-colors 
+duration-200"
+              title="Copy symbols"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v4.586a1 1 0 00.293.707l2.121 2.121a1 1 0 001.414 0l2.121-2.121a1 1 0 00.293-.707V7m-6 0h6m-6 0H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2m-8 0V4a2 2 0 012-2h2a2 2 0 012 2v3m-6 0h6" 
+/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="overflow-y-auto max-h-[300px] space-y-2">
+          {sortedData.length > 0 ? (
+            sortedData.map((item: any) => {
+              const getStrengthColor = (strength: SignalStrength) => {
+                switch (strength) {
+                  case 'Strong': return 'text-yellow-400';
+                  case 'Medium': return 'text-teal-400';
+                  case 'Weak': return 'text-gray-400';
+                  default: return '';
+                }
+              };
+              
+              const bgClass =
+                item.type === 'bullish' ? 'bg-green-600' :
+                item.type === 'bearish' ? 'bg-red-600' : '';
 
-  const handleBacktest = async (symbol: string, signalType: 'bullish' | 'bearish') => {
-    setBacktesting(true);
-    setBacktestResults(prev => ({ ...prev, [symbol]: null }));
-    const candles = symbolsData[symbol]?.candles;
-    const higherTfCandles = symbolsHigherTimeframeData[symbol];
-    if (!candles || !higherTfCandles) {
-      setBacktestResults(prev => ({ ...prev, [symbol]: 'No Result' }));
-      setBacktesting(false);
-      return;
-    }
-    
-    let signalCandleIndex = -1;
-    for (let i = candles.length - 2; i >= 50; i--) { 
-      const subCandles = candles.slice(0, i + 1);
-      const subHigherTfCandles = {
-        candles4h: higherTfCandles.candles4h.slice(0, i + 1),
-        candles1d: higherTfCandles.candles1d.slice(0, i + 1)
-      };
-
-      const subMetrics = calculateMetrics(subCandles, timeframe);
-      if (subMetrics) {
-        const metrics4h = calculateMetrics(subHigherTfCandles.candles4h, '4h');
-        const metrics1d = calculateMetrics(subHigherTfCandles.candles1d, '1d');
-
-        const isBullish4h = metrics4h && metrics4h.ema5 > metrics4h.ema10 && metrics4h.ema10 > metrics4h.ema20;
-        const isBullish1d = metrics1d && metrics1d.ema5 > metrics1d.ema10 && metrics1d.ema10 > metrics1d.ema20;
-        const isBearish4h = metrics4h && metrics4h.ema5 < metrics4h.ema10 && metrics4h.ema10 < metrics4h.ema20;
-        const isBearish1d = metrics1d && metrics1d.ema5 < metrics1d.ema10 && metrics1d.ema10 < metrics1d.ema20;
-  
-        let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
-        if (isBullish4h || isBullish1d) {
-          higherTimeframeConfirmation = 'bullish';
-        } else if (isBearish4h || isBearish1d) {
-          higherTimeframeConfirmation = 'bearish';
-        } else {
-          higherTimeframeConfirmation = 'neutral';
-        }
-
-        const { type } = checkSignal(subMetrics, higherTimeframeConfirmation);
-
-        if (type === signalType) {
-          signalCandleIndex = i;
-          break;
-        }
-      }
-    }
-
-    if (signalCandleIndex === -1) {
-      setBacktestResults(prev => ({ ...prev, [symbol]: 'No Result' }));
-      setBacktesting(false);
-      return;
-    }
-    
-    const entryPrice = candles[signalCandleIndex].close;
-    const tpPercentage = 0.005; // 0.5%
-    const slPercentage = 0.005; // -0.5%
-
-    const result = runBacktest(
-      candles,
-      signalType,
-      entryPrice,
-      tpPercentage,
-      slPercentage,
-      candles[signalCandleIndex].openTime,
-      timeframe
+              return (
+                <div
+                  key={item.symbol}
+                  className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
+                >
+                  <div className="flex items-center justify-between">
+              
+                  <div>
+                      <div className="font-semibold">{item.symbol}</div>
+                      <div className="text-sm text-gray-200">
+                        Higher TF: {item.higherTimeframeConfirmation}
+                      </div>
+                    </div>
+                    <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
+                      {item.strength}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-gray-500">No symbols found.</p>
+          )}
+        </div>
+      </div>
     );
-    
-    setBacktestResults(prev => ({ ...prev, [symbol]: result }));
-    setBacktesting(false);
   };
-  
-  const handleOverallBacktest = async () => {
-    setIsOverallBacktesting(true);
-    setOverallBacktestResult(null);
-    let tpHits = 0;
-    let slHits = 0;
-    let totalSignals = 0;
-
-    for (const signal of flaggedSignals) {
-      if (!signal.type) {
-        continue;
-      }
-      
-      const candles = symbolsData[signal.symbol]?.candles;
-      const higherTfCandles = symbolsHigherTimeframeData[signal.symbol];
-      if (!candles || !higherTfCandles) {
-        continue;
-      }
-      
-      let signalCandleIndex = -1;
-      for (let i = candles.length - 2; i >= 50; i--) { 
-        const subCandles = candles.slice(0, i + 1);
-        const subHigherTfCandles = {
-          candles4h: higherTfCandles.candles4h.slice(0, i + 1),
-          candles1d: higherTfCandles.candles1d.slice(0, i + 1)
-        };
-
-        const subMetrics = calculateMetrics(subCandles, timeframe);
-        if (subMetrics) {
-          const metrics4h = calculateMetrics(subHigherTfCandles.candles4h, '4h');
-          const metrics1d = calculateMetrics(subHigherTfCandles.candles1d, '1d');
-
-          const isBullish4h = metrics4h && metrics4h.ema5 > metrics4h.ema10 && metrics4h.ema10 > metrics4h.ema20;
-          const isBullish1d = metrics1d && metrics1d.ema5 > metrics1d.ema10 && metrics1d.ema10 > metrics1d.ema20;
-          const isBearish4h = metrics4h && metrics4h.ema5 < metrics4h.ema10 && metrics4h.ema10 < metrics4h.ema20;
-          const isBearish1d = metrics1d && metrics1d.ema5 < metrics1d.ema10 && metrics1d.ema10 < metrics1d.ema20;
-    
-          let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
-          if (isBullish4h || isBullish1d) {
-            higherTimeframeConfirmation = 'bullish';
-          } else if (isBearish4h || isBearish1d) {
-            higherTimeframeConfirmation = 'bearish';
-          } else {
-            higherTimeframeConfirmation = 'neutral';
-          }
-
-          const { type } = checkSignal(subMetrics, higherTimeframeConfirmation);
-
-          if (type === signal.type) {
-            signalCandleIndex = i;
-            break;
-          }
-        }
-      }
-
-      if (signalCandleIndex !== -1) {
-        totalSignals++;
-        const entryPrice = candles[signalCandleIndex].close;
-        const tpPercentage = 0.005;
-        const slPercentage = 0.005;
-
-        const result = runBacktest(
-          candles,
-          signal.type,
-          entryPrice,
-          tpPercentage,
-          slPercentage,
-          candles[signalCandleIndex].openTime,
-          timeframe
-        );
-
-        if (result === 'TP Hit') {
-          tpHits++;
-        } else if (result === 'SL Hit') {
-          slHits++;
-        }
-      }
-    }
-    
-    const winRate = totalSignals > 0 ? (tpHits / (tpHits + slHits)) * 100 : 0;
-    const finalResult = `Overall Backtest Result (0.5% TP vs 0.5% SL): ${winRate.toFixed(2)}% TP Hit Rate from ${tpHits + slHits} signals tested.`;
-    setOverallBacktestResult(finalResult);
-    setIsOverallBacktesting(false);
-  };
-
 
   const handleDebugConsole = () => {
     console.table(flaggedSignals);
   };
-
-  const handleSortToggle = () => {
-    setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
-  };
-
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <script src="https://cdn.tailwindcss.com"></script>
@@ -972,13 +682,8 @@ Flag Signal Dashboard
           </h1>
           <p className="text-gray-400 text-lg">Real-time market analysis for top perpetual USDT pairs on Binance Futures.</p>
           <p className="text-gray-500 text-sm mt-2">
-            Last updated: {new Date(lastUpdated).toLocaleTimeString()} | Next refresh in: {formatTime(countdown)}
+            Last updated: {new Date(lastUpdated).toLocaleTimeString()}
           </p>
-          {overallBacktestResult && (
-            <div className="mt-4 p-4 rounded-lg bg-green-900 text-green-200">
-              <p className="font-semibold">{overallBacktestResult}</p>
-            </div>
-          )}
         </header>
 
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-8">
@@ -999,13 +704,6 @@ Flag Signal Dashboard
               4h
             </button>
             <button
-              onClick={() => setTimeframe('12h')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '12h' ?
-'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-            >
-              12h
-            </button>
-            <button
               onClick={() => setTimeframe('1d')}
               className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${timeframe === '1d' ?
 'bg-teal-500 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
@@ -1014,6 +712,7 @@ Flag Signal Dashboard
             </button>
           </div>
 
+          {/* Search Input */}
           <div className="relative w-full md:w-64">
             <input
           
@@ -1037,14 +736,9 @@ Flag Signal Dashboard
             )}
           </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={handleOverallBacktest}
-              className={`bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${isOverallBacktesting ? 'bg-blue-800 cursor-not-allowed' : 'hover:bg-blue-500'}`}
-              disabled={isOverallBacktesting}
-            >
-              {isOverallBacktesting ? 'Backtesting...' : 'Run Overall Backtest'}
-            </button>
+          {/* Debug button */}
+          <div className="ml-2">
+  
             <button
               onClick={handleDebugConsole}
               className="bg-gray-800 text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-700 transition"
@@ -1056,6 +750,7 @@ Flag Signal Dashboard
           </div>
         </div>
 
+        {/* Loading / Error / Signals */}
         <div className="mt-8">
           {loading ?
 (
@@ -1069,27 +764,13 @@ Flag Signal Dashboard
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <SignalList 
-                title="Bullish Signals"
-                data={sortedBullishSignals}
-                sortOrder={sortOrder}
-                onSortToggle={handleSortToggle}
-                onBacktest={handleBacktest}
-                backtestResults={backtestResults}
-                backtesting={backtesting}
-              />
-              <SignalList 
-                title="Bearish Signals"
-                data={sortedBearishSignals}
-                sortOrder={sortOrder}
-                onSortToggle={handleSortToggle}
-                onBacktest={handleBacktest}
-                backtestResults={backtestResults}
-                backtesting={backtesting}
-              />
+              {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
+              {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
             </div>
+  
           )}
         </div>
+
       </div>
     </div>
   );
