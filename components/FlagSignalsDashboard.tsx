@@ -47,7 +47,8 @@ interface Metrics {
   macdSignal: number;
   macdHistogram: number;
   volumeConfirmation: 'bullish' | 'bearish' | null;
-  adx: number; // New metric for ADX
+  adx: number;
+  atr: number; // New metric for ATR
 }
 
 type SignalStrength = 'Strong' | 'Medium' | 'Weak' | null;
@@ -56,6 +57,7 @@ interface CombinedSignal {
   symbol: string;
   type: 'bullish' | 'bearish' | null;
   strength: SignalStrength;
+  higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null;
 }
 
 const getSessions = (timeframe: string, nowMillis: number) => {
@@ -76,6 +78,7 @@ const getSessions = (timeframe: string, nowMillis: number) => {
   const prevSessionStart = currentSessionStart - tfMillis;
   return { currentSessionStart, prevSessionStart };
 };
+
 const isDoji = (candle: Candle) => {
   const bodySize = Math.abs(candle.close - candle.open);
   const totalRange = candle.high - candle.low;
@@ -178,7 +181,6 @@ const getADX = (candles: Candle[], period = 14) => {
         trValues.push(Math.max(tr1, tr2, tr3));
     }
 
-    // Calculate ATR (Average True Range)
     let sumATR = trValues.slice(0, period).reduce((sum, val) => sum + val, 0);
     atrValues.push(sumATR / period);
     for (let i = period; i < trValues.length; i++) {
@@ -186,7 +188,6 @@ const getADX = (candles: Candle[], period = 14) => {
         atrValues.push(newATR);
     }
     
-    // Calculate Smoothed Up/Down Moves
     let sumUp = upMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
     let sumDown = downMoves.slice(0, period).reduce((sum, val) => sum + val, 0);
     
@@ -203,7 +204,6 @@ const getADX = (candles: Candle[], period = 14) => {
         minusDIValues.push((minusDI * 100));
     }
     
-    // Calculate DX
     let dxValues: number[] = [];
     for (let i = 0; i < plusDIValues.length; i++) {
         const sumDI = plusDIValues[i] + minusDIValues[i];
@@ -211,7 +211,6 @@ const getADX = (candles: Candle[], period = 14) => {
         dxValues.push(dx);
     }
 
-    // Calculate ADX (Smoothed DX)
     if (dxValues.length === 0) return 0;
     
     let sumADX = dxValues.slice(0, period).reduce((sum, val) => sum + val, 0);
@@ -222,6 +221,26 @@ const getADX = (candles: Candle[], period = 14) => {
     }
 
     return adxValue;
+};
+
+// New function to calculate ATR
+const getATR = (candles: Candle[], period = 14) => {
+  if (candles.length <= period) {
+    return 0;
+  }
+  let trValues: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+      const tr1 = candles[i].high - candles[i].low;
+      const tr2 = Math.abs(candles[i].high - candles[i - 1].close);
+      const tr3 = Math.abs(candles[i].low - candles[i - 1].close);
+      trValues.push(Math.max(tr1, tr2, tr3));
+  }
+  let sumATR = trValues.slice(0, period).reduce((sum, val) => sum + val, 0);
+  let atr = sumATR / period;
+  for (let i = period; i < trValues.length; i++) {
+      atr = (atr * (period - 1) + trValues[i]) / period;
+  }
+  return atr;
 };
 
 
@@ -280,6 +299,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
   }
 
   const adx = getADX(candles, 14);
+  const atr = getATR(candles, 14);
 
   return {
     price: lastCandle.close,
@@ -298,6 +318,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null 
     macdHistogram,
     volumeConfirmation,
     adx,
+    atr,
   };
 };
 
@@ -321,18 +342,20 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
 const FlagSignalsDashboard: React.FC = () => {
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
   const [symbolsData, setSymbolsData] = useState<Record<string, { candles: Candle[], metrics: Metrics | null }>>({});
+  const [symbolsHigherTimeframeData, setSymbolsHigherTimeframeData] = useState<Record<string, { candles4h: Candle[], candles1d: Candle[] }>>({});
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('15m');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
-  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc'); // New state for sorting
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const fetchIntervalRef = useRef<number | null>(null);
 
   const fetchData = async (symbolsToFetch: string[]) => {
     try {
       setErrorMessage(null);
       const newSymbolsData: Record<string, { candles: Candle[], metrics: Metrics | null }> = {};
+      const newSymbolsHigherTimeframeData: Record<string, { candles4h: Candle[], candles1d: Candle[] }> = {};
       const nowMillis = Date.now();
       const tfMillis = getMillis(timeframe);
       const startTime = nowMillis - (100 * tfMillis);
@@ -340,6 +363,15 @@ const FlagSignalsDashboard: React.FC = () => {
         const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100&startTime=${startTime}`;
         const response = await fetch(url);
         const data = await response.json();
+
+        // Fetch higher timeframe data
+        const url4h = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`;
+        const response4h = await fetch(url4h);
+        const data4h = await response4h.json();
+
+        const url1d = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`;
+        const response1d = await fetch(url1d);
+        const data1d = await response1d.json();
 
         if (data && Array.isArray(data) && data.length > 0) {
           const candles = data.map((d: any[]) => ({
@@ -350,6 +382,25 @@ const FlagSignalsDashboard: React.FC = () => {
             close: parseFloat(d[4]),
             volume: parseFloat(d[5]),
           }));
+          newSymbolsHigherTimeframeData[symbol] = {
+            candles4h: data4h.map((d: any[]) => ({
+              openTime: d[0],
+              open: parseFloat(d[1]),
+              high: parseFloat(d[2]),
+              low: parseFloat(d[3]),
+              close: parseFloat(d[4]),
+              volume: parseFloat(d[5]),
+            })),
+            candles1d: data1d.map((d: any[]) => ({
+              openTime: d[0],
+              open: parseFloat(d[1]),
+              high: parseFloat(d[2]),
+              low: parseFloat(d[3]),
+              close: parseFloat(d[4]),
+              volume: parseFloat(d[5]),
+            }))
+          };
+          
           return { symbol, data: { candles, metrics: calculateMetrics(candles, timeframe) } };
         } else {
           console.error(`Failed to fetch data for ${symbol}. Data:`, data);
@@ -364,6 +415,7 @@ const FlagSignalsDashboard: React.FC = () => {
         }
       });
       setSymbolsData(prevData => ({ ...prevData, ...newSymbolsData }));
+      setSymbolsHigherTimeframeData(prevData => ({ ...prevData, ...newSymbolsHigherTimeframeData }));
       setLoading(false);
       setLastUpdated(Date.now());
     } catch (error) {
@@ -426,9 +478,29 @@ const FlagSignalsDashboard: React.FC = () => {
   const flaggedSignals = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
-
-      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx } = metrics;
-      
+  
+      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = metrics;
+      const higherTimeframeData = symbolsHigherTimeframeData[symbol];
+  
+      let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
+      if (higherTimeframeData) {
+        const metrics4h = calculateMetrics(higherTimeframeData.candles4h, '4h');
+        const metrics1d = calculateMetrics(higherTimeframeData.candles1d, '1d');
+        
+        const isBullish4h = metrics4h && metrics4h.ema5 > metrics4h.ema10 && metrics4h.ema10 > metrics4h.ema20;
+        const isBullish1d = metrics1d && metrics1d.ema5 > metrics1d.ema10 && metrics1d.ema10 > metrics1d.ema20;
+        const isBearish4h = metrics4h && metrics4h.ema5 < metrics4h.ema10 && metrics4h.ema10 < metrics4h.ema20;
+        const isBearish1d = metrics1d && metrics1d.ema5 < metrics1d.ema10 && metrics1d.ema10 < metrics1d.ema20;
+  
+        if (isBullish4h || isBullish1d) {
+          higherTimeframeConfirmation = 'bullish';
+        } else if (isBearish4h || isBearish1d) {
+          higherTimeframeConfirmation = 'bearish';
+        } else {
+          higherTimeframeConfirmation = 'neutral';
+        }
+      }
+  
       const isEmaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
       const isEmaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
       
@@ -436,52 +508,53 @@ const FlagSignalsDashboard: React.FC = () => {
       const macdBearishConfirmation = macdLine < macdSignal;
       const volumeBullishConfirmation = volumeConfirmation === 'bullish';
       const volumeBearishConfirmation = volumeConfirmation === 'bearish';
-
+  
       let type: 'bullish' | 'bearish' | null = null;
       let strength: SignalStrength = null;
-
-      // Define ADX thresholds
+  
+      // Define ADX and ATR thresholds
       const isStrongTrend = adx > 25;
       const isMediumTrend = adx >= 20 && adx <= 25;
-
+      const isHighVolatility = atr > 0.005; // Example threshold
+  
       // Check for Strong Bullish Signal
-      if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend) {
+      if (isEmaBullish && mainTrend.breakout === 'bullish' && macdBullishConfirmation && volumeBullishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bullish') {
         type = 'bullish';
         strength = 'Strong';
       } 
       // Check for Strong Bearish Signal
-      else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend) {
+      else if (isEmaBearish && mainTrend.breakout === 'bearish' && macdBearishConfirmation && volumeBearishConfirmation && isStrongTrend && isHighVolatility && higherTimeframeConfirmation === 'bearish') {
         type = 'bearish';
         strength = 'Strong';
       }
       // Check for Medium Bullish Signal
-      else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend) {
+      else if (isEmaBullish && (mainTrend.breakout === 'bullish' || macdBullishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bearish') {
         type = 'bullish';
         strength = 'Medium';
       }
       // Check for Medium Bearish Signal
-      else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend) {
+      else if (isEmaBearish && (mainTrend.breakout === 'bearish' || macdBearishConfirmation) && isMediumTrend && higherTimeframeConfirmation !== 'bullish') {
         type = 'bearish';
         strength = 'Medium';
       }
       // Check for Weak Bullish Signal
-      else if (isEmaBullish) {
+      else if (isEmaBullish && higherTimeframeConfirmation !== 'bearish') {
         type = 'bullish';
         strength = 'Weak';
       }
       // Check for Weak Bearish Signal
-      else if (isEmaBearish) {
+      else if (isEmaBearish && higherTimeframeConfirmation !== 'bullish') {
         type = 'bearish';
         strength = 'Weak';
       }
       
       if (type) {
-        return { symbol, type, strength };
+        return { symbol, type, strength, higherTimeframeConfirmation };
       }
       
       return null;
     }).filter(Boolean) as CombinedSignal[];
-  }, [symbolsData]);
+  }, [symbolsData, symbolsHigherTimeframeData]);
 
   const bullishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bullish'), [flaggedSignals]);
   const bearishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bearish'), [flaggedSignals]);
@@ -494,10 +567,8 @@ const FlagSignalsDashboard: React.FC = () => {
   };
 
   const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
-    // Define the custom sort order
     const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
     
-    // Sort the data based on the current sort order
     const sortedData = [...data].sort((a, b) => {
       const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
       const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
@@ -562,6 +633,9 @@ duration-200"
               
                   <div>
                       <div className="font-semibold">{item.symbol}</div>
+                      <div className="text-sm text-gray-200">
+                        Higher TF: {item.higherTimeframeConfirmation}
+                      </div>
                     </div>
                     <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
                       {item.strength}
