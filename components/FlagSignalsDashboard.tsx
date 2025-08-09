@@ -657,10 +657,6 @@ const FlagSignalsDashboard: React.FC = () => {
       </div>
     );
   };
-
-  const handleDebugConsole = () => {
-    console.table(flaggedSignals);
-  };
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <script src="https://cdn.tailwindcss.com"></script>
@@ -731,17 +727,6 @@ const FlagSignalsDashboard: React.FC = () => {
                 </svg>
               </button>
             )}
-          </div>
-
-          {/* Debug button */}
-          <div className="ml-2">
-            <button
-              onClick={handleDebugConsole}
-              className="bg-gray-800 text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-700 transition"
-              title="Dump flaggedSignals to console"
-            >
-              Debug (console)
-            </button>
           </div>
         </div>
 
