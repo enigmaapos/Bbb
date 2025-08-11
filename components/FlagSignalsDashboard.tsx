@@ -582,7 +582,20 @@ const FlagSignalsDashboard: React.FC = () => {
 
   const renderCombinedSignalsList = (title: string, data: CombinedSignal[]) => {
     const strengthOrder: { [key: string]: number } = { 'Strong': 3, 'Medium': 2, 'Weak': 1 };
+    
+    // Define a new priority for sorting based on higher timeframe confirmation
+    const higherTfPriority: { [key: string]: number } = { 'bullish': 2, 'bearish': 2, 'neutral': 1, 'null': 0 };
+
     const sortedData = [...data].sort((a, b) => {
+      // Primary sort: by higher timeframe confirmation
+      const aHigherTf = higherTfPriority[a.higherTimeframeConfirmation || 'null'] || 0;
+      const bHigherTf = higherTfPriority[b.higherTimeframeConfirmation || 'null'] || 0;
+
+      if (bHigherTf !== aHigherTf) {
+        return bHigherTf - aHigherTf;
+      }
+
+      // Secondary sort: by signal strength
       const aStrength = strengthOrder[a.strength || 'Weak'] || 0;
       const bStrength = strengthOrder[b.strength || 'Weak'] || 0;
 
