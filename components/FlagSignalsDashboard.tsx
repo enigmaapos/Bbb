@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-
 // Use this for clipboard functionality
 const copyToClipboard = (text: string) => {
   const el = document.createElement('textarea');
@@ -49,6 +48,7 @@ interface Metrics {
   volumeConfirmation: 'bullish' | 'bearish' | null;
   adx: number;
   atr: number;
+  priceChange24h: number; // New property
 }
 
 type SignalStrength = 'Strong' | 'Medium' | 'Weak' | null;
@@ -58,6 +58,7 @@ interface CombinedSignal {
   type: 'bullish' | 'bearish' | null;
   strength: SignalStrength;
   higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null;
+  priceChange24h: number; // New property
 }
 
 const getSessions = (timeframe: string, nowMillis: number) => {
@@ -236,8 +237,7 @@ const getATR = (candles: Candle[], period = 14) => {
 };
 
 
-const calculateMetrics = (candles: Candle[], timeframe: string): Metrics |
-  null => {
+const calculateMetrics = (candles: Candle[], timeframe: string): Metrics | null => {
   if (!candles || candles.length < 50) return null;
   const nowMillis = Date.now();
   const { currentSessionStart, prevSessionStart } = getSessions(timeframe, nowMillis);
@@ -293,6 +293,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics |
 
   const adx = getADX(candles, 14);
   const atr = getATR(candles, 14);
+
   return {
     price: lastCandle.close,
     prevSessionHigh,
@@ -311,6 +312,7 @@ const calculateMetrics = (candles: Candle[], timeframe: string): Metrics |
     volumeConfirmation,
     adx,
     atr,
+    priceChange24h: 0, // This will be filled by a separate API call later
   };
 };
 
@@ -333,15 +335,12 @@ const fetchFuturesSymbols = async (): Promise<string[]> => {
 // New function to check for potential signals to decide if higher TF data is needed
 const isPotentialSignal = (metrics: Metrics | null): boolean => {
   if (!metrics) return false;
-
   const { ema5, ema10, ema20, ema50, rsi, mainTrend } = metrics;
   const emaBullish = ema5 > ema10 && ema10 > ema20 && ema20 > ema50 && rsi > 50;
   const emaBearish = ema5 < ema10 && ema10 < ema20 && ema20 < ema50 && rsi < 50;
-
   // quick early exit if no trend or breakout
   if (!(emaBullish || emaBearish)) return false;
   if (!mainTrend.breakout) return false;
-
   return true;
 };
 
@@ -374,8 +373,13 @@ const FlagSignalsDashboard: React.FC = () => {
         const response = await fetch(url);
         const data = await response.json();
 
-        if (!Array.isArray(data) || data.length === 0) continue;
+        // --- Fetch 24hr Ticker Data ---
+        const tickerUrl = `https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`;
+        const tickerResponse = await fetch(tickerUrl);
+        const tickerData = await tickerResponse.json();
+        const priceChange24h = parseFloat(tickerData.priceChangePercent);
 
+        if (!Array.isArray(data) || data.length === 0) continue;
         const candles = data.map((d: any[]) => ({
           openTime: d[0],
           open: parseFloat(d[1]),
@@ -384,17 +388,20 @@ const FlagSignalsDashboard: React.FC = () => {
           close: parseFloat(d[4]),
           volume: parseFloat(d[5]),
         }));
-
         const metrics = calculateMetrics(candles, timeframe);
-        newSymbolsData[symbol] = { candles, metrics };
+        
+        // Update metrics with the new 24h price change
+        if (metrics) {
+          metrics.priceChange24h = priceChange24h;
+        }
 
+        newSymbolsData[symbol] = { candles, metrics };
         // --- Only fetch 4h/1d if potential signal ---
         if (isPotentialSignal(metrics)) {
           const [data4h, data1d] = await Promise.all([
             fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`).then(r => r.json()),
             fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`).then(r => r.json())
           ]);
-
           newSymbolsHigherTimeframeData[symbol] = {
             candles4h: data4h.map((d: any[]) => ({
               openTime: d[0],
@@ -427,7 +434,6 @@ const FlagSignalsDashboard: React.FC = () => {
       setLoading(false);
     }
   };
-
 
   // Updated useEffect to use the new batching logic
   useEffect(() => {
@@ -477,7 +483,6 @@ const FlagSignalsDashboard: React.FC = () => {
     };
 
     initialize();
-
     return () => {
       isMounted = false;
       if (fetchIntervalRef.current) {
@@ -486,12 +491,11 @@ const FlagSignalsDashboard: React.FC = () => {
     };
   }, [timeframe]);
 
-
   const flaggedSignals = useMemo(() => {
     return Object.entries(symbolsData).map(([symbol, { metrics }]) => {
       if (!metrics) return null;
 
-      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr } = metrics;
+      const { ema5, ema10, ema20, ema50, rsi, macdLine, macdSignal, mainTrend, volumeConfirmation, adx, atr, priceChange24h } = metrics;
       const higherTimeframeData = symbolsHigherTimeframeData[symbol];
 
       let higherTimeframeConfirmation: 'bullish' | 'bearish' | 'neutral' | null = null;
@@ -559,7 +563,7 @@ const FlagSignalsDashboard: React.FC = () => {
       }
 
       if (type) {
-        return { symbol, type, strength, higherTimeframeConfirmation };
+        return { symbol, type, strength, higherTimeframeConfirmation, priceChange24h };
       }
 
       return null;
@@ -568,6 +572,7 @@ const FlagSignalsDashboard: React.FC = () => {
 
   const bullishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bullish'), [flaggedSignals]);
   const bearishSignals = useMemo(() => flaggedSignals.filter((s: CombinedSignal) => s.type === 'bearish'), [flaggedSignals]);
+
   // New filter function for combined signals
   const filterCombinedSignals = (signals: CombinedSignal[]) => {
     return signals.filter(signal =>
@@ -587,6 +592,7 @@ const FlagSignalsDashboard: React.FC = () => {
         return aStrength - bStrength;
       }
     });
+
     return (
       <div className="bg-gray-800 p-6 rounded-2xl shadow-xl flex-1 min-w-[300px] flex flex-col">
         <div className="flex justify-between items-center mb-4">
@@ -615,48 +621,55 @@ const FlagSignalsDashboard: React.FC = () => {
           </div>
         </div>
         <div className="overflow-y-auto max-h-[300px] space-y-2">
-          {sortedData.length > 0 ?
-            (
-              sortedData.map((item: any) => {
-                const getStrengthColor = (strength: SignalStrength) => {
-                  switch (strength) {
-                    case 'Strong': return 'text-yellow-400';
-                    case 'Medium': return 'text-teal-400';
-                    case 'Weak': return 'text-gray-400';
-                    default: return '';
-                  }
-                };
+          {sortedData.length > 0 ? (
+            sortedData.map((item: any) => {
+              const getStrengthColor = (strength: SignalStrength) => {
+                switch (strength) {
+                  case 'Strong': return 'text-yellow-400';
+                  case 'Medium': return 'text-teal-400';
+                  case 'Weak': return 'text-gray-400';
+                  default: return '';
+                }
+              };
 
-                const bgClass =
-                  item.type === 'bullish' ? 'bg-green-600' :
-                    item.type === 'bearish' ? 'bg-red-600' : '';
+              const bgClass =
+                item.type === 'bullish' ? 'bg-green-600' :
+                item.type === 'bearish' ? 'bg-red-600' : '';
+              
+              const priceChangeColor = item.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400';
 
-                return (
-                  <div
-                    key={item.symbol}
-                    className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">{item.symbol}</div>
-                        <div className="text-sm text-gray-200">
-                          Higher TF: {item.higherTimeframeConfirmation}
-                        </div>
+              return (
+                <div
+                  key={item.symbol}
+                  className={`relative px-4 py-2 rounded-lg text-lg font-medium text-white ${bgClass}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold">{item.symbol}</div>
+                      <div className="text-sm text-gray-200">
+                        Higher TF: {item.higherTimeframeConfirmation}
                       </div>
+                    </div>
+                    <div className="flex flex-col items-end">
                       <span className={`text-sm font-bold ${getStrengthColor(item.strength)}`}>
                         {item.strength}
                       </span>
+                      <span className={`text-xs font-semibold ${priceChangeColor}`}>
+                        24h: {item.priceChange24h.toFixed(2)}%
+                      </span>
                     </div>
                   </div>
-                );
-              })
-            ) : (
-              <p className="text-gray-500">No symbols found.</p>
-            )}
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-gray-500">No symbols found.</p>
+          )}
         </div>
       </div>
     );
   };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <script src="https://cdn.tailwindcss.com"></script>
@@ -732,24 +745,21 @@ const FlagSignalsDashboard: React.FC = () => {
 
         {/* Loading / Error / Signals */}
         <div className="mt-8">
-          {loading ?
-            (
-              <div className="flex justify-center items-center h-[50vh]">
-                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
-              </div>
-            ) : errorMessage ?
-              (
-                <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
-                  <p>{errorMessage}</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
-                  {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
-                </div>
-              )}
+          {loading ? (
+            <div className="flex justify-center items-center h-[50vh]">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-teal-500"></div>
+            </div>
+          ) : errorMessage ? (
+            <div className="bg-red-900 border-l-4 border-red-500 text-red-200 p-4 rounded-lg">
+              <p>{errorMessage}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {renderCombinedSignalsList('Bullish Signals', filterCombinedSignals(bullishSignals))}
+              {renderCombinedSignalsList('Bearish Signals', filterCombinedSignals(bearishSignals))}
+            </div>
+          )}
         </div>
-
       </div>
     </div>
   );
