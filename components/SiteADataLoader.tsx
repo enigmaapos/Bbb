@@ -578,8 +578,7 @@ export default function SiteADataLoader() {
     const bullishTrendCount = uiSymbols.filter((s) => s.mainTrend && s.mainTrend.trend === "bullish").length;
     const bearishTrendCount = uiSymbols.filter((s) => s.mainTrend && s.mainTrend.trend === "bearish").length;
     const maxPumpZoneCount = uiSymbols.filter((s) => getSignalForSymbol(s) === "MAX ZONE PUMP").length;
-    const maxDumpZoneCount = uiSymbols.filter((s)
-      => getSignalForSymbol(s) === "MAX ZONE DUMP").length;
+    const maxDumpZoneCount = uiSymbols.filter((s) => getSignalForSymbol(s) === "MAX ZONE DUMP").length;
     const bullFlagCount = bullFlagSymbols.length;
     const bearFlagCount = bearFlagSymbols.length;
 
