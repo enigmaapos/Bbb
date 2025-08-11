@@ -1,6 +1,5 @@
 // SiteADataLoader.ws.tsx
 import React, { useEffect, useRef, useState, useMemo } from "react";
-
 /**
  * Reworked SiteADataLoader with:
  * - bulk /fapi/v1/ticker/24hr fetch
@@ -16,24 +15,29 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 const TIMEFRAME = "15m"; // default timeframe (supports `15m`, `4h`, `1d` in this code)
 const KLINE_LIMIT = 500;
 const BATCH_SIZE = 8; // how many symbols to fetch in parallel per REST batch
-const BATCH_DELAY_MS = 1200; // wait between batches (increase if you get REST 429s)
-const MAX_STREAM_SYMBOLS = 150; // how many top-by-volume symbols to stream (reduce to be safer)
-const SOCKET_MAX_STREAMS = 200; // number of streams per websocket connection
-const UI_FLUSH_MS = 1000; // how often to flush in-memory data to React state
+const BATCH_DELAY_MS = 1200;
+// wait between batches (increase if you get REST 429s)
+const MAX_STREAM_SYMBOLS = 150;
+// how many top-by-volume symbols to stream (reduce to be safer)
+const SOCKET_MAX_STREAMS = 200;
+// number of streams per websocket connection
+const UI_FLUSH_MS = 1000;
+// how often to flush in-memory data to React state
 const KLINES_API_BASE = "https://fapi.binance.com"; // futures REST base
-const WS_BASE = "wss://fstream.binance.com/stream?streams="; // futures websocket base
+const WS_BASE = "wss://fstream.binance.com/stream?streams=";
+// futures websocket base
 /* ------------------------------------------------------------------ */
 
 /* ----------------------------- Types ------------------------------- */
 type Candle = {
-  timestamp: number; // open time
+  timestamp: number;
+  // open time
   open: number;
   high: number;
   low: number;
   close: number;
   volume: number;
 };
-
 type MainTrend = {
   trend: "bullish" | "bearish" | "neutral";
   type: "support" | "resistance" | "none";
@@ -45,7 +49,8 @@ type MainTrend = {
 
 type SymbolData = {
   symbol: string;
-  candles: Candle[]; // chronological
+  candles: Candle[];
+  // chronological
   rsi14: number[]; // aligned to candles (NaN for initial)
   closes: number[];
   priceChangePercent?: number;
@@ -53,7 +58,8 @@ type SymbolData = {
   prevClosedGreen?: boolean | null;
   prevClosedRed?: boolean | null;
   highestVolumeColorPrev?: "green" | "red" | null;
-  lastKlineEventTimestamp?: number; // used to avoid duplicate processing
+  lastKlineEventTimestamp?: number;
+  // used to avoid duplicate processing
 };
 /* ------------------------------------------------------------------ */
 
@@ -76,7 +82,7 @@ function calculateEMA(data: number[], period: number): number[] {
       continue;
     }
     if (prev !== null) {
-      const cur = v * k + prev * (1 - k);
+      const cur: number = v * k + prev * (1 - k);
       ema.push(cur);
       prev = cur;
     } else {
@@ -112,7 +118,8 @@ function calculateRSI(closes: number[], period = 14): number[] {
     const loss = diff < 0 ? -diff : 0;
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
-    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rs = avgLoss === 0 ?
+      Number.POSITIVE_INFINITY : avgGain / avgLoss;
     rsi[i] = 100 - 100 / (1 + rs);
   }
   return rsi;
@@ -121,7 +128,6 @@ function calculateRSI(closes: number[], period = 14): number[] {
 
 /* ------------------------- Helper functions ------------------------ */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 async function fetchWithRetryJSON(url: string, retries = 5, delay = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -154,16 +160,15 @@ export default function SiteADataLoader() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState(TIMEFRAME);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-
   // ref store for in-memory symbol data (avoids frequent setState)
   const symbolMapRef = useRef<Map<string, SymbolData>>(new Map());
   const socketsRef = useRef<WebSocket[]>([]);
   const flushTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
-
   /* --------------- Utility: decide session times like your original code if needed --------------- */
   const getSessions = (tf: string) => {
-    // The previous implementation had a special daily session; keep same behavior if tf === '1d'
+    // The previous implementation had a special daily session;
+    // keep same behavior if tf === '1d'
     const now = new Date();
     if (!tf || tf === "1d") {
       const year = now.getUTCFullYear();
@@ -203,7 +208,6 @@ export default function SiteADataLoader() {
       return { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd };
     }
   };
-
   /* ----------------------- Core data initialization ---------------------- */
   useEffect(() => {
     mountedRef.current = true;
@@ -223,12 +227,10 @@ export default function SiteADataLoader() {
         // 2) Fetch bulk 24hr ticker (single call for all symbols)
         const allTickers = await fetchWithRetryJSON(`${KLINES_API_BASE}/fapi/v1/ticker/24hr`);
         if (!Array.isArray(allTickers)) throw new Error("Failed to load bulk 24hr tickers");
-
         // Filter eligible symbols (USDT perpetuals), combine ticker info to pick top N by quoteVolume
         const usdtSymbols = exchangeInfo.symbols
           .filter((s: any) => s.symbol.endsWith("USDT") && s.status === "TRADING")
           .map((s: any) => s.symbol);
-
         // map tickers by symbol for quick lookup
         const tickerMap = new Map<string, any>();
         for (const t of allTickers) tickerMap.set(t.symbol, t);
@@ -238,10 +240,10 @@ export default function SiteADataLoader() {
           .filter((t: any) => usdtSymbols.includes(t.symbol))
           .sort((a: any, b: any) => Number(b.quoteVolume || 0) - Number(a.quoteVolume || 0))
           .slice(0, MAX_STREAM_SYMBOLS);
-
         const symbolsToLoad = eligibleTickers.map((t: any) => t.symbol);
 
-        // 3) Batch fetch klines for each symbol (limit=KLINE_LIMIT). We'll do small batches with delay
+        // 3) Batch fetch klines for each symbol (limit=KLINE_LIMIT).
+        // We'll do small batches with delay
         // We'll only fetch for the selected symbolsToLoad (keeps REST usage low).
         for (let i = 0; i < symbolsToLoad.length; i += BATCH_SIZE) {
           const batch = symbolsToLoad.slice(i, i + BATCH_SIZE);
@@ -252,27 +254,32 @@ export default function SiteADataLoader() {
                 const raw = await fetchWithRetryJSON(
                   `${KLINES_API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=${KLINE_LIMIT}`
                 );
+
                 if (!Array.isArray(raw)) return;
                 const candles = raw.map((c: any[]) => ({
                   timestamp: c[0],
                   open: +c[1],
                   high: +c[2],
+
                   low: +c[3],
                   close: +c[4],
                   volume: +c[5],
                 })) as Candle[];
 
                 const closes = candles.map((c) => c.close);
+
                 const rsi14 = calculateRSI(closes, 14);
 
                 const ticker = tickerMap.get(symbol);
                 const priceChangePercent = ticker ? parseFloat(ticker.priceChangePercent || "0") : 0;
 
                 // prev session / highest volume previous logic (simple)
-                const { sessionStart, sessionEnd, prevSessionStart, prevSessionEnd } = getSessions(timeframe);
+                const { sessionStart, sessionEnd, prevSessionStart,
+                  prevSessionEnd } = getSessions(timeframe);
                 const candlesPrevSession = candles.filter((c) => c.timestamp >= prevSessionStart && c.timestamp <= prevSessionEnd);
 
-                let highestVolumeColorPrev: "green" | "red" | null = null;
+                let highestVolumeColorPrev: "green" |
+                  "red" | null = null;
                 if (candlesPrevSession.length > 0) {
                   const hv = candlesPrevSession.reduce((a, b) => (a.volume > b.volume ? a : b));
                   highestVolumeColorPrev = hv.close > hv.open ? "green" : "red";
@@ -282,11 +289,14 @@ export default function SiteADataLoader() {
                   symbol,
                   candles,
                   closes,
+
                   rsi14,
                   priceChangePercent,
                   mainTrend: undefined,
-                  prevClosedGreen: candles.length >= 2 ? candles[candles.length - 2].close > candles[candles.length - 2].open : null,
-                  prevClosedRed: candles.length >= 2 ? candles[candles.length - 2].close < candles[candles.length - 2].open : null,
+                  prevClosedGreen: candles.length >= 2 ?
+                    candles[candles.length - 2].close > candles[candles.length - 2].open : null,
+                  prevClosedRed: candles.length >= 2 ?
+                    candles[candles.length - 2].close < candles[candles.length - 2].open : null,
                   highestVolumeColorPrev,
                 };
                 symbolMapRef.current.set(symbol, sData);
@@ -299,12 +309,11 @@ export default function SiteADataLoader() {
           await sleep(BATCH_DELAY_MS);
         }
 
-        // 4) At this point we have initial data. Start websockets to get live updates for those symbols.
+        // 4) At this point we have initial data.
+        // Start websockets to get live updates for those symbols.
         await startWebsocketsForSymbols(Array.from(symbolMapRef.current.keys()), timeframe);
-
         // 5) Start flush timer to push ref -> UI state at throttled interval
         startFlushTimer();
-
         setLastUpdated(new Date().toLocaleTimeString());
         setLoading(false);
       } catch (err) {
@@ -324,10 +333,8 @@ export default function SiteADataLoader() {
   /* --------------------------- WebSocket logic --------------------------- */
   async function startWebsocketsForSymbols(symbols: string[], tf: string) {
     cleanupSockets();
-
     // Build streams like: btcusdt@kline_15m
     const streams = symbols.map((s) => `${s.toLowerCase()}@kline_${tf}`);
-
     // Partition streams into GROUPS of SOCKET_MAX_STREAMS
     const groups: string[][] = [];
     for (let i = 0; i < streams.length; i += SOCKET_MAX_STREAMS) {
@@ -346,13 +353,15 @@ export default function SiteADataLoader() {
 
       ws.onmessage = (ev) => {
         try {
+
           const parsed = JSON.parse(ev.data);
           // Binance streams: payload in parsed.data for aggregated endpoint
           const data = parsed.data;
           if (!data || data.e !== "kline") return;
           const k = data.k; // kline object
           const symbol = data.s;
-          // k: { t: openTime, T: closeTime, s: symbol, i: interval, f, L, o, c, h, l, v, x: isFinal, q, n }
+          // k: { t: openTime, T: closeTime,
+          // s: symbol, i: interval, f, L, o, c, h, l, v, x: isFinal, q, n }
           handleKlineEvent(symbol, k);
         } catch (err) {
           console.warn("WS message parse error", err);
@@ -363,18 +372,19 @@ export default function SiteADataLoader() {
         console.warn(`[WS ${idx}] error`, err);
       };
 
-      ws.onclose = (ev) => {
-        console.warn(`[WS ${idx}] closed`, ev.code, ev.reason);
-        // simple reconnect with backoff if component still mounted
-        if (mountedRef.current) {
-          setTimeout(() => {
-            // re-create the socket for this particular group
-            console.log(`[WS ${idx}] reconnecting...`);
-            startWebsocketsForSymbols(group.map(s => s.split("@")[0].toUpperCase()), tf); // caution: re-subscribing group only
-          }, backoff);
-          backoff = Math.min(60_000, backoff * 2);
-        }
-      };
+      ws.onclose =
+        (ev) => {
+          console.warn(`[WS ${idx}] closed`, ev.code, ev.reason);
+          // simple reconnect with backoff if component still mounted
+          if (mountedRef.current) {
+            setTimeout(() => {
+              // re-create the socket for this particular group
+              console.log(`[WS ${idx}] reconnecting...`);
+              startWebsocketsForSymbols(group.map(s => s.split("@")[0].toUpperCase()), tf); // caution: re-subscribing group only
+            }, backoff);
+            backoff = Math.min(60_000, backoff * 2);
+          }
+        };
 
       socketsRef.current.push(ws);
     });
@@ -384,7 +394,7 @@ export default function SiteADataLoader() {
     socketsRef.current.forEach((s) => {
       try {
         s.close();
-      } catch (e) {}
+      } catch (e) { }
     });
     socketsRef.current = [];
   }
@@ -398,7 +408,8 @@ export default function SiteADataLoader() {
       return;
     }
     // protect vs duplicate event processing
-    const eventTs = k.t; // open time
+    const eventTs = k.t;
+    // open time
     if (inMap.lastKlineEventTimestamp && eventTs <= inMap.lastKlineEventTimestamp) {
       return;
     }
@@ -413,12 +424,11 @@ export default function SiteADataLoader() {
       close: +k.c,
       volume: +k.v,
     };
-
     // if this kline is final (k.x === true) -> replace last candle and append
     const isFinal = k.x as boolean;
-
     // update candles array in-memory
-    const candles = inMap.candles.slice(); // shallow copy
+    const candles = inMap.candles.slice();
+    // shallow copy
     if (candles.length === 0) {
       candles.push(candle);
     } else {
@@ -442,15 +452,16 @@ export default function SiteADataLoader() {
     const rsi14 = calculateRSI(closes, 14);
 
     // keep prev candle info
-    const prevClosedGreen = candles.length >= 2 ? candles[candles.length - 2].close > candles[candles.length - 2].open : null;
-    const prevClosedRed = candles.length >= 2 ? candles[candles.length - 2].close < candles[candles.length - 2].open : null;
+    const prevClosedGreen = candles.length >= 2 ?
+      candles[candles.length - 2].close > candles[candles.length - 2].open : null;
+    const prevClosedRed = candles.length >= 2 ?
+      candles[candles.length - 2].close < candles[candles.length - 2].open : null;
 
     // update mainTrend simplified using EMA70 & EMA200 (recalc)
     const ema70 = calculateEMA(closes, 70);
     const ema200 = calculateEMA(closes, 200);
     const lastEma70 = ema70.at(-1);
     const lastEma200 = ema200.at(-1);
-
     let mainTrend: MainTrend = {
       trend: "neutral",
       type: "none",
@@ -459,7 +470,6 @@ export default function SiteADataLoader() {
       isNear: false,
       isDojiAfterBreakout: false,
     };
-
     if (typeof lastEma70 === "number" && typeof lastEma200 === "number" && !isNaN(lastEma70) && !isNaN(lastEma200)) {
       if (lastEma70 > lastEma200) {
         mainTrend.trend = "bullish";
@@ -470,7 +480,8 @@ export default function SiteADataLoader() {
       }
     }
 
-    // price change percent - we don't call per-symbol REST; rely on bulk initial priceChangePercent if present
+    // price change percent - we don't call per-symbol REST;
+    // rely on bulk initial priceChangePercent if present
     // update the inMap object
     inMap.candles = candles;
     inMap.closes = closes;
@@ -478,7 +489,6 @@ export default function SiteADataLoader() {
     inMap.prevClosedGreen = prevClosedGreen;
     inMap.prevClosedRed = prevClosedRed;
     inMap.mainTrend = mainTrend;
-
     // store back
     symbolMapRef.current.set(sKey, inMap);
   }
@@ -538,13 +548,13 @@ export default function SiteADataLoader() {
       const ema10 = calculateEMA(s.closes, 10).at(-1);
       const ema20 = calculateEMA(s.closes, 20).at(-1);
       const ema50 = calculateEMA(s.closes, 50).at(-1);
+
       const rsi = s.rsi14.at(-1);
       if (!ema5 || !ema10 || !ema20 || !ema50 || isNaN(Number(rsi))) return false;
       const isBullishEma = (ema5 as number) > (ema10 as number) && (ema10 as number) > (ema20 as number) && (ema20 as number) > (ema50 as number);
       return isBullishEma && (rsi as number) > 50;
     });
   }, [uiSymbols]);
-
   const bearFlagSymbols = useMemo(() => {
     return uiSymbols.filter((s) => {
       if (!s.rsi14 || s.rsi14.length < 1 || !s.closes || s.closes.length < 50) return false;
@@ -554,12 +564,12 @@ export default function SiteADataLoader() {
       const ema20 = calculateEMA(s.closes, 20).at(-1);
       const ema50 = calculateEMA(s.closes, 50).at(-1);
       const rsi = s.rsi14.at(-1);
-      if (!ema5 || !ema10 || !ema20 || !ema50 || isNaN(Number(rsi))) return false;
+      if
+      (!ema5 || !ema10 || !ema20 || !ema50 || isNaN(Number(rsi))) return false;
       const isBearishEma = (ema5 as number) < (ema10 as number) && (ema10 as number) < (ema20 as number) && (ema20 as number) < (ema50 as number);
       return isBearishEma && (rsi as number) < 50;
     });
   }, [uiSymbols]);
-
   const marketStats = useMemo(() => {
     const greenPriceChangeCount = uiSymbols.filter((t) => Number(t.priceChangePercent || 0) > 0).length;
     const redPriceChangeCount = uiSymbols.filter((t) => Number(t.priceChangePercent || 0) < 0).length;
@@ -568,7 +578,8 @@ export default function SiteADataLoader() {
     const bullishTrendCount = uiSymbols.filter((s) => s.mainTrend && s.mainTrend.trend === "bullish").length;
     const bearishTrendCount = uiSymbols.filter((s) => s.mainTrend && s.mainTrend.trend === "bearish").length;
     const maxPumpZoneCount = uiSymbols.filter((s) => getSignalForSymbol(s) === "MAX ZONE PUMP").length;
-    const maxDumpZoneCount = uiSymbols.filter((s) => getSignalForSymbol(s) === "MAX ZONE DUMP").length;
+    const maxDumpZoneCount = uiSymbols.filter((s)
+      => getSignalForSymbol(s) === "MAX ZONE DUMP").length;
     const bullFlagCount = bullFlagSymbols.length;
     const bearFlagCount = bearFlagSymbols.length;
 
@@ -596,12 +607,14 @@ export default function SiteADataLoader() {
 
         <div className="flex justify-center mb-6 space-x-4">
           {["15m", "4h", "1d"].map((tf) => (
+
             <button
               key={tf}
               onClick={() => setTimeframe(tf)}
               className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200
                 ${timeframe === tf ? "bg-purple-600 text-white shadow-lg" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
             >
+
               {tf.toUpperCase()}
             </button>
           ))}
@@ -613,12 +626,14 @@ export default function SiteADataLoader() {
           </p>
         )}
 
+
         <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
           <h2 className="text-xl sm:text-2xl font-bold text-blue-300 mb-4 text-center">Market Overview</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4 text-center">
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Green Price Change</p>
               <p className="text-lg font-semibold text-green-400">{marketStats.greenPriceChangeCount}</p>
+
             </div>
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Red Price Change</p>
@@ -626,25 +641,29 @@ export default function SiteADataLoader() {
             </div>
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Green Volume (Prev Session)</p>
+
               <p className="text-lg font-semibold text-green-400">{marketStats.greenVolumeCount}</p>
             </div>
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Red Volume (Prev Session)</p>
               <p className="text-lg font-semibold text-red-400">{marketStats.redVolumeCount}</p>
             </div>
+
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Bullish Trend</p>
               <p className="text-lg font-semibold text-green-400">{marketStats.bullishTrendCount}</p>
             </div>
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Bearish Trend</p>
-              <p className="text-lg font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
+              <p className="text-lg
+                font-semibold text-red-400">{marketStats.bearishTrendCount}</p>
             </div>
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Bull Flag</p>
               <p className="text-lg font-semibold text-blue-400">{marketStats.bullFlagCount}</p>
             </div>
             <div className="p-3 bg-gray-700 rounded-lg">
+
               <p className="text-sm text-gray-400">Bear Flag</p>
               <p className="text-lg font-semibold text-orange-400">{marketStats.bearFlagCount}</p>
             </div>
@@ -652,6 +671,7 @@ export default function SiteADataLoader() {
               <p className="text-sm text-gray-400">Max Zone Pump</p>
               <p className="text-lg font-semibold text-purple-400">{marketStats.maxPumpZoneCount}</p>
             </div>
+
             <div className="p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-400">Max Zone Dump</p>
               <p className="text-lg font-semibold text-purple-400">{marketStats.maxDumpZoneCount}</p>
@@ -659,32 +679,40 @@ export default function SiteADataLoader() {
           </div>
         </div>
 
-        {loading && <div className="text-center text-lg text-gray-400 mt-10">Loading signals... This might take a moment. ⏳</div>}
+        {loading && <div className="text-center text-lg text-gray-400 mt-10">Loading signals... This might take a moment.
+          ⏳</div>}
 
         {!loading && bullFlagSymbols.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-blue-700">
             <h2 className="text-2xl sm:text-3xl font-bold text-blue-300 mb-5 text-center">Bull Flag Signals ({bullFlagSymbols.length})</h2>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
+                <thead
+                  className="bg-gray-700">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
+                    <th className="px-4 py-3 text-left text-xs
+                      font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
                   {bullFlagSymbols.map((s) => (
                     <tr key={s.symbol}>
+
                       <td className="px-4 py-4 text-blue-200 font-medium">{s.symbol}</td>
-                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) || "N/A"}</td>
+                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
+                        "N/A"}</td>
                       <td className="px-4 py-4">
-                        <span className={`font-semibold ${s.priceChangePercent && s.priceChangePercent > 0 ? "text-green-400" : "text-red-400"}`}>
-                          {s.priceChangePercent?.toFixed(2) || "N/A"}%
+                        <span className={`font-semibold ${s.priceChangePercent && s.priceChangePercent > 0 ?
+                          "text-green-400" : "text-red-400"}`}>
+                          {s.priceChangePercent?.toFixed(2) ||
+                            "N/A"}%
                         </span>
                       </td>
                     </tr>
                   ))}
+
                 </tbody>
               </table>
             </div>
@@ -694,27 +722,34 @@ export default function SiteADataLoader() {
         {!loading && bearFlagSymbols.length > 0 && (
           <div className="bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 mb-8 border border-orange-700">
             <h2 className="text-2xl sm:text-3xl font-bold text-orange-300 mb-5 text-center">Bear Flag Signals ({bearFlagSymbols.length})</h2>
+
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-700">
                 <thead className="bg-gray-700">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Symbol</th>
+
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current Price</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">24h Change (%)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-700">
+                <tbody
+                  className="divide-y divide-gray-700">
                   {bearFlagSymbols.map((s) => (
                     <tr key={s.symbol}>
                       <td className="px-4 py-4 text-orange-200 font-medium">{s.symbol}</td>
-                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) || "N/A"}</td>
+                      <td className="px-4 py-4 text-gray-200">${s.closes.at(-1)?.toFixed(2) ||
+                        "N/A"}</td>
                       <td className="px-4 py-4">
-                        <span className={`font-semibold ${s.priceChangePercent && s.priceChangePercent > 0 ? "text-green-400" : "text-red-400"}`}>
-                          {s.priceChangePercent?.toFixed(2) || "N/A"}%
+                        <span className={`font-semibold ${s.priceChangePercent && s.priceChangePercent > 0 ?
+                          "text-green-400" : "text-red-400"}`}>
+                          {s.priceChangePercent?.toFixed(2) ||
+                            "N/A"}%
                         </span>
                       </td>
                     </tr>
                   ))}
+
                 </tbody>
               </table>
             </div>
@@ -724,6 +759,7 @@ export default function SiteADataLoader() {
         {!loading && bullFlagSymbols.length === 0 && bearFlagSymbols.length === 0 && (
           <div className="text-center text-lg text-gray-400 mt-10">No Bull or Bear Flag signals found for the selected timeframe.</div>
         )}
+
       </div>
     </div>
   );
