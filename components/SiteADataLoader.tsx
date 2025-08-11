@@ -1,5 +1,6 @@
 // SiteADataLoader.ws.tsx
 import React, { useEffect, useRef, useState, useMemo } from "react";
+import FlagSignalsDashboard from './FlagSignalsDashboard';
 /**
  * Reworked SiteADataLoader with:
  * - bulk /fapi/v1/ticker/24hr fetch
@@ -760,6 +761,7 @@ export default function SiteADataLoader() {
         )}
 
       </div>
+      <FlagSignalsDashboard />
     </div>
   );
 }
