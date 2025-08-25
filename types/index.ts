@@ -11,13 +11,13 @@ sentimentSignal?: SentimentSignal; // Optional sentiment signal per symbol
 }
 
 export interface SymbolTradeSignal {
-symbol: string;
-signal: "long" | "short" | null;
-strength: "Weak" | "Medium" | "Strong";
-confidence: "Low Confidence" | "Medium Confidence" | "High Confidence";
-entry: number | null;
-stopLoss: number | null;
-takeProfit: number | null;
+  symbol: string;
+  signal: "buying zone" | "selling zone" | null;
+  entry: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  strength?: string;  // Make these optional
+  confidence?: string;  // Make these optional
 }
 
 export interface LiquidationEvent {
