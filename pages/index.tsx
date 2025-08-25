@@ -185,15 +185,15 @@ export default function PriceFundingTracker() {
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
   return combinedData.map(({ symbol, priceChangePercent }) => {
-    let signal: "buying zone" | "selling zone" | null = null;
+    let signal: "Price Increase (≥ 5%)" | "Price Drop (≤ -5%)" | null = null;
 
     // Price Increase (≥ 5%) = Buying zone
     if (priceChangePercent >= 5) {
-      signal = "buying zone";
+      signal = "Price Increase (≥ 5%)";
     }
     // Price Drop (≤ -5%) = Selling zone
     else if (priceChangePercent <= -5) {
-      signal = "selling zone";
+      signal = "Price Drop (≤ -5%)";
     }
 
     return { symbol, signal, entry: null, stopLoss: null, takeProfit: null };
@@ -935,7 +935,7 @@ export default function PriceFundingTracker() {
                       <td className="p-2 space-y-1 text-xs text-gray-200">
   {signal && signal.signal ? (
     <div className="flex flex-col">
-      <span className={`font-bold ${signal.signal === "buying zone" ? "text-green-400" : "text-red-400"}`}>
+      <span className={`font-bold ${signal.signal === "Price Increase (≥ 5%)" ? "text-green-400" : "text-red-400"}`}>
         {signal.signal.toUpperCase()}
       </span>
     </div>
