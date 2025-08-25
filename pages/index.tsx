@@ -933,18 +933,16 @@ export default function PriceFundingTracker() {
                       </td>
 
                       <td className="p-2 space-y-1 text-xs text-gray-200">
-                        {signal && signal.signal ? (
-                          <div className="flex flex-col">
-                            <span className={`font-bold ${signal.signal === "long" ? "text-green-400" : "text-red-400"}`}>
-                              {signal.signal.toUpperCase()}
-                            </span>
-                            <span className="text-yellow-300">{signal.strength}</span>
-                            <span className="text-gray-400 italic">{signal.confidence}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
+  {signal && signal.signal ? (
+    <div className="flex flex-col">
+      <span className={`font-bold ${signal.signal === "buying zone" ? "text-green-400" : "text-red-400"}`}>
+        {signal.signal.toUpperCase()}
+      </span>
+    </div>
+  ) : (
+    <span className="text-gray-500">-</span>
+  )}
+</td>
 
                       <td className="p-2 text-yellow-400 cursor-pointer select-none" onClick={() =>
                         setFavorites((prev) =>
