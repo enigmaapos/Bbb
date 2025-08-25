@@ -534,8 +534,8 @@ export default function PriceFundingTracker() {
         const signalB = tradeSignals.find((s) => s.symbol === b.symbol);
 
         const rank = (s: SymbolTradeSignal | undefined) => {
-  if (s?.signal === "buying zone") return 0;
-  if (s?.signal === "selling zone") return 1;
+  if (s?.signal === "Price Increase (≥ 5%)") return 0;
+  if (s?.signal === "Price Drop (≤ -5%)") return 1;
   return 2;
 };
 
