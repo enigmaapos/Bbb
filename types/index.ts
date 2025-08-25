@@ -12,12 +12,7 @@ sentimentSignal?: SentimentSignal; // Optional sentiment signal per symbol
 
 export interface SymbolTradeSignal {
   symbol: string;
-  signal: "buying zone" | "selling zone" | null;
-  entry: number | null;
-  stopLoss: number | null;
-  takeProfit: number | null;
-  strength?: string;  // Make these optional
-  confidence?: string;  // Make these optional
+  signal: "Price Increase (≥ 5%)" | "Price Drop (≤ -5%)" | null;
 }
 
 export interface LiquidationEvent {
