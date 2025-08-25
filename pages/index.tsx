@@ -5,7 +5,6 @@ import FundingSentimentChart from "../components/FundingSentimentChart";
 import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import LiquidationHeatmap from "../components/LiquidationHeatmap";
-import SiteADataLoader from "../components/SiteADataLoader";
 import {
   SymbolData,
   SymbolTradeSignal,
@@ -866,9 +865,6 @@ export default function PriceFundingTracker() {
         <div className="mb-8">
           <LeverageProfitCalculator />
         </div>
-
-        <SiteADataLoader />
-        
 
         <div className="my-8 h-px bg-gray-700" />
 
