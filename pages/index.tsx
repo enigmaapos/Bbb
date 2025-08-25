@@ -184,47 +184,21 @@ export default function PriceFundingTracker() {
   });
 
   const generateTradeSignals = useCallback((combinedData: SymbolData[]): SymbolTradeSignal[] => {
-    return combinedData.map(({ symbol, priceChangePercent, fundingRate, lastPrice, volume }) => {
-      let signal: "long" | "short" | null = null;
-      let strength: SymbolTradeSignal['strength'] = "Weak";
-      let confidence: SymbolTradeSignal['confidence'] = "Low Confidence";
+  return combinedData.map(({ symbol, priceChangePercent }) => {
+    let signal: "buying zone" | "selling zone" | null = null;
 
-      if (priceChangePercent >= priceChangeThreshold && fundingRate < -fundingRateThreshold) {
-        signal = "long";
-        if (priceChangePercent >= highPriceChangeThreshold && fundingRate <= -highFundingRateThreshold && volume >= volumeThreshold) {
-          strength = "Strong";
-          confidence = "High Confidence";
-        } else if (priceChangePercent >= mediumPriceChangeThreshold && fundingRate <= -mediumFundingRateThreshold) {
-          strength = "Medium";
-          confidence = "Medium Confidence";
-        }
-      } else if (priceChangePercent <= -priceChangeThreshold && fundingRate > fundingRateThreshold) {
-        signal = "short";
-        if (priceChangePercent <= -highPriceChangeThreshold && fundingRate >= highFundingRateThreshold && volume >= volumeThreshold) {
-          strength = "Strong";
-          confidence = "High Confidence";
-        } else if (priceChangePercent <= -mediumPriceChangeThreshold && fundingRate >= mediumFundingRateThreshold) {
-          strength = "Medium";
-          confidence = "Medium Confidence";
-        }
-      }
+    // Price Increase (≥ 5%) = Buying zone
+    if (priceChangePercent >= 5) {
+      signal = "buying zone";
+    }
+    // Price Drop (≤ -5%) = Selling zone
+    else if (priceChangePercent <= -5) {
+      signal = "selling zone";
+    }
 
-      if (signal === null) {
-        strength = "Weak";
-        confidence = "Low Confidence";
-      }
-
-      return { symbol, signal, strength, confidence, entry: null, stopLoss: null, takeProfit: null };
-    });
-  }, [
-    priceChangeThreshold,
-    fundingRateThreshold,
-    highPriceChangeThreshold,
-    highFundingRateThreshold,
-    mediumPriceChangeThreshold,
-    mediumFundingRateThreshold,
-    volumeThreshold,
-  ]);
+    return { symbol, signal, entry: null, stopLoss: null, takeProfit: null };
+  });
+}, []);
 
   const aggregateLiquidationEvents = useCallback((events: LiquidationEvent[]): AggregatedLiquidationData => {
     let totalLongLiquidationsUSD = 0;
