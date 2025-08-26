@@ -643,17 +643,17 @@ export default function PriceFundingTracker() {
             <div>
               <p className="text-green-300 font-semibold mb-1">📈 Bullish Potential (Shorts Paying):</p>
               <span className="text-green-400">Green + Funding ➕:</span>{" "}
-              <span className="text-green-300 font-bold">{greenPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-red-300 font-bold">{greenPositiveFunding}</span> &nbsp;|&nbsp;
               <span className="text-red-400">➖:</span>{" "}
-              <span className="text-red-300 font-bold">{greenNegativeFunding}</span>
+              <span className="text-green-300 font-bold">{greenNegativeFunding}</span>
             </div>
 
             <div>
               <p className="text-red-300 font-semibold mb-1">📉 Bearish Risk (Longs Paying):</p>
               <span className="text-red-400">Red + Funding ➕:</span>{" "}
-              <span className="text-green-300 font-bold">{redPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-red-300 font-bold">{redPositiveFunding}</span> &nbsp;|&nbsp;
               <span className="text-yellow-300">➖:</span>{" "}
-              <span className="text-red-200 font-bold">{redNegativeFunding}</span>
+              <span className="text-green-200 font-bold">{redNegativeFunding}</span>
             </div>
           </div>
         </div>
