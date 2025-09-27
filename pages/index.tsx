@@ -1,21 +1,7 @@
 // pages/index.tsx
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Head from "next/head";
-import FundingSentimentChart from "../components/FundingSentimentChart";
-import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import axios from "axios";
-
-// --- TEMPORARY SentimentSignal DEFINITION ---
-// YOU SHOULD MOVE THIS TO YOUR types.ts FILE
-interface SentimentSignal {
-  symbol: string;
-  signal: 'Bullish Opportunity' | 'Bearish Risk' | 'Early Squeeze Signal' | 'Early Long Trap' | string;
-  reason?: string;
-  strongBuy?: boolean;
-  strongSell?: boolean;
-  priceChangePercent: number;
-}
-// --- END TEMPORARY SentimentSignal DEFINITION ---
 
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
   return (
@@ -27,7 +13,6 @@ function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError 
 }
 
 const BINANCE_API = "https://fapi.binance.com";
-const BINANCE_WS_URL = "wss://fstream.binance.com/ws/!forceOrder@arr";
 
 const formatDavaoTime = (): string => {
   const now = new Date();
@@ -40,6 +25,37 @@ const formatDavaoTime = (): string => {
   }).format(now);
 };
 
+// --- TEMPORARY SymbolData DEFINITION ---
+// (move to types.ts later if you prefer)
+interface SymbolData {
+  symbol: string;
+  priceChangePercent: number;
+  fundingRate: number;
+  lastPrice: number;
+  volume: number;
+}
+
+interface BinanceSymbol {
+  symbol: string;
+  contractType: string;
+}
+
+interface BinanceExchangeInfoResponse {
+  symbols: BinanceSymbol[];
+}
+
+interface BinanceTicker24hr {
+  symbol: string;
+  priceChangePercent: string;
+  lastPrice: string;
+  quoteVolume: string;
+}
+
+interface BinancePremiumIndex {
+  symbol: string;
+  lastFundingRate: string;
+}
+
 export default function PriceFundingTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +65,9 @@ export default function PriceFundingTracker() {
   const [redCount, setRedCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>("");
 
-  // favorites + sorting still available for table usage
+  // sorting/filtering (kept in case table added later)
   const [sortConfig, setSortConfig] = useState<{
-    key: "fundingRate" | "priceChangePercent" | "signal" | null;
+    key: "fundingRate" | "priceChangePercent" | null;
     direction: "asc" | "desc" | null;
   }>({ key: "fundingRate", direction: "desc" });
 
@@ -86,7 +102,7 @@ export default function PriceFundingTracker() {
         const tickerData = tickerRes.data;
         const fundingData = fundingRes.data;
 
-        let combinedData: SymbolData[] = usdtPairs
+        const combinedData: SymbolData[] = usdtPairs
           .map((symbol: string) => {
             const ticker = tickerData.find((t) => t.symbol === symbol);
             const funding = fundingData.find((f) => f.symbol === symbol);
