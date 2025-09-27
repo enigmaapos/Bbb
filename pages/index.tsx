@@ -2,29 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
-import MarketAnalysisDisplay from "../components/MarketAnalysisDisplay";
 import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
-import LiquidationHeatmap from "../components/LiquidationHeatmap";
-import {
-  SymbolData,
-  SymbolTradeSignal,
-  MarketStats,
-  LiquidationEvent,
-  AggregatedLiquidationData,
-  MarketAnalysisResults,
-  // SentimentSignal, // Removed import from types.ts temporarily to define locally
-  SentimentArticle,
-} from "../types";
-import {
-  BinanceExchangeInfoResponse,
-  BinanceSymbol,
-  BinanceTicker24hr,
-  BinancePremiumIndex,
-} from "../types/binance";
-import { analyzeSentiment } from "../utils/sentimentAnalyzer";
-import { detectSentimentSignals } from "../utils/signalDetector"; // Re-enabled original import
-import axios, { AxiosError } from 'axios';
-import { fetchCryptoNews } from "../utils/newsFetcher";
 
 // --- TEMPORARY SentimentSignal DEFINITION ---
 // YOU SHOULD MOVE THIS TO YOUR types.ts FILE
@@ -704,17 +682,6 @@ export default function PriceFundingTracker() {
             )}
           </div>
         </div>
-
-        <MarketAnalysisDisplay
-          marketAnalysis={marketAnalysis}
-          fundingImbalanceData={fundingImbalanceData}
-          greenCount={greenCount}
-          redCount={redCount}
-          greenPositiveFunding={greenPositiveFunding}
-          greenNegativeFunding={greenNegativeFunding}
-          redPositiveFunding={redPositiveFunding}
-          redNegativeFunding={redNegativeFunding}
-        />
 
         <div className="mb-8">
           <LiquidationHeatmap
