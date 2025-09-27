@@ -1,8 +1,19 @@
 // pages/index.tsx
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Head from "next/head";
+import FundingSentimentChart from "../components/FundingSentimentChart";
 import axios from "axios";
 
+// --- TEMPORARY SymbolData DEFINITION ---
+interface SymbolData {
+  symbol: string;
+  priceChangePercent: number;
+  fundingRate: number;
+  lastPrice: number;
+  volume: number;
+}
+
+// Custom type guard for AxiosError
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
   return (
     typeof error === "object" &&
@@ -14,6 +25,7 @@ function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError 
 
 const BINANCE_API = "https://fapi.binance.com";
 
+// Helper function to format time for Davao City
 const formatDavaoTime = (): string => {
   const now = new Date();
   return new Intl.DateTimeFormat("en-US", {
@@ -25,37 +37,6 @@ const formatDavaoTime = (): string => {
   }).format(now);
 };
 
-// --- TEMPORARY SymbolData DEFINITION ---
-// (move to types.ts later if you prefer)
-interface SymbolData {
-  symbol: string;
-  priceChangePercent: number;
-  fundingRate: number;
-  lastPrice: number;
-  volume: number;
-}
-
-interface BinanceSymbol {
-  symbol: string;
-  contractType: string;
-}
-
-interface BinanceExchangeInfoResponse {
-  symbols: BinanceSymbol[];
-}
-
-interface BinanceTicker24hr {
-  symbol: string;
-  priceChangePercent: string;
-  lastPrice: string;
-  quoteVolume: string;
-}
-
-interface BinancePremiumIndex {
-  symbol: string;
-  lastFundingRate: string;
-}
-
 export default function PriceFundingTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,49 +44,35 @@ export default function PriceFundingTracker() {
   const [rawData, setRawData] = useState<SymbolData[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
+  const [greenPositiveFunding, setGreenPositiveFunding] = useState(0);
+  const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
+  const [redPositiveFunding, setRedPositiveFunding] = useState(0);
+  const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>("");
-
-  // sorting/filtering (kept in case table added later)
-  const [sortConfig, setSortConfig] = useState<{
-    key: "fundingRate" | "priceChangePercent" | null;
-    direction: "asc" | "desc" | null;
-  }>({ key: "fundingRate", direction: "desc" });
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    if (typeof window !== "undefined") {
-      const savedFavorites = localStorage.getItem("favorites");
-      return savedFavorites ? JSON.parse(savedFavorites) : [];
-    }
-    return [];
-  });
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   // --- Main Data Fetching ---
   useEffect(() => {
     const fetchAllData = async () => {
-      if (rawData.length === 0) {
-        setLoading(true);
-      }
+      if (rawData.length === 0) setLoading(true);
       setError(null);
       try {
         const [infoRes, tickerRes, fundingRes] = await Promise.all([
-          axios.get<BinanceExchangeInfoResponse>(`${BINANCE_API}/fapi/v1/exchangeInfo`),
-          axios.get<BinanceTicker24hr[]>(`${BINANCE_API}/fapi/v1/ticker/24hr`),
-          axios.get<BinancePremiumIndex[]>(`${BINANCE_API}/fapi/v1/premiumIndex`),
+          axios.get(`${BINANCE_API}/fapi/v1/exchangeInfo`),
+          axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
+          axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
         ]);
 
         const usdtPairs = infoRes.data.symbols
-          .filter((s: BinanceSymbol) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
-          .map((s: BinanceSymbol) => s.symbol);
+          .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
+          .map((s: any) => s.symbol);
 
         const tickerData = tickerRes.data;
         const fundingData = fundingRes.data;
 
-        const combinedData: SymbolData[] = usdtPairs
+        let combinedData: SymbolData[] = usdtPairs
           .map((symbol: string) => {
-            const ticker = tickerData.find((t) => t.symbol === symbol);
-            const funding = fundingData.find((f) => f.symbol === symbol);
+            const ticker = tickerData.find((t: any) => t.symbol === symbol);
+            const funding = fundingData.find((f: any) => f.symbol === symbol);
             return {
               symbol,
               priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
@@ -116,12 +83,18 @@ export default function PriceFundingTracker() {
           })
           .filter((d: SymbolData) => d.volume > 0);
 
-        setRawData(combinedData);
+        const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+        const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+        const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+        const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
-        const green = combinedData.filter((d) => d.priceChangePercent >= 0).length;
-        const red = combinedData.length - green;
-        setGreenCount(green);
-        setRedCount(red);
+        setRawData(combinedData);
+        setGreenCount(combinedData.filter((d) => d.priceChangePercent >= 0).length);
+        setRedCount(combinedData.filter((d) => d.priceChangePercent < 0).length);
+        setGreenPositiveFunding(gPos);
+        setGreenNegativeFunding(gNeg);
+        setRedPositiveFunding(rPos);
+        setRedNegativeFunding(rNeg);
 
         setLastUpdated(formatDavaoTime());
       } catch (err: any) {
@@ -138,32 +111,8 @@ export default function PriceFundingTracker() {
 
     fetchAllData();
     const interval = setInterval(fetchAllData, 30000);
-
     return () => clearInterval(interval);
   }, [rawData.length]);
-
-  const sortedData = useMemo(() => {
-    const sortableData = [...rawData];
-    if (!sortConfig.key) return sortableData;
-
-    return sortableData.sort((a, b) => {
-      const order = sortConfig.direction === "asc" ? 1 : -1;
-      if (sortConfig.key === "fundingRate") {
-        return (a.fundingRate - b.fundingRate) * order;
-      } else if (sortConfig.key === "priceChangePercent") {
-        return (a.priceChangePercent - b.priceChangePercent) * order;
-      }
-      return 0;
-    });
-  }, [rawData, sortConfig]);
-
-  const filteredAndSortedData = useMemo(() => {
-    return sortedData.filter(
-      (item) =>
-        (!searchTerm || item.symbol.includes(searchTerm)) &&
-        (!showFavoritesOnly || favorites.includes(item.symbol))
-    );
-  }, [sortedData, searchTerm, showFavoritesOnly, favorites]);
 
   if (loading) {
     return (
@@ -187,7 +136,7 @@ export default function PriceFundingTracker() {
         <title>Binance USDT Perpetual Tracker</title>
         <meta
           name="description"
-          content="Real-time Binance USDT Perpetual Tracker with General Market Bias"
+          content="Real-time Binance USDT Perpetual Tracker with Market Bias and Funding Analysis"
         />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -200,27 +149,73 @@ export default function PriceFundingTracker() {
           Last Updated (Davao City): {lastUpdated}
         </p>
 
-        {/* --- Market Summary (ONLY General Market Bias) --- */}
+        {/* --- Market Summary Section --- */}
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
           <h2 className="text-lg font-bold text-white mb-3">
             📊 Market Summary
             <span
-              title="Shows the number of symbols in profit vs loss (Green vs Red)"
+              title="Tracks how price movement and funding rate interact across all perpetual USDT pairs"
               className="text-sm text-gray-400 ml-2 cursor-help"
             >
               ℹ️
             </span>
           </h2>
 
-          <div className="text-sm">
-            <p className="text-gray-400 font-semibold mb-1">
-              🧮 General Market Bias:
-            </p>
-            ✅{" "}
-            <span className="text-green-400 font-bold">Green</span>: {greenCount}{" "}
-            &nbsp;&nbsp;
-            ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
+          <div className="text-sm space-y-4">
+            {/* General Bias */}
+            <div>
+              <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
+              ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
+              ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
+            </div>
+
+            {/* 24h Price Change */}
+            <div>
+              <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>
+              <ul className="text-blue-100 ml-4 list-disc space-y-1">
+                <li>
+                  <span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>:{" "}
+                  {rawData.filter((item) => item.priceChangePercent >= 5).length}
+                </li>
+                <li>
+                  <span className="font-semibold text-yellow-300">Mild Movement (±0–5%)</span>:{" "}
+                  {rawData.filter((item) => item.priceChangePercent > -5 && item.priceChangePercent < 5).length}
+                </li>
+                <li>
+                  <span className="font-semibold text-red-400">Price Drop (≤ -5%)</span>:{" "}
+                  {rawData.filter((item) => item.priceChangePercent <= -5).length}
+                </li>
+              </ul>
+            </div>
+
+            {/* Bullish Potential */}
+            <div>
+              <p className="text-green-300 font-semibold mb-1">📈 Bullish Potential (Shorts Paying):</p>
+              <span className="text-green-400">Green + Funding ➕:</span>{" "}
+              <span className="text-red-300 font-bold">{greenPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-red-400">➖:</span>{" "}
+              <span className="text-green-300 font-bold">{greenNegativeFunding}</span>
+            </div>
+
+            {/* Bearish Risk */}
+            <div>
+              <p className="text-red-300 font-semibold mb-1">📉 Bearish Risk (Longs Paying):</p>
+              <span className="text-red-400">Red + Funding ➕:</span>{" "}
+              <span className="text-red-300 font-bold">{redPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-yellow-300">➖:</span>{" "}
+              <span className="text-green-200 font-bold">{redNegativeFunding}</span>
+            </div>
           </div>
+        </div>
+
+        {/* Funding Sentiment Chart */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <FundingSentimentChart
+            greenPositiveFunding={greenPositiveFunding}
+            greenNegativeFunding={greenNegativeFunding}
+            redPositiveFunding={redPositiveFunding}
+            redNegativeFunding={redNegativeFunding}
+          />
         </div>
       </div>
     </div>
