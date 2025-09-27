@@ -1,10 +1,9 @@
 // pages/index.tsx
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
 import axios from "axios";
 
-// --- TEMPORARY SymbolData DEFINITION ---
 interface SymbolData {
   symbol: string;
   priceChangePercent: number;
@@ -13,7 +12,6 @@ interface SymbolData {
   volume: number;
 }
 
-// Custom type guard for AxiosError
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
   return (
     typeof error === "object" &&
@@ -25,7 +23,6 @@ function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError 
 
 const BINANCE_API = "https://fapi.binance.com";
 
-// Helper function to format time for Davao City
 const formatDavaoTime = (): string => {
   const now = new Date();
   return new Intl.DateTimeFormat("en-US", {
@@ -38,7 +35,6 @@ const formatDavaoTime = (): string => {
 };
 
 export default function PriceFundingTracker() {
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [rawData, setRawData] = useState<SymbolData[]>([]);
@@ -48,12 +44,10 @@ export default function PriceFundingTracker() {
   const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [lastUpdated, setLastUpdated] = useState<string>("—");
 
-  // --- Main Data Fetching ---
   useEffect(() => {
     const fetchAllData = async () => {
-      if (rawData.length === 0) setLoading(true);
       setError(null);
       try {
         const [infoRes, tickerRes, fundingRes] = await Promise.all([
@@ -104,31 +98,13 @@ export default function PriceFundingTracker() {
         } else {
           setError("Failed to fetch market data. Unknown error.");
         }
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchAllData();
     const interval = setInterval(fetchAllData, 30000);
     return () => clearInterval(interval);
-  }, [rawData.length]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen text-white text-lg bg-gray-900">
-        Loading market data...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center min-h-screen text-red-500 text-lg bg-gray-900">
-        Error: {error}
-      </div>
-    );
-  }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -149,24 +125,24 @@ export default function PriceFundingTracker() {
           Last Updated (Davao City): {lastUpdated}
         </p>
 
+        {error && (
+          <div className="mb-4 p-2 bg-red-800 text-red-200 rounded">
+            {error}
+          </div>
+        )}
+
         {/* --- Market Summary Section --- */}
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
           <h2 className="text-lg font-bold text-white mb-3">
             📊 Market Summary
-            <span
-              title="Tracks how price movement and funding rate interact across all perpetual USDT pairs"
-              className="text-sm text-gray-400 ml-2 cursor-help"
-            >
-              ℹ️
-            </span>
           </h2>
 
           <div className="text-sm space-y-4">
             {/* General Bias */}
             <div>
               <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
-              ✅ <span className="text-green-400 font-bold">Green</span>: {greenCount} &nbsp;&nbsp;
-              ❌ <span className="text-red-400 font-bold">Red</span>: {redCount}
+              ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
+              ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
             </div>
 
             {/* 24h Price Change */}
