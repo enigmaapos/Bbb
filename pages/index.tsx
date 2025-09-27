@@ -193,6 +193,41 @@ export default function PriceFundingTracker() {
             redNegativeFunding={redNegativeFunding}
           />
         </div>
+
+        {/* --- Footer --- */}
+<footer className="mt-10 border-t border-gray-700 pt-6 text-sm text-gray-400 text-center">
+  <p>© {new Date().getFullYear()} Binance USDT Perpetual Tracker</p>
+  <p className="mt-1">
+    Built with ❤️ using{" "}
+    <a
+      href="https://nextjs.org/"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-400 hover:underline"
+    >
+      Next.js
+    </a>{" "}
+    &{" "}
+    <a
+      href="https://binance-docs.github.io/apidocs/futures/en/"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-yellow-400 hover:underline"
+    >
+      Binance Futures API
+    </a>
+  </p>
+  <p className="mt-1">
+    <a
+      href="https://github.com/yourusername/yourrepo"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-gray-300 hover:text-white hover:underline"
+    >
+      View Source on GitHub
+    </a>
+  </p>
+</footer>
       </div>
     </div>
   );
