@@ -36,7 +36,6 @@ const formatDavaoTime = (): string => {
 
 export default function PriceFundingTracker() {
   const [error, setError] = useState<string | null>(null);
-
   const [rawData, setRawData] = useState<SymbolData[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [redCount, setRedCount] = useState(0);
@@ -138,14 +137,12 @@ export default function PriceFundingTracker() {
           </h2>
 
           <div className="text-sm space-y-4">
-            {/* General Bias */}
             <div>
               <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
               ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
               ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
             </div>
 
-            {/* 24h Price Change */}
             <div>
               <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>
               <ul className="text-blue-100 ml-4 list-disc space-y-1">
@@ -164,7 +161,6 @@ export default function PriceFundingTracker() {
               </ul>
             </div>
 
-            {/* Bullish Potential */}
             <div>
               <p className="text-green-300 font-semibold mb-1">📈 Bullish Potential (Shorts Paying):</p>
               <span className="text-green-400">Green + Funding ➕:</span>{" "}
@@ -173,7 +169,6 @@ export default function PriceFundingTracker() {
               <span className="text-green-300 font-bold">{greenNegativeFunding}</span>
             </div>
 
-            {/* Bearish Risk */}
             <div>
               <p className="text-red-300 font-semibold mb-1">📉 Bearish Risk (Longs Paying):</p>
               <span className="text-red-400">Red + Funding ➕:</span>{" "}
@@ -194,41 +189,147 @@ export default function PriceFundingTracker() {
           />
         </div>
 
+        {/* --- ATH Gap Difference Calculator --- */}
+        <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
+          <h2 className="text-lg font-bold text-white mb-3">
+            🧮 ATH Gap Difference Calculator
+          </h2>
+          <AthGapCalculator data={rawData} />
+        </div>
+
         {/* --- Footer --- */}
-<footer className="mt-10 border-t border-gray-700 pt-6 text-sm text-gray-400 text-center">
-  <p>© {new Date().getFullYear()} Binance USDT Perpetual Tracker</p>
-  <p className="mt-1">
-    Built with ❤️ using{" "}
-    <a
-      href="https://nextjs.org/"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-blue-400 hover:underline"
-    >
-      Next.js
-    </a>{" "}
-    &{" "}
-    <a
-      href="https://binance-docs.github.io/apidocs/futures/en/"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-yellow-400 hover:underline"
-    >
-      Binance Futures API
-    </a>
-  </p>
-  <p className="mt-1">
-    <a
-      href="https://github.com/yourusername/yourrepo"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-gray-300 hover:text-white hover:underline"
-    >
-      View Source on GitHub
-    </a>
-  </p>
-</footer>
+        <footer className="mt-10 border-t border-gray-700 pt-6 text-sm text-gray-400 text-center">
+          <p>© {new Date().getFullYear()} Binance USDT Perpetual Tracker</p>
+          <p className="mt-1">
+            Built with ❤️ using{" "}
+            <a
+              href="https://nextjs.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:underline"
+            >
+              Next.js
+            </a>{" "}
+            &{" "}
+            <a
+              href="https://binance-docs.github.io/apidocs/futures/en/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-yellow-400 hover:underline"
+            >
+              Binance Futures API
+            </a>
+          </p>
+          <p className="mt-1">
+            <a
+              href="https://github.com/yourusername/yourrepo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-300 hover:text-white hover:underline"
+            >
+              View Source on GitHub
+            </a>
+          </p>
+        </footer>
       </div>
+    </div>
+  );
+}
+
+/* ------------------ ATH GAP CALCULATOR COMPONENT ------------------ */
+
+function AthGapCalculator({ data }: { data: SymbolData[] }) {
+  const [symbol, setSymbol] = useState("");
+  const [ath, setAth] = useState("");
+  const [entry, setEntry] = useState("");
+  const [result, setResult] = useState<{ gap: number; roi: number } | null>(null);
+
+  const calculateGap = () => {
+    const athNum = parseFloat(ath);
+    const entryNum = parseFloat(entry);
+    if (!athNum || !entryNum || athNum <= 0 || entryNum <= 0) {
+      alert("Please enter valid positive numbers for ATH and entry.");
+      return;
+    }
+    const gap = ((athNum - entryNum) / athNum) * 100;
+    const roi = ((athNum - entryNum) / entryNum) * 100;
+    setResult({ gap, roi });
+  };
+
+  const handleSelectSymbol = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const sym = e.target.value;
+    setSymbol(sym);
+    const found = data.find((d) => d.symbol === sym);
+    if (found) setEntry(found.lastPrice.toString());
+  };
+
+  return (
+    <div>
+      <div className="flex flex-col md:flex-row gap-4 mb-4">
+        <select
+          value={symbol}
+          onChange={handleSelectSymbol}
+          className="bg-gray-900 border border-gray-700 p-2 rounded text-white flex-1"
+        >
+          <option value="">Select Symbol (optional)</option>
+          {data
+            .sort((a, b) => a.symbol.localeCompare(b.symbol))
+            .map((d) => (
+              <option key={d.symbol} value={d.symbol}>
+                {d.symbol} — {d.lastPrice.toFixed(2)}
+              </option>
+            ))}
+        </select>
+
+        <input
+          type="number"
+          placeholder="ATH Price"
+          value={ath}
+          onChange={(e) => setAth(e.target.value)}
+          className="bg-gray-900 border border-gray-700 p-2 rounded text-white flex-1"
+        />
+        <input
+          type="number"
+          placeholder="Entry Price"
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          className="bg-gray-900 border border-gray-700 p-2 rounded text-white flex-1"
+        />
+      </div>
+
+      <button
+        onClick={calculateGap}
+        className="bg-blue-600 hover:bg-blue-700 transition p-2 rounded font-semibold"
+      >
+        Compute Gap Difference
+      </button>
+
+      {result && (
+        <div className="mt-4 text-sm text-gray-200 space-y-3">
+          <div>
+            🔻 <span className="font-semibold text-red-400">Below ATH:</span>{" "}
+            {result.gap.toFixed(2)}%
+          </div>
+          <div>
+            💹 <span className="font-semibold text-green-400">Potential ROI to ATH:</span>{" "}
+            {result.roi.toFixed(2)}%
+          </div>
+
+          {/* Visual bar chart */}
+          <div className="mt-3">
+            <p className="text-gray-400 text-xs mb-1">Visual Gap:</p>
+            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+              <div
+                className="bg-green-500 h-4"
+                style={{ width: `${Math.min(100 - result.gap, 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              {result.gap.toFixed(2)}% below ATH — {result.roi.toFixed(2)}% upside potential
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
