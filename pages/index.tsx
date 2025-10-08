@@ -114,7 +114,6 @@ export default function PriceFundingTracker() {
           content="Real-time Binance USDT Perpetual Tracker with Market Bias and Funding Analysis"
         />
         <link rel="icon" href="/favicon.ico" />
-        <link rel="icon" type="image/png" href="assets/logo.png">
       </Head>
 
       <div className="max-w-7xl mx-auto">
