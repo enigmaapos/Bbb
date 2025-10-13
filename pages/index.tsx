@@ -1,4 +1,4 @@
-// ✅ /pages/index.tsx — Full Version with Added TXN Dominance Computation
+// pages/index.tsx
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
@@ -43,7 +43,7 @@ export default function PriceFundingTracker() {
   const [greenNegativeFunding, setGreenNegativeFunding] = useState(0);
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState("—");
+  const [lastUpdated, setLastUpdated] = useState<string>("—");
 
   // 🟩🟥 Liquidity Totals
   const [greenLiquidity, setGreenLiquidity] = useState(0);
@@ -66,9 +66,7 @@ export default function PriceFundingTracker() {
         ]);
 
         const usdtPairs = infoRes.data.symbols
-          .filter(
-            (s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT")
-          )
+          .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: any) => s.symbol);
 
         const tickerData = tickerRes.data;
@@ -88,21 +86,13 @@ export default function PriceFundingTracker() {
           })
           .filter((d: SymbolData) => d.volume > 0);
 
-        // 🌿 Categorization
-        const gPos = combinedData.filter(
-          (d) => d.priceChangePercent >= 0 && d.fundingRate >= 0
-        ).length;
-        const gNeg = combinedData.filter(
-          (d) => d.priceChangePercent >= 0 && d.fundingRate < 0
-        ).length;
-        const rPos = combinedData.filter(
-          (d) => d.priceChangePercent < 0 && d.fundingRate >= 0
-        ).length;
-        const rNeg = combinedData.filter(
-          (d) => d.priceChangePercent < 0 && d.fundingRate < 0
-        ).length;
+        // 🌿 Categorize data
+        const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+        const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+        const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+        const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
-        // 💧 Liquidity Totals
+        // 💧 Liquidity totals (by quote volume)
         const greenTotal = combinedData
           .filter((d) => d.priceChangePercent >= 0)
           .reduce((sum, d) => sum + d.volume, 0);
@@ -111,6 +101,7 @@ export default function PriceFundingTracker() {
           .reduce((sum, d) => sum + d.volume, 0);
 
         // 🧭 Transaction Dominance (Executed Flow)
+        // Note: here we use same quoteVolume as proxy for actual executed txn flow
         const totalGreenTxn = combinedData
           .filter((d) => d.priceChangePercent >= 0)
           .reduce((sum, d) => sum + d.volume, 0);
@@ -126,7 +117,7 @@ export default function PriceFundingTracker() {
             ? "🔴 Bearish (Red)"
             : "⚫ Neutral";
 
-        // 🧾 State updates
+        // 🧾 Update states
         setRawData(combinedData);
         setGreenCount(combinedData.filter((d) => d.priceChangePercent >= 0).length);
         setRedCount(combinedData.filter((d) => d.priceChangePercent < 0).length);
@@ -138,16 +129,14 @@ export default function PriceFundingTracker() {
         setGreenLiquidity(greenTotal);
         setRedLiquidity(redTotal);
         setDominantLiquidity(
-          greenTotal > redTotal
-            ? "Bullish Liquidity (Green)"
-            : redTotal > greenTotal
-            ? "Bearish Liquidity (Red)"
-            : "Balanced"
+          greenTotal > redTotal ? "Bullish Liquidity (Green)" :
+          redTotal > greenTotal ? "Bearish Liquidity (Red)" : "Balanced"
         );
 
         setGreenTxn(totalGreenTxn);
         setRedTxn(totalRedTxn);
         setTxnDominant(txnDominantSide);
+
         setLastUpdated(formatDavaoTime());
       } catch (err: any) {
         console.error("Error fetching market data:", err);
@@ -164,95 +153,284 @@ export default function PriceFundingTracker() {
     return () => clearInterval(interval);
   }, []);
 
+  // Helper to format big numbers to readable (e.g., 1.23B)
+  const formatCompact = (n: number) => {
+    if (!n && n !== 0) return "—";
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + "B";
+    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+    if (abs >= 1_000) return (n / 1_000).toFixed(2) + "K";
+    return n.toFixed(2);
+  };
+
   return (
-    <div className="max-w-7xl mx-auto text-gray-100">
+    <div className="min-h-screen bg-gray-900 text-white p-6">
       <Head>
         <title>Binance USDT Perpetual Tracker</title>
+        <meta
+          name="description"
+          content="Real-time Binance USDT Perpetual Tracker with Market Bias and Funding Analysis"
+        />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <h1 className="text-3xl font-bold mb-3 text-blue-400">
-        📈 Binance USDT Perpetual Tracker
-      </h1>
-      <p className="text-sm text-gray-400 mb-6">
-        Last Updated (Davao City): {lastUpdated}
-      </p>
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-3 text-blue-400">
+          📈 Binance USDT Perpetual Tracker
+        </h1>
+        <p className="text-sm text-gray-400 mb-6">
+          Last Updated (Davao City): {lastUpdated}
+        </p>
 
-      {error && (
-        <div className="mb-4 p-2 bg-red-800 text-red-200 rounded">{error}</div>
-      )}
-
-      {/* --- Market Summary --- */}
-      <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
-        <h2 className="text-lg font-bold text-white mb-3">📊 Market Summary</h2>
-
-        <div className="text-sm space-y-4">
-          <div>
-            <p className="text-gray-400 font-semibold mb-1">
-              🧮 General Market Bias:
-            </p>
-            ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
-            ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
+        {error && (
+          <div className="mb-4 p-2 bg-red-800 text-red-200 rounded">
+            {error}
           </div>
+        )}
 
-          {/* 💧 Transaction Liquidity */}
-          <div>
-            <p className="text-yellow-300 font-semibold mb-1">
-              💧 Transaction Liquidity Summary:
-            </p>
-            <ul className="ml-4 text-gray-200 list-disc space-y-1">
-              <li>
-                🟢 <b>Total Green Liquidity:</b> {greenLiquidity.toLocaleString()} USDT
-              </li>
-              <li>
-                🔴 <b>Total Red Liquidity:</b> {redLiquidity.toLocaleString()} USDT
-              </li>
-              <li>
-                ⚖️ <b>Dominant Liquidity:</b>{" "}
-                <span
-                  className={
-                    dominantLiquidity.includes("Bullish")
-                      ? "text-green-400 font-bold"
-                      : dominantLiquidity.includes("Bearish")
-                      ? "text-red-400 font-bold"
-                      : "text-yellow-400 font-bold"
-                  }
-                >
-                  {dominantLiquidity}
-                </span>
-              </li>
-            </ul>
-          </div>
+        {/* --- Market Summary Section --- */}
+        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
+          <h2 className="text-lg font-bold text-white mb-3">
+            📊 Market Summary
+          </h2>
 
-          {/* 🧭 TXN Dominance */}
-          <div>
-            <p className="text-cyan-300 font-semibold mb-1">
-              🧭 Transaction Dominance (Executed Trades):
-            </p>
-            <ul className="ml-4 text-gray-200 list-disc space-y-1">
-              <li>
-                🟢 <b>Total Bullish TXN:</b> {greenTxn.toLocaleString()} USDT
-              </li>
-              <li>
-                🔴 <b>Total Bearish TXN:</b> {redTxn.toLocaleString()} USDT
-              </li>
-              <li>
-                ⚖️ <b>Dominant Side:</b>{" "}
-                <span
-                  className={
-                    txnDominant.includes("Bullish")
-                      ? "text-green-400 font-bold"
-                      : txnDominant.includes("Bearish")
-                      ? "text-red-400 font-bold"
-                      : "text-yellow-400 font-bold"
-                  }
-                >
-                  {txnDominant}
-                </span>
-              </li>
-            </ul>
+          <div className="text-sm space-y-4">
+            <div>
+              <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
+              ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
+              ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
+            </div>
+
+            {/* --- NEW LIQUIDITY SECTION --- */}
+            <div>
+              <p className="text-yellow-300 font-semibold mb-1">💧 Transaction Liquidity Summary:</p>
+              <ul className="text-gray-200 ml-4 list-disc space-y-1">
+                <li>
+                  <span className="text-green-400 font-semibold">Total Green Liquidity:</span>{" "}
+                  {formatCompact(greenLiquidity)} USDT
+                </li>
+                <li>
+                  <span className="text-red-400 font-semibold">Total Red Liquidity:</span>{" "}
+                  {formatCompact(redLiquidity)} USDT
+                </li>
+                <li>
+                  <span className="text-blue-400 font-semibold">Dominant Side:</span>{" "}
+                  <span
+                    className={
+                      dominantLiquidity.includes("Bullish")
+                        ? "text-green-400 font-bold"
+                        : dominantLiquidity.includes("Bearish")
+                        ? "text-red-400 font-bold"
+                        : "text-yellow-400 font-bold"
+                    }
+                  >
+                    {dominantLiquidity}
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            {/* --- TXN DOMINANCE SECTION --- */}
+            <div>
+              <p className="text-cyan-300 font-semibold mb-1">🧭 Transaction Dominance (Executed Trades):</p>
+              <ul className="text-gray-200 ml-4 list-disc space-y-1">
+                <li>
+                  <span className="text-green-400 font-semibold">Bullish (Green) TXN Volume:</span>{" "}
+                  {formatCompact(greenTxn)} USDT
+                </li>
+                <li>
+                  <span className="text-red-400 font-semibold">Bearish (Red) TXN Volume:</span>{" "}
+                  {formatCompact(redTxn)} USDT
+                </li>
+                <li>
+                  <span className="text-yellow-300 font-semibold">Dominant Side:</span>{" "}
+                  <span
+                    className={
+                      txnDominant.includes("Bullish")
+                        ? "text-green-400 font-bold"
+                        : txnDominant.includes("Bearish")
+                        ? "text-red-400 font-bold"
+                        : "text-yellow-400 font-bold"
+                    }
+                  >
+                    {txnDominant}
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>
+              <ul className="text-blue-100 ml-4 list-disc space-y-1">
+                <li>
+                  <span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>:{" "}
+                  {rawData.filter((item) => item.priceChangePercent >= 5).length}
+                </li>
+                <li>
+                  <span className="font-semibold text-yellow-300">Mild Movement (±0–5%)</span>:{" "}
+                  {rawData.filter((item) => item.priceChangePercent > -5 && item.priceChangePercent < 5).length}
+                </li>
+                <li>
+                  <span className="font-semibold text-red-400">Price Drop (≤ -5%)</span>:{" "}
+                  {rawData.filter((item) => item.priceChangePercent <= -5).length}
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-green-300 font-semibold mb-1">📈 Bullish Potential (Shorts Paying):</p>
+              <span className="text-green-400">Green + Funding ➕:</span>{" "}
+              <span className="text-red-300 font-bold">{greenPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-red-400">➖:</span>{" "}
+              <span className="text-green-300 font-bold">{greenNegativeFunding}</span>
+            </div>
+
+            <div>
+              <p className="text-red-300 font-semibold mb-1">📉 Bearish Risk (Longs Paying):</p>
+              <span className="text-red-400">Red + Funding ➕:</span>{" "}
+              <span className="text-red-300 font-bold">{redPositiveFunding}</span> &nbsp;|&nbsp;
+              <span className="text-yellow-300">➖:</span>{" "}
+              <span className="text-green-200 font-bold">{redNegativeFunding}</span>
+            </div>
           </div>
         </div>
+
+        {/* Funding Sentiment Chart */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <FundingSentimentChart
+            greenPositiveFunding={greenPositiveFunding}
+            greenNegativeFunding={greenNegativeFunding}
+            redPositiveFunding={redPositiveFunding}
+            redNegativeFunding={redNegativeFunding}
+          />
+        </div>
+
+        {/* --- ATH Gap Difference Calculator --- */}
+        <div className="mb-8 p-4 border border-gray-700 rounded-lg bg-gray-800 shadow-md">
+          <h2 className="text-lg font-bold text-white mb-3">
+            🧮 ATH Gap Difference Calculator
+          </h2>
+          <AthGapCalculator data={rawData} />
+        </div>
+
+        {/* --- Footer --- */}
+        <footer className="mt-10 border-t border-gray-700 pt-6 text-sm text-gray-400 text-center">
+          <p>© {new Date().getFullYear()} Binance USDT Perpetual Tracker</p>
+          <p className="mt-1">
+            Built with ❤️ using{" "}
+            <a href="https://nextjs.org/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+              Next.js
+            </a>{" "}
+            &{" "}
+            <a href="https://binance-docs.github.io/apidocs/futures/en/" target="_blank" rel="noopener noreferrer" className="text-yellow-400 hover:underline">
+              Binance Futures API
+            </a>
+          </p>
+          <p className="mt-1">
+            <a href="https://github.com/yourusername/yourrepo" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-white hover:underline">
+              View Source on GitHub
+            </a>
+          </p>
+        </footer>
       </div>
+    </div>
+  );
+}
+
+/* ------------------ ATH GAP CALCULATOR COMPONENT ------------------ */
+
+function AthGapCalculator({ data }: { data: SymbolData[] }) {
+  const [symbol, setSymbol] = useState("");
+  const [ath, setAth] = useState("");
+  const [entry, setEntry] = useState("");
+  const [result, setResult] = useState<{ gap: number; roi: number } | null>(null);
+
+  const calculateGap = () => {
+    const athNum = parseFloat(ath);
+    const entryNum = parseFloat(entry);
+    if (!athNum || !entryNum || athNum <= 0 || entryNum <= 0) {
+      alert("Please enter valid positive numbers for ATH and entry.");
+      return;
+    }
+    const gap = ((athNum - entryNum) / athNum) * 100;
+    const roi = ((athNum - entryNum) / entryNum) * 100;
+    setResult({ gap, roi });
+  };
+
+  const handleSelectSymbol = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const sym = e.target.value;
+    setSymbol(sym);
+    const found = data.find((d) => d.symbol === sym);
+    if (found) setEntry(found.lastPrice.toString());
+  };
+
+  return (
+    <div>
+      <div className="flex flex-col md:flex-row gap-4 mb-4">
+        <select
+          value={symbol}
+          onChange={handleSelectSymbol}
+          className="bg-gray-900 border border-gray-700 p-2 rounded text-white flex-1"
+        >
+          <option value="">Select Symbol (optional)</option>
+          {data
+            .sort((a, b) => a.symbol.localeCompare(b.symbol))
+            .map((d) => (
+              <option key={d.symbol} value={d.symbol}>
+                {d.symbol} — {d.lastPrice.toFixed(2)}
+              </option>
+            ))}
+        </select>
+
+        <input
+          type="number"
+          placeholder="ATH Price"
+          value={ath}
+          onChange={(e) => setAth(e.target.value)}
+          className="bg-gray-900 border border-gray-700 p-2 rounded text-white flex-1"
+        />
+        <input
+          type="number"
+          placeholder="Entry Price"
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          className="bg-gray-900 border border-gray-700 p-2 rounded text-white flex-1"
+        />
+      </div>
+
+      <button
+        onClick={calculateGap}
+        className="bg-blue-600 hover:bg-blue-700 transition p-2 rounded font-semibold"
+      >
+        Compute Gap Difference
+      </button>
+
+      {result && (
+        <div className="mt-4 text-sm text-gray-200 space-y-3">
+          <div>
+            🔻 <span className="font-semibold text-red-400">Below ATH:</span>{" "}
+            {result.gap.toFixed(2)}%
+          </div>
+          <div>
+            💹 <span className="font-semibold text-green-400">Potential ROI to ATH:</span>{" "}
+            {result.roi.toFixed(2)}%
+          </div>
+
+          {/* Visual bar chart */}
+          <div className="mt-3">
+            <p className="text-gray-400 text-xs mb-1">Visual Gap:</p>
+            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+              <div
+                className="bg-green-500 h-4"
+                style={{ width: `${Math.min(100 - result.gap, 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              {result.gap.toFixed(2)}% below ATH — {result.roi.toFixed(2)}% upside potential
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
