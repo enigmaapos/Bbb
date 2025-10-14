@@ -44,8 +44,7 @@ export default function PriceFundingTracker() {
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>("—");
-          // Add this state
-const [aiInsight, setAiInsight] = useState<string>("");
+
 
   // 🟩🟥 Liquidity Totals
   const [greenLiquidity, setGreenLiquidity] = useState(0);
@@ -56,6 +55,8 @@ const [aiInsight, setAiInsight] = useState<string>("");
   const [greenTxn, setGreenTxn] = useState(0);
   const [redTxn, setRedTxn] = useState(0);
   const [txnDominant, setTxnDominant] = useState("");
+            // Add this state
+const [aiInsight, setAiInsight] = useState<string>("");
 
   // Explorer search state
   const [searchTerm, setSearchTerm] = useState("");
@@ -122,21 +123,6 @@ const [aiInsight, setAiInsight] = useState<string>("");
             : "⚫ Neutral";
 
 
-
-// Add this inside your useEffect after data fetching
-const generateInsight = async () => {
-  try {
-    const res = await axios.post("/api/marketInsight", {
-      greenLiquidity,
-      redLiquidity,
-      dominantLiquidity,
-    });
-    setAiInsight(res.data.insight);
-  } catch (err) {
-    console.error("AI insight error:", err);
-  }
-};
-generateInsight();
 
         // 🧾 Update states
         setRawData(combinedData);
