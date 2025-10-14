@@ -79,7 +79,7 @@ export default function PriceFundingTracker() {
           axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
           axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
           // This endpoint returns recent force orders (liquidations). Limit available; using 500.
-          axios.get(`${BINANCE_API}/fapi/v1/allForceOrders?limit=500`),
+          axios.get(`${BINANCE_API}/fapi/v1/allForceOrders?symbol=BTCUSDT&limit=500`),
         ]);
 
         const usdtPairs = infoRes.data.symbols
