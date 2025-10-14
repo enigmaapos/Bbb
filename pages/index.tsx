@@ -55,8 +55,7 @@ export default function PriceFundingTracker() {
   const [greenTxn, setGreenTxn] = useState(0);
   const [redTxn, setRedTxn] = useState(0);
   const [txnDominant, setTxnDominant] = useState("");
-            // Add this state
-const [aiInsight, setAiInsight] = useState<string>("");
+
 
   // Explorer search state
   const [searchTerm, setSearchTerm] = useState("");
@@ -144,19 +143,6 @@ const [aiInsight, setAiInsight] = useState<string>("");
         setRedTxn(totalRedTxn);
         setTxnDominant(txnDominantSide);
 
-        // Generate AI market insight
-try {
-  const res = await axios.post("/api/marketInsight", {
-    greenLiquidity: greenTotal,
-    redLiquidity: redTotal,
-    dominantLiquidity:
-      greenTotal > redTotal ? "Bullish Liquidity (Green)" :
-      redTotal > greenTotal ? "Bearish Liquidity (Red)" : "Balanced"
-  });
-  setAiInsight(res.data.insight);
-} catch (err) {
-  console.error("AI insight error:", err);
-}
 
         setLastUpdated(formatDavaoTime());
       } catch (err: any) {
@@ -314,13 +300,6 @@ try {
           </div>
         </div>
 
-        {/* --- AI Market Insight Section --- */}
-{aiInsight && (
-  <div className="mt-6 p-4 border border-purple-700 rounded-lg bg-gray-800/70 shadow-md">
-    <h2 className="text-lg font-bold text-purple-300 mb-2">🤖 AI Market Insight</h2>
-    <p className="text-gray-200 text-sm">{aiInsight}</p>
-  </div>
-)}
 
         {/* --- TXN DOMINANCE EXPLORER (search + list) --- */}
         <div className="bg-gray-900/60 border border-cyan-700/50 rounded-2xl p-5 shadow-xl mb-8">
