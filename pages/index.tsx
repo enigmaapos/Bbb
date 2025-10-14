@@ -68,19 +68,20 @@ export default function PriceFundingTracker() {
   const [adlPressureSide, setAdlPressureSide] = useState("");
 
   // Explorer search state
-  const [searchTerm, setSearchTerm] = useState("");
+useEffect(() => {
+  const fetchAllData = async () => {
+    setError(null);
+    try {
+      const [infoRes, tickerRes, fundingRes, liquidationRes] = await Promise.all([
+        axios.get(`${BINANCE_API}/fapi/v1/exchangeInfo`),
+        axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
+        axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
+        // ✅ Public liquidation data endpoint
+        axios.get(`${BINANCE_API}/fapi/v1/forceOrders?symbol=BTCUSDT&limit=500`),
+      ]);
 
-  useEffect(() => {
-    const fetchAllData = async () => {
-      setError(null);
-      try {
-        const [infoRes, tickerRes, fundingRes, liquidationRes] = await Promise.all([
-          axios.get(`${BINANCE_API}/fapi/v1/exchangeInfo`),
-          axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
-          axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
-          // This endpoint returns recent force orders (liquidations). Limit available; using 500.
-          axios.get(`${BINANCE_API}/fapi/v1/allForceOrders?symbol=BTCUSDT&limit=500`),
-        ]);
+      // Example:
+      console.log("Liquidations:", liquidationRes.data);
 
         const usdtPairs = infoRes.data.symbols
           .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
