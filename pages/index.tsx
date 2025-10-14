@@ -80,9 +80,6 @@ useEffect(() => {
         axios.get(`${BINANCE_API}/fapi/v1/forceOrders?symbol=BTCUSDT&limit=500`),
       ]);
 
-      // Example:
-      console.log("Liquidations:", liquidationRes.data);
-
         const usdtPairs = infoRes.data.symbols
           .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
           .map((s: any) => s.symbol);
