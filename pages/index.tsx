@@ -44,6 +44,8 @@ export default function PriceFundingTracker() {
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>("—");
+          // Add this state
+const [aiInsight, setAiInsight] = useState<string>("");
 
   // 🟩🟥 Liquidity Totals
   const [greenLiquidity, setGreenLiquidity] = useState(0);
@@ -119,8 +121,7 @@ export default function PriceFundingTracker() {
             ? "🔴 Bearish (Red)"
             : "⚫ Neutral";
 
-        // Add this state
-const [aiInsight, setAiInsight] = useState<string>("");
+
 
 // Add this inside your useEffect after data fetching
 const generateInsight = async () => {
@@ -156,6 +157,20 @@ generateInsight();
         setGreenTxn(totalGreenTxn);
         setRedTxn(totalRedTxn);
         setTxnDominant(txnDominantSide);
+
+        // Generate AI market insight
+try {
+  const res = await axios.post("/api/marketInsight", {
+    greenLiquidity: greenTotal,
+    redLiquidity: redTotal,
+    dominantLiquidity:
+      greenTotal > redTotal ? "Bullish Liquidity (Green)" :
+      redTotal > greenTotal ? "Bearish Liquidity (Red)" : "Balanced"
+  });
+  setAiInsight(res.data.insight);
+} catch (err) {
+  console.error("AI insight error:", err);
+}
 
         setLastUpdated(formatDavaoTime());
       } catch (err: any) {
