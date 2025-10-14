@@ -119,6 +119,24 @@ export default function PriceFundingTracker() {
             ? "🔴 Bearish (Red)"
             : "⚫ Neutral";
 
+        // Add this state
+const [aiInsight, setAiInsight] = useState<string>("");
+
+// Add this inside your useEffect after data fetching
+const generateInsight = async () => {
+  try {
+    const res = await axios.post("/api/marketInsight", {
+      greenLiquidity,
+      redLiquidity,
+      dominantLiquidity,
+    });
+    setAiInsight(res.data.insight);
+  } catch (err) {
+    console.error("AI insight error:", err);
+  }
+};
+generateInsight();
+
         // 🧾 Update states
         setRawData(combinedData);
         setGreenCount(combinedData.filter((d) => d.priceChangePercent >= 0).length);
@@ -294,6 +312,14 @@ export default function PriceFundingTracker() {
             {/* --- Explorer heading + search will be rendered below --- */}
           </div>
         </div>
+
+        {/* --- AI Market Insight Section --- */}
+{aiInsight && (
+  <div className="mt-6 p-4 border border-purple-700 rounded-lg bg-gray-800/70 shadow-md">
+    <h2 className="text-lg font-bold text-purple-300 mb-2">🤖 AI Market Insight</h2>
+    <p className="text-gray-200 text-sm">{aiInsight}</p>
+  </div>
+)}
 
         {/* --- TXN DOMINANCE EXPLORER (search + list) --- */}
         <div className="bg-gray-900/60 border border-cyan-700/50 rounded-2xl p-5 shadow-xl mb-8">
