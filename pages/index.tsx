@@ -148,7 +148,8 @@ let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
 
 // only log if it's a new day
 if (!history.some((h: any) => h.date === today)) {
-  history.push({ date: today, bias });
+  const weekday = new Date().toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Manila" });
+history.push({ date: today, bias, day: weekday });
 }
 
 // keep only last 7 days
@@ -157,7 +158,7 @@ localStorage.setItem("marketHistory", JSON.stringify(history));
 
 const greens = history.filter((h: any) => h.bias === "🟩").length;
 const reds = history.filter((h: any) => h.bias === "🟥").length;
-const pattern = history.map((h: any) => h.bias);
+const pattern = history.map((h: any) => ({ bias: h.bias, day: h.day }));
 
 // detect phase type
 let phase = "Rotation Phase 🔄";
@@ -265,12 +266,19 @@ setWeeklyStats({ greens, reds, pattern, phase });
               <div className="mt-3 bg-gray-800/60 border border-cyan-700/30 rounded-xl p-3">
   <p className="text-yellow-300 font-semibold mb-2">🗓️ Weekly Market Rhythm</p>
 
-  {/* Visual 7-day bias bar */}
-  <div className="flex items-center gap-1 mb-2">
-    {weeklyStats.pattern.map((bias, i) => (
-      <span key={i} className="text-lg">{bias}</span>
+  {/* Visual 7-day bias bar with weekday labels */}
+<div className="flex flex-col items-center mb-2">
+  <div className="flex items-center gap-1">
+    {weeklyStats.pattern.map((entry, i) => (
+      <span key={i} className="text-lg">{entry.bias}</span>
     ))}
   </div>
+  <div className="flex items-center gap-2 mt-1">
+    {weeklyStats.pattern.map((entry, i) => (
+      <span key={i} className="text-[10px] text-gray-400">{entry.day}</span>
+    ))}
+  </div>
+</div>
 
   <p className="text-sm text-gray-300">
     🟢 {weeklyStats.greens} Green Days &nbsp;|&nbsp; 🔴 {weeklyStats.reds} Red Days
