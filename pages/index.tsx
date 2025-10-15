@@ -264,9 +264,11 @@ setWeeklyStats({ greens, reds, pattern });
     Pattern: {weeklyStats.pattern}
   </p>
 </div>
+              <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
               ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
               ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
             </div>
+              </div>
 
             {/* --- NEW LIQUIDITY SECTION --- */}
             <div>
