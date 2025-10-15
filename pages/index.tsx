@@ -61,6 +61,13 @@ export default function PriceFundingTracker() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
+  // 🗓️ Weekly Market Bias Tracker
+const [weeklyStats, setWeeklyStats] = useState<{ greens: number; reds: number; pattern: string }>({
+  greens: 0,
+  reds: 0,
+  pattern: "—",
+});
+  
   useEffect(() => {
     const fetchAllData = async () => {
       setError(null);
@@ -121,6 +128,37 @@ export default function PriceFundingTracker() {
             : totalRedTxn > totalGreenTxn
             ? "🔴 Bearish (Red)"
             : "⚫ Neutral";
+
+        // 🗓️ Save daily bias (Bullish or Bearish)
+const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
+const dailyRecord = { date: today, bias: txnDominantSide.includes("Bullish") ? "Green" : txnDominantSide.includes("Bearish") ? "Red" : "Neutral" };
+
+// load previous records from localStorage
+let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
+
+// update only if new day
+if (!history.some((h: any) => h.date === today)) {
+  history.push(dailyRecord);
+}
+
+// keep only the last 7 days
+history = history.slice(-7);
+localStorage.setItem("marketHistory", JSON.stringify(history));
+
+// count greens and reds in last 7 days
+const greens = history.filter((h: any) => h.bias === "Green").length;
+const reds = history.filter((h: any) => h.bias === "Red").length;
+
+// detect pattern
+let pattern = "Mixed";
+if (greens === 7) pattern = "Consistent Bullish";
+else if (reds === 7) pattern = "Consistent Bearish";
+else if (history.length >= 4) {
+  const last4 = history.map((h: any) => h.bias).slice(-4);
+  pattern = last4.join(" → ");
+}
+
+setWeeklyStats({ greens, reds, pattern });
 
 
 
@@ -217,6 +255,15 @@ export default function PriceFundingTracker() {
           <div className="text-sm space-y-4">
             <div>
               <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
+              <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
+  <p className="text-yellow-300 font-semibold mb-1">🗓️ Weekly Market Rhythm</p>
+  <p className="text-sm text-gray-300">
+    🟢 {weeklyStats.greens} Green Days &nbsp; | &nbsp; 🔴 {weeklyStats.reds} Red Days
+  </p>
+  <p className="text-xs text-gray-400 mt-1">
+    Pattern: {weeklyStats.pattern}
+  </p>
+</div>
               ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
               ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
             </div>
