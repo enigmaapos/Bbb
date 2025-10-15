@@ -135,37 +135,57 @@ const [weeklyStats, setWeeklyStats] = useState<{
             ? "🔴 Bearish (Red)"
             : "⚫ Neutral";
 
-        // 🗓️ Save daily bias (Bullish or Bearish)
+        
 // 🗓️ WEEKLY RHYTHM LOGGER --------------------------
 const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
+const weekday = new Date().toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Manila" });
 const bias = txnDominantSide.includes("Bullish")
   ? "🟩"
   : txnDominantSide.includes("Bearish")
   ? "🟥"
   : "⚫";
 
+// Load past records
 let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
 
-// only log if it's a new day
-if (!history.some((h: any) => h.date === today)) {
-  const weekday = new Date().toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Manila" });
-history.push({ date: today, bias, day: weekday });
+// 🟢 Always ensure at least today's bias is logged
+if (history.length === 0 || !history.some((h: any) => h.date === today)) {
+  history.push({ date: today, bias, day: weekday });
 }
 
-// keep only last 7 days
-history = history.slice(-7);
+// Limit to the last 14 days (so we can compare this week vs last)
+if (history.length > 14) history = history.slice(-14);
+
+// Split last 14 days into 2 weeks
+const currentWeek = history.slice(-7);
+const previousWeek = history.slice(-14, -7);
+
+// Save new history
 localStorage.setItem("marketHistory", JSON.stringify(history));
 
-const greens = history.filter((h: any) => h.bias === "🟩").length;
-const reds = history.filter((h: any) => h.bias === "🟥").length;
-const pattern = history.map((h: any) => ({ bias: h.bias, day: h.day }));
+// Count greens/reds
+const greens = currentWeek.filter((h: any) => h.bias === "🟩").length;
+const reds = currentWeek.filter((h: any) => h.bias === "🟥").length;
+const pattern = currentWeek.map((h: any) => ({ bias: h.bias, day: h.day }));
 
-// detect phase type
+// 🧭 Detect phase type
 let phase = "Rotation Phase 🔄";
 if (greens >= 5 && reds <= 2) phase = "Alt Season Building 🌱";
 else if (reds >= 5 && greens <= 2) phase = "Cooling Phase ❄️";
 else if (greens === reds) phase = "Balanced Market ⚖️";
 
+// 📈 Compare week-to-week trend
+let trendArrow = "↔ Stable";
+if (previousWeek.length > 0) {
+  const prevGreens = previousWeek.filter((h: any) => h.bias === "🟩").length;
+  if (greens > prevGreens) trendArrow = "↗ Bullish Momentum Increasing";
+  else if (greens < prevGreens) trendArrow = "↘ Bullish Momentum Fading";
+}
+
+// Add arrow indicator to phase
+phase = `${phase} • ${trendArrow}`;
+
+// Update state
 setWeeklyStats({ greens, reds, pattern, phase });
 
 
