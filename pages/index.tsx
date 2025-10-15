@@ -59,6 +59,7 @@ export default function PriceFundingTracker() {
 
   // Explorer search state
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -172,8 +173,15 @@ export default function PriceFundingTracker() {
 
   // Explorer: filter rawData by search term
   const filteredCoins = rawData
-    .filter((d) => d.symbol.toLowerCase().includes(searchTerm.trim().toLowerCase()))
-    .slice(0, 100); // cap to 100 results to avoid heavy lists
+  .filter((d) => d.symbol.toLowerCase().includes(searchTerm.trim().toLowerCase()))
+  .map((coin) => {
+    const coinGreenTxn = coin.priceChangePercent >= 0 ? coin.volume : 0;
+    const coinRedTxn = coin.priceChangePercent < 0 ? coin.volume : 0;
+    const diff = Math.abs(coinGreenTxn - coinRedTxn);
+    return { ...coin, diff };
+  })
+  .sort((a, b) => (sortOrder === "desc" ? b.diff - a.diff : a.diff - b.diff))
+  .slice(0, 100);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -319,6 +327,15 @@ export default function PriceFundingTracker() {
             />
             <div className="absolute top-2 right-3 text-gray-400">🔍</div>
           </div>
+
+          <div className="flex justify-end mb-3">
+  <button
+    onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+    className="text-xs text-cyan-300 border border-cyan-700/50 px-3 py-1 rounded-lg hover:bg-cyan-700/30 transition"
+  >
+    Sort by Gap: {sortOrder === "desc" ? "↓ Descending" : "↑ Ascending"}
+  </button>
+</div>
 
           {/* Filtered Coins List */}
           <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-700/40 bg-gray-800/40">
