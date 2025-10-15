@@ -145,36 +145,40 @@ const bias = txnDominantSide.includes("Bullish")
   ? "🟥"
   : "⚫";
 
-// Load past records
+// Load old data or create new
 let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
 
-// 🟢 Always ensure at least today's bias is logged
-if (history.length === 0 || !history.some((h: any) => h.date === today)) {
+// Always make sure today's entry exists
+const existing = history.find((h: any) => h.date === today);
+if (existing) {
+  existing.bias = bias;
+  existing.day = weekday;
+} else {
   history.push({ date: today, bias, day: weekday });
 }
 
-// Limit to the last 14 days (so we can compare this week vs last)
+// Keep last 14 days
 if (history.length > 14) history = history.slice(-14);
 
-// Split last 14 days into 2 weeks
+// Split into current + previous week
 const currentWeek = history.slice(-7);
 const previousWeek = history.slice(-14, -7);
 
-// Save new history
+// Save back
 localStorage.setItem("marketHistory", JSON.stringify(history));
 
-// Count greens/reds
+// Count colors
 const greens = currentWeek.filter((h: any) => h.bias === "🟩").length;
 const reds = currentWeek.filter((h: any) => h.bias === "🟥").length;
 const pattern = currentWeek.map((h: any) => ({ bias: h.bias, day: h.day }));
 
-// 🧭 Detect phase type
+// Determine market phase
 let phase = "Rotation Phase 🔄";
 if (greens >= 5 && reds <= 2) phase = "Alt Season Building 🌱";
 else if (reds >= 5 && greens <= 2) phase = "Cooling Phase ❄️";
 else if (greens === reds) phase = "Balanced Market ⚖️";
 
-// 📈 Compare week-to-week trend
+// Compare trend vs previous week
 let trendArrow = "↔ Stable";
 if (previousWeek.length > 0) {
   const prevGreens = previousWeek.filter((h: any) => h.bias === "🟩").length;
@@ -182,10 +186,10 @@ if (previousWeek.length > 0) {
   else if (greens < prevGreens) trendArrow = "↘ Bullish Momentum Fading";
 }
 
-// Add arrow indicator to phase
+// Combine label
 phase = `${phase} • ${trendArrow}`;
 
-// Update state
+// Update UI
 setWeeklyStats({ greens, reds, pattern, phase });
 
 
