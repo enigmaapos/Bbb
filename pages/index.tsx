@@ -62,10 +62,16 @@ export default function PriceFundingTracker() {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   // 🗓️ Weekly Market Bias Tracker
-const [weeklyStats, setWeeklyStats] = useState<{ greens: number; reds: number; pattern: string }>({
+const [weeklyStats, setWeeklyStats] = useState<{
+  greens: number;
+  reds: number;
+  pattern: string[];
+  phase: string;
+}>({
   greens: 0,
   reds: 0,
-  pattern: "—",
+  pattern: [],
+  phase: "—",
 });
   
   useEffect(() => {
@@ -130,35 +136,36 @@ const [weeklyStats, setWeeklyStats] = useState<{ greens: number; reds: number; p
             : "⚫ Neutral";
 
         // 🗓️ Save daily bias (Bullish or Bearish)
+// 🗓️ WEEKLY RHYTHM LOGGER --------------------------
 const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
-const dailyRecord = { date: today, bias: txnDominantSide.includes("Bullish") ? "Green" : txnDominantSide.includes("Bearish") ? "Red" : "Neutral" };
+const bias = txnDominantSide.includes("Bullish")
+  ? "🟩"
+  : txnDominantSide.includes("Bearish")
+  ? "🟥"
+  : "⚫";
 
-// load previous records from localStorage
 let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
 
-// update only if new day
+// only log if it's a new day
 if (!history.some((h: any) => h.date === today)) {
-  history.push(dailyRecord);
+  history.push({ date: today, bias });
 }
 
-// keep only the last 7 days
+// keep only last 7 days
 history = history.slice(-7);
 localStorage.setItem("marketHistory", JSON.stringify(history));
 
-// count greens and reds in last 7 days
-const greens = history.filter((h: any) => h.bias === "Green").length;
-const reds = history.filter((h: any) => h.bias === "Red").length;
+const greens = history.filter((h: any) => h.bias === "🟩").length;
+const reds = history.filter((h: any) => h.bias === "🟥").length;
+const pattern = history.map((h: any) => h.bias);
 
-// detect pattern
-let pattern = "Mixed";
-if (greens === 7) pattern = "Consistent Bullish";
-else if (reds === 7) pattern = "Consistent Bearish";
-else if (history.length >= 4) {
-  const last4 = history.map((h: any) => h.bias).slice(-4);
-  pattern = last4.join(" → ");
-}
+// detect phase type
+let phase = "Rotation Phase 🔄";
+if (greens >= 5 && reds <= 2) phase = "Alt Season Building 🌱";
+else if (reds >= 5 && greens <= 2) phase = "Cooling Phase ❄️";
+else if (greens === reds) phase = "Balanced Market ⚖️";
 
-setWeeklyStats({ greens, reds, pattern });
+setWeeklyStats({ greens, reds, pattern, phase });
 
 
 
@@ -255,13 +262,22 @@ setWeeklyStats({ greens, reds, pattern });
           <div className="text-sm space-y-4">
             <div>
               <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
-              <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
-  <p className="text-yellow-300 font-semibold mb-1">🗓️ Weekly Market Rhythm</p>
+              <div className="mt-3 bg-gray-800/60 border border-cyan-700/30 rounded-xl p-3">
+  <p className="text-yellow-300 font-semibold mb-2">🗓️ Weekly Market Rhythm</p>
+
+  {/* Visual 7-day bias bar */}
+  <div className="flex items-center gap-1 mb-2">
+    {weeklyStats.pattern.map((bias, i) => (
+      <span key={i} className="text-lg">{bias}</span>
+    ))}
+  </div>
+
   <p className="text-sm text-gray-300">
-    🟢 {weeklyStats.greens} Green Days &nbsp; | &nbsp; 🔴 {weeklyStats.reds} Red Days
+    🟢 {weeklyStats.greens} Green Days &nbsp;|&nbsp; 🔴 {weeklyStats.reds} Red Days
   </p>
-  <p className="text-xs text-gray-400 mt-1">
-    Pattern: {weeklyStats.pattern}
+
+  <p className="text-xs text-gray-400 mt-1 italic">
+    {weeklyStats.phase}
   </p>
 </div>
               <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
