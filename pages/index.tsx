@@ -65,7 +65,7 @@ export default function PriceFundingTracker() {
 const [weeklyStats, setWeeklyStats] = useState<{
   greens: number;
   reds: number;
-  pattern: string[];
+  pattern: { bias: string; day: string }[];
   phase: string;
 }>({
   greens: 0,
