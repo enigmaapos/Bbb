@@ -65,6 +65,8 @@ export default function PriceFundingTracker() {
 const [avgSpreadPct, setAvgSpreadPct] = useState(0);
 const [spreadCondition, setSpreadCondition] = useState("—");
 const [spreadSentiment, setSpreadSentiment] = useState("—");
+  const [spreadExplanation, setSpreadExplanation] = useState("");
+const [spreadInterpretation, setSpreadInterpretation] = useState("");
 
   // 🗓️ Weekly Market Bias Tracker
 const [weeklyStats, setWeeklyStats] = useState<{
@@ -196,6 +198,30 @@ else if (condition === "Wide" && upwardTrades === downwardTrades) sentiment = "N
 
 setSpreadCondition(condition);
 setSpreadSentiment(sentiment);
+
+        // 🧠 Detailed Market Explanation
+let explanation = "";
+let interpretation = "";
+
+if (spreadCondition === "Tight" && upwardTrades > downwardTrades) {
+  explanation = "Demand absorbing all offers";
+  interpretation = "Early rally or breakout pressure";
+} else if (spreadCondition === "Tight" && downwardTrades > upwardTrades) {
+  explanation = "Supply dominating bids";
+  interpretation = "Controlled downtrend / distribution";
+} else if (spreadCondition === "Wide" && upwardTrades !== downwardTrades) {
+  explanation = "Market makers step away";
+  interpretation = "Fear, liquidation spikes";
+} else if (spreadCondition === "Wide" && upwardTrades === downwardTrades) {
+  explanation = "Few traders active";
+  interpretation = "Neutral, low-interest phase";
+} else {
+  explanation = "Mixed liquidity behavior";
+  interpretation = "No clear directional dominance";
+}
+
+setSpreadExplanation(explanation);
+setSpreadInterpretation(interpretation);
         
         
 // 🗓️ WEEKLY RHYTHM LOGGER --------------------------
@@ -443,6 +469,14 @@ setWeeklyStats({ greens, reds, pattern, phase });
         {spreadSentiment}
       </span>
     </li>
+    <li>
+  <span className="text-gray-400 font-semibold">What’s Happening:</span>{" "}
+  <span className="text-gray-200">{spreadExplanation}</span>
+</li>
+<li>
+  <span className="text-gray-400 font-semibold">Interpretation:</span>{" "}
+  <span className="text-yellow-300">{spreadInterpretation}</span>
+</li>
   </ul>
 </div>
       </div>
