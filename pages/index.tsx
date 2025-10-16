@@ -313,32 +313,34 @@ setWeeklyStats({ greens, reds, pattern, phase });
     {weeklyStats.phase}
   </p>
 </div>
+
               <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
-              ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
-              ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
-            
-              {/* 24h Price Change */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-gray-100 text-sm">
-            <div>
-              <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>
-              <ul className="text-blue-100 ml-4 list-disc space-y-1">
-                <li>
-                  <span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>:{" "}
-                  {rawData.filter((item) => item.priceChangePercent >= 5).length}
-                </li>
-                <li>
-                  <span className="font-semibold text-yellow-300">Mild Movement (±0–5%)</span>:{" "}
-                  {rawData.filter((item) => item.priceChangePercent > -5 && item.priceChangePercent < 5).length}
-                </li>
-                <li>
-                  <span className="font-semibold text-red-400">Price Drop (≤ -5%)</span>:{" "}
-                  {rawData.filter((item) => item.priceChangePercent <= -5).length}
-                </li>
-              </ul>
-            </div>
-              </div>
-              </div>
-              </div>
+  ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;
+  ❌ <span className="text-red-400 font-bold">{redCount}</span> Red
+
+  {/* 24h Price Change */}
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-gray-100 text-sm mt-3">
+    <div>
+      <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>
+      <ul className="text-blue-100 ml-4 list-disc space-y-1">
+        <li>
+          <span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>:{" "}
+          {rawData.filter((item) => item.priceChangePercent >= 5).length}
+        </li>
+        <li>
+          <span className="font-semibold text-yellow-300">Mild Movement (±0–5%)</span>:{" "}
+          {rawData.filter(
+            (item) => item.priceChangePercent > -5 && item.priceChangePercent < 5
+          ).length}
+        </li>
+        <li>
+          <span className="font-semibold text-red-400">Price Drop (≤ -5%)</span>:{" "}
+          {rawData.filter((item) => item.priceChangePercent <= -5).length}
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
           
 
             {/* --- NEW LIQUIDITY SECTION --- */}
