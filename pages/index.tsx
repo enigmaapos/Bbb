@@ -61,10 +61,11 @@ export default function PriceFundingTracker() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
-  // 🟢🔴 Spread Sentiment (based on bid/ask pressure simulation)
-const [bullishSpread, setBullishSpread] = useState(0);
-const [bearishSpread, setBearishSpread] = useState(0);
-const [dominantSpread, setDominantSpread] = useState("");
+  // 🧮 Real Spread Sentiment (based on bid-ask data)
+const [avgSpreadPct, setAvgSpreadPct] = useState(0);
+const [bullishSpreadCount, setBullishSpreadCount] = useState(0);
+const [bearishSpreadCount, setBearishSpreadCount] = useState(0);
+const [dominantSpread, setDominantSpread] = useState("—");
 
   // 🗓️ Weekly Market Bias Tracker
 const [weeklyStats, setWeeklyStats] = useState<{
@@ -141,19 +142,53 @@ const [weeklyStats, setWeeklyStats] = useState<{
             : "⚫ Neutral";
 
 
-        // 🔍 Spread sentiment (approximation)
-const bullishCount = combinedData.filter(d => d.priceChangePercent > 0).length;
-const bearishCount = combinedData.filter(d => d.priceChangePercent < 0).length;
+        // 📏 Fetch order book depth (for spread sentiment)
+const topPairs = combinedData
+  .sort((a, b) => b.volume - a.volume) // sort by liquidity
+  .slice(0, 20); // take top 20 most active
 
-setBullishSpread(bullishCount);
-setBearishSpread(bearishCount);
+let totalSpreadPct = 0;
+let bullishCount = 0;
+let bearishCount = 0;
+
+for (const pair of topPairs) {
+  try {
+    const depthRes = await axios.get(`${BINANCE_API}/fapi/v1/depth`, {
+      params: { symbol: pair.symbol, limit: 5 },
+    });
+
+    const bids = depthRes.data.bids.map((b: any) => parseFloat(b[0]));
+    const asks = depthRes.data.asks.map((a: any) => parseFloat(a[0]));
+    const bestBid = bids[0];
+    const bestAsk = asks[0];
+    const mid = (bestBid + bestAsk) / 2;
+    const spread = bestAsk - bestBid;
+    const spreadPct = (spread / mid) * 100;
+
+    totalSpreadPct += spreadPct;
+
+    // Rough directional check:
+    // if price is rising and spread tight, count as bullish
+    if (pair.priceChangePercent > 0 && spreadPct < 0.05) bullishCount++;
+    else if (pair.priceChangePercent < 0 && spreadPct > 0.05) bearishCount++;
+  } catch (err) {
+    console.warn("Spread fetch failed for", pair.symbol);
+  }
+}
+
+const avgSpread = totalSpreadPct / topPairs.length;
+setAvgSpreadPct(avgSpread);
+setBullishSpreadCount(bullishCount);
+setBearishSpreadCount(bearishCount);
 
 setDominantSpread(
-  bullishCount > bearishCount ? "Bullish Spread (Buy Pressure 🟢)" :
-  bearishCount > bullishCount ? "Bearish Spread (Sell Pressure 🔴)" :
-  "Balanced Spread ⚫"
+  bullishCount > bearishCount
+    ? "Bullish Spread (Tight Market 🟢)"
+    : bearishCount > bullishCount
+    ? "Bearish Spread (Wide Market 🔴)"
+    : "Neutral Spread ⚫"
 );
-
+        
         
 // 🗓️ WEEKLY RHYTHM LOGGER --------------------------
 const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
@@ -246,7 +281,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
     };
 
     fetchAllData();
-    const interval = setInterval(fetchAllData, 30000);
+    const interval = setInterval(fetchAllData, 60000); // update every 60s instead of 30s
     return () => clearInterval(interval);
   }, []);
 
@@ -360,20 +395,25 @@ setWeeklyStats({ greens, reds, pattern, phase });
 </div>
     </div>
 
-            {/* --- NEW SPREAD SENTIMENT SECTION --- */}
+            {/* --- REAL SPREAD SENTIMENT SECTION --- */}
+            <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
 <div className="mt-4">
-  <p className="text-yellow-300 font-semibold mb-1">📏 Spread Sentiment Summary:</p>
+  <p className="text-yellow-300 font-semibold mb-1">📏 Real Spread Sentiment (Top 20 Pairs):</p>
   <ul className="text-gray-200 ml-4 list-disc space-y-1">
     <li>
-      <span className="text-green-400 font-semibold">Bullish Spread Count:</span>{" "}
-      {bullishSpread}
+      <span className="text-blue-400 font-semibold">Average Spread:</span>{" "}
+      {avgSpreadPct ? avgSpreadPct.toFixed(3) + "%" : "—"}
     </li>
     <li>
-      <span className="text-red-400 font-semibold">Bearish Spread Count:</span>{" "}
-      {bearishSpread}
+      <span className="text-green-400 font-semibold">Bullish Tight Spreads:</span>{" "}
+      {bullishSpreadCount}
     </li>
     <li>
-      <span className="text-blue-400 font-semibold">Dominant Side:</span>{" "}
+      <span className="text-red-400 font-semibold">Bearish Wide Spreads:</span>{" "}
+      {bearishSpreadCount}
+    </li>
+    <li>
+      <span className="text-cyan-400 font-semibold">Dominant Spread Side:</span>{" "}
       <span
         className={
           dominantSpread.includes("Bullish")
@@ -388,7 +428,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
     </li>
   </ul>
 </div>
-          
+      </div>
           
 
             {/* --- TXN DOMINANCE CARD (like ATH gap) --- */}
