@@ -61,11 +61,10 @@ export default function PriceFundingTracker() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
-  // 🧮 Real Spread Sentiment (based on bid-ask data)
+  // 🧮 Spread Analysis (True Market Tightness + Direction)
 const [avgSpreadPct, setAvgSpreadPct] = useState(0);
-const [bullishSpreadCount, setBullishSpreadCount] = useState(0);
-const [bearishSpreadCount, setBearishSpreadCount] = useState(0);
-const [dominantSpread, setDominantSpread] = useState("—");
+const [spreadCondition, setSpreadCondition] = useState("—");
+const [spreadSentiment, setSpreadSentiment] = useState("—");
 
   // 🗓️ Weekly Market Bias Tracker
 const [weeklyStats, setWeeklyStats] = useState<{
@@ -142,14 +141,16 @@ const [weeklyStats, setWeeklyStats] = useState<{
             : "⚫ Neutral";
 
 
-        // 📏 Fetch order book depth (for spread sentiment)
+        // 📊 SPREAD + DIRECTION ANALYSIS (Top 50 by Volume)
 const topPairs = combinedData
-  .sort((a, b) => b.volume - a.volume) // sort by liquidity
-  .slice(0, 50); // take top 50 most active
+  .sort((a, b) => b.volume - a.volume)
+  .slice(0, 50);
 
 let totalSpreadPct = 0;
-let bullishCount = 0;
-let bearishCount = 0;
+let tightCount = 0;
+let wideCount = 0;
+let upwardTrades = 0;
+let downwardTrades = 0;
 
 for (const pair of topPairs) {
   try {
@@ -157,20 +158,21 @@ for (const pair of topPairs) {
       params: { symbol: pair.symbol, limit: 5 },
     });
 
-    const bids = depthRes.data.bids.map((b: any) => parseFloat(b[0]));
-    const asks = depthRes.data.asks.map((a: any) => parseFloat(a[0]));
-    const bestBid = bids[0];
-    const bestAsk = asks[0];
+    const bestBid = parseFloat(depthRes.data.bids[0][0]);
+    const bestAsk = parseFloat(depthRes.data.asks[0][0]);
     const mid = (bestBid + bestAsk) / 2;
     const spread = bestAsk - bestBid;
     const spreadPct = (spread / mid) * 100;
 
     totalSpreadPct += spreadPct;
 
-    // Rough directional check:
-    // if price is rising and spread tight, count as bullish
-    if (pair.priceChangePercent > 0 && spreadPct < 0.05) bullishCount++;
-    else if (pair.priceChangePercent < 0 && spreadPct > 0.05) bearishCount++;
+    // classify spread tightness
+    if (spreadPct < 0.05) tightCount++;
+    else wideCount++;
+
+    // classify direction
+    if (pair.priceChangePercent > 0) upwardTrades++;
+    else if (pair.priceChangePercent < 0) downwardTrades++;
   } catch (err) {
     console.warn("Spread fetch failed for", pair.symbol);
   }
@@ -178,16 +180,22 @@ for (const pair of topPairs) {
 
 const avgSpread = totalSpreadPct / topPairs.length;
 setAvgSpreadPct(avgSpread);
-setBullishSpreadCount(bullishCount);
-setBearishSpreadCount(bearishCount);
 
-setDominantSpread(
-  bullishCount > bearishCount
-    ? "Bullish Spread (Tight Market 🟢)"
-    : bearishCount > bullishCount
-    ? "Bearish Spread (Wide Market 🔴)"
-    : "Neutral Spread ⚫"
-);
+// Determine spread condition
+let condition = "Neutral";
+if (avgSpread < 0.05) condition = "Tight";
+else if (avgSpread >= 0.05 && avgSpread < 0.15) condition = "Moderate";
+else condition = "Wide";
+
+// Determine sentiment based on spread + direction
+let sentiment = "Neutral / Sleepy 😴";
+if (condition === "Tight" && upwardTrades > downwardTrades) sentiment = "Bullish (Buyers Dominant 🟢)";
+else if (condition === "Tight" && downwardTrades > upwardTrades) sentiment = "Bearish (Sellers Dominant 🔴)";
+else if (condition === "Wide" && upwardTrades !== downwardTrades) sentiment = "Panic / Uncertain ⚠️";
+else if (condition === "Wide" && upwardTrades === downwardTrades) sentiment = "Neutral or Inactive ⚫";
+
+setSpreadCondition(condition);
+setSpreadSentiment(sentiment);
         
         
 // 🗓️ WEEKLY RHYTHM LOGGER --------------------------
@@ -395,35 +403,44 @@ setWeeklyStats({ greens, reds, pattern, phase });
 </div>
     </div>
 
-            {/* --- REAL SPREAD SENTIMENT SECTION --- */}
+            
+{/* --- MARKET TIGHTNESS SUMMARY --- */}
             <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
 <div className="mt-4">
-  <p className="text-yellow-300 font-semibold mb-1">📏 Real Spread Sentiment (Top 50 Pairs):</p>
+  <p className="text-yellow-300 font-semibold mb-1">📏 Market Tightness & Sentiment:</p>
   <ul className="text-gray-200 ml-4 list-disc space-y-1">
     <li>
       <span className="text-blue-400 font-semibold">Average Spread:</span>{" "}
       {avgSpreadPct ? avgSpreadPct.toFixed(3) + "%" : "—"}
     </li>
     <li>
-      <span className="text-green-400 font-semibold">Bullish Tight Spreads:</span>{" "}
-      {bullishSpreadCount}
-    </li>
-    <li>
-      <span className="text-red-400 font-semibold">Bearish Wide Spreads:</span>{" "}
-      {bearishSpreadCount}
-    </li>
-    <li>
-      <span className="text-cyan-400 font-semibold">Dominant Spread Side:</span>{" "}
+      <span className="text-cyan-400 font-semibold">Spread Condition:</span>{" "}
       <span
         className={
-          dominantSpread.includes("Bullish")
+          spreadCondition === "Tight"
             ? "text-green-400 font-bold"
-            : dominantSpread.includes("Bearish")
+            : spreadCondition === "Wide"
             ? "text-red-400 font-bold"
             : "text-yellow-400 font-bold"
         }
       >
-        {dominantSpread}
+        {spreadCondition}
+      </span>
+    </li>
+    <li>
+      <span className="text-purple-400 font-semibold">Likely Sentiment:</span>{" "}
+      <span
+        className={
+          spreadSentiment.includes("Bullish")
+            ? "text-green-400 font-bold"
+            : spreadSentiment.includes("Bearish")
+            ? "text-red-400 font-bold"
+            : spreadSentiment.includes("Panic")
+            ? "text-orange-400 font-bold"
+            : "text-gray-300 font-bold"
+        }
+      >
+        {spreadSentiment}
       </span>
     </li>
   </ul>
