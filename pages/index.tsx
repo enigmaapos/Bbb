@@ -343,7 +343,10 @@ setWeeklyStats({ greens, reds, pattern, phase });
           
           
 
-            {/* --- NEW LIQUIDITY SECTION --- */}
+            {/* --- TXN DOMINANCE CARD (like ATH gap) --- */}
+            <div className="bg-gray-800/50 border border-cyan-700/40 rounded-2xl p-4 shadow-sm mt-2">
+
+              {/* --- NEW LIQUIDITY SECTION --- */}
             <div>
               <p className="text-yellow-300 font-semibold mb-1">💧 Transaction Liquidity Summary:</p>
               <ul className="text-gray-200 ml-4 list-disc space-y-1">
@@ -371,9 +374,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
                 </li>
               </ul>
             </div>
-
-            {/* --- TXN DOMINANCE CARD (like ATH gap) --- */}
-            <div className="bg-gray-800/50 border border-cyan-700/40 rounded-2xl p-4 shadow-sm mt-2">
+              
               <p className="text-cyan-300 font-bold text-lg mb-2 flex items-center gap-2">
                 🧭 Transaction Dominance
                 <span className="text-xs text-gray-400 font-normal">(Executed Trade Flow)</span>
