@@ -341,6 +341,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
     </ul>  
   </div>  
 </div>
+  </div>
           
           
 
