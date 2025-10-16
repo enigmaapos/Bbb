@@ -375,7 +375,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
               </ul>
             </div>
               
-              <p className="text-cyan-300 font-bold text-lg mb-2 flex items-center gap-2">
+              <p className="text-cyan-300 font-bold text-lg mb-2 flex items-center gap-4">
                 🧭 Transaction Dominance
                 <span className="text-xs text-gray-400 font-normal">(Executed Trade Flow)</span>
               </p>
