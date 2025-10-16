@@ -61,6 +61,11 @@ export default function PriceFundingTracker() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
+  // 🟢🔴 Spread Sentiment (based on bid/ask pressure simulation)
+const [bullishSpread, setBullishSpread] = useState(0);
+const [bearishSpread, setBearishSpread] = useState(0);
+const [dominantSpread, setDominantSpread] = useState("");
+
   // 🗓️ Weekly Market Bias Tracker
 const [weeklyStats, setWeeklyStats] = useState<{
   greens: number;
@@ -134,6 +139,20 @@ const [weeklyStats, setWeeklyStats] = useState<{
             : totalRedTxn > totalGreenTxn
             ? "🔴 Bearish (Red)"
             : "⚫ Neutral";
+
+
+        // 🔍 Spread sentiment (approximation)
+const bullishCount = combinedData.filter(d => d.priceChangePercent > 0).length;
+const bearishCount = combinedData.filter(d => d.priceChangePercent < 0).length;
+
+setBullishSpread(bullishCount);
+setBearishSpread(bearishCount);
+
+setDominantSpread(
+  bullishCount > bearishCount ? "Bullish Spread (Buy Pressure 🟢)" :
+  bearishCount > bullishCount ? "Bearish Spread (Sell Pressure 🔴)" :
+  "Balanced Spread ⚫"
+);
 
         
 // 🗓️ WEEKLY RHYTHM LOGGER --------------------------
@@ -340,6 +359,35 @@ setWeeklyStats({ greens, reds, pattern, phase });
 </div>
 </div>
     </div>
+
+            {/* --- NEW SPREAD SENTIMENT SECTION --- */}
+<div className="mt-4">
+  <p className="text-yellow-300 font-semibold mb-1">📏 Spread Sentiment Summary:</p>
+  <ul className="text-gray-200 ml-4 list-disc space-y-1">
+    <li>
+      <span className="text-green-400 font-semibold">Bullish Spread Count:</span>{" "}
+      {bullishSpread}
+    </li>
+    <li>
+      <span className="text-red-400 font-semibold">Bearish Spread Count:</span>{" "}
+      {bearishSpread}
+    </li>
+    <li>
+      <span className="text-blue-400 font-semibold">Dominant Side:</span>{" "}
+      <span
+        className={
+          dominantSpread.includes("Bullish")
+            ? "text-green-400 font-bold"
+            : dominantSpread.includes("Bearish")
+            ? "text-red-400 font-bold"
+            : "text-yellow-400 font-bold"
+        }
+      >
+        {dominantSpread}
+      </span>
+    </li>
+  </ul>
+</div>
           
           
 
