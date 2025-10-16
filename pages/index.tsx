@@ -320,7 +320,8 @@ setWeeklyStats({ greens, reds, pattern, phase });
 </div>
                 
   {/* 24h Price Change */}
-  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-gray-100 text-sm mt-3">  
+<div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-gray-100 text-sm mt-3">  
+  <div>  
     <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>  
     <ul className="text-blue-100 ml-4 list-disc space-y-1">  
       <li>  
@@ -338,8 +339,8 @@ setWeeklyStats({ greens, reds, pattern, phase });
         {rawData.filter((item) => item.priceChangePercent <= -5).length}  
       </li>  
     </ul>  
-  </div>
-        </div>
+  </div>  
+</div>
           
           
 
