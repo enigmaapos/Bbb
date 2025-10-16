@@ -320,24 +320,24 @@ setWeeklyStats({ greens, reds, pattern, phase });
   ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;  
   ❌ <span className="text-red-400 font-bold">{redCount}</span> Red  
                 
-  <div>  
-    <ul className="text-blue-100 ml-4 list-disc space-y-1">  
-      <li>  
-        <span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>:{" "}  
-        {rawData.filter((item) => item.priceChangePercent >= 5).length}  
-      </li>  
-      <li>  
-        <span className="font-semibold text-yellow-300">Mild Movement (±0–5%)</span>:{" "}  
-        {rawData.filter(  
-          (item) => item.priceChangePercent > -5 && item.priceChangePercent < 5  
-        ).length}  
-      </li>  
-      <li>  
-        <span className="font-semibold text-red-400">Price Drop (≤ -5%)</span>:{" "}  
-        {rawData.filter((item) => item.priceChangePercent <= -5).length}  
-      </li>  
-    </ul>  
-  </div>  
+  <div className="mt-2">  
+  <ul className="text-blue-100 ml-4 list-disc space-y-1">  
+    <li>  
+      <span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>:{" "}  
+      {rawData.filter((item) => item.priceChangePercent >= 5).length}  
+    </li>  
+    <li>  
+      <span className="font-semibold text-yellow-300">Mild Movement (±0–5%)</span>:{" "}  
+      {rawData.filter(  
+        (item) => item.priceChangePercent > -5 && item.priceChangePercent < 5  
+      ).length}  
+    </li>  
+    <li>  
+      <span className="font-semibold text-red-400">Price Drop (≤ -5%)</span>:{" "}  
+      {rawData.filter((item) => item.priceChangePercent <= -5).length}  
+    </li>  
+  </ul>  
+</div>
 </div>
     </div>
           
