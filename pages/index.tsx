@@ -314,14 +314,13 @@ setWeeklyStats({ greens, reds, pattern, phase });
   </p>
 </div>
 
-              <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">  
+              {/* 24h Price Change */}
+    <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
+    <p className="text-blue-300 font-semibold mb-2">🔄 24h Price Change:</p>  
   ✅ <span className="text-green-400 font-bold">{greenCount}</span> Green &nbsp;&nbsp;  
   ❌ <span className="text-red-400 font-bold">{redCount}</span> Red  
-
                 
-  {/* 24h Price Change */}
   <div>  
-    <p className="text-blue-300 font-semibold mb-1">🔄 24h Price Change:</p>  
     <ul className="text-blue-100 ml-4 list-disc space-y-1">  
       <li>  
         <span className="font-semibold text-green-400">Price Increase (≥ 5%)</span>:{" "}  
