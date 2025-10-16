@@ -145,7 +145,7 @@ const [weeklyStats, setWeeklyStats] = useState<{
         // 📏 Fetch order book depth (for spread sentiment)
 const topPairs = combinedData
   .sort((a, b) => b.volume - a.volume) // sort by liquidity
-  .slice(0, 20); // take top 20 most active
+  .slice(0, 50); // take top 50 most active
 
 let totalSpreadPct = 0;
 let bullishCount = 0;
@@ -398,7 +398,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
             {/* --- REAL SPREAD SENTIMENT SECTION --- */}
             <div className="mt-3 bg-gray-800/50 border border-gray-700 rounded-xl p-3">
 <div className="mt-4">
-  <p className="text-yellow-300 font-semibold mb-1">📏 Real Spread Sentiment (Top 20 Pairs):</p>
+  <p className="text-yellow-300 font-semibold mb-1">📏 Real Spread Sentiment (Top 50 Pairs):</p>
   <ul className="text-gray-200 ml-4 list-disc space-y-1">
     <li>
       <span className="text-blue-400 font-semibold">Average Spread:</span>{" "}
