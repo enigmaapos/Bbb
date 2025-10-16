@@ -359,7 +359,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
                   {formatCompact(redLiquidity)} USDT
                 </li>
                 <li>
-                  <span className="text-blue-400 font-semibold mb-4">Dominant Side:</span>{" "}
+                  <span className="text-blue-400 font-semibold">Dominant Side:</span>{" "}
                   <span
                     className={
                       dominantLiquidity.includes("Bullish")
@@ -375,7 +375,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
               </ul>
             </div>
               
-              <p className="text-cyan-300 font-bold text-lg mb-2 flex items-center gap-2">
+              <p className="text-cyan-300 font-bold text-lg mb-2 mt-3 flex items-center gap-2">
                 🧭 Transaction Dominance
                 <span className="text-xs text-gray-400 font-normal">(Executed Trade Flow)</span>
               </p>
