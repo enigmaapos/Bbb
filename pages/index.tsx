@@ -338,6 +338,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
             </div>
               </div>
               </div>
+              </div>
           
 
             {/* --- NEW LIQUIDITY SECTION --- */}
