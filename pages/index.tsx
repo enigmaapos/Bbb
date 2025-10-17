@@ -143,94 +143,133 @@ const [weeklyStats, setWeeklyStats] = useState<{
             : "⚫ Neutral";
 
 
-        // 📊 SPREAD + DIRECTION ANALYSIS (Top 50 by Volume)
+   // ------------------ REPLACE EXISTING SPREAD ANALYSIS WITH THIS BLOCK ------------------
+// (Place this after you compute combinedData and before you set states for UI)
 const topPairs = combinedData
   .sort((a, b) => b.volume - a.volume)
-  .slice(0, 50);
+  .slice(0, 50); // adjust if desired
 
 let totalSpreadPct = 0;
 let tightCount = 0;
 let wideCount = 0;
 let upwardTrades = 0;
 let downwardTrades = 0;
+let validPairs = 0;
 
-for (const pair of topPairs) {
-  try {
-    const depthRes = await axios.get(`${BINANCE_API}/fapi/v1/depth`, {
+const SPREAD_TIGHT_PCT = 0.05; // % threshold (0.05% = 0.05)
+const SPREAD_WIDE_PCT = 0.15;  // % threshold for wide (adjust to taste)
+
+// fetch depths in parallel to speed things up and avoid long serial loops
+const depthPromises = topPairs.map((pair) =>
+  axios
+    .get(`${BINANCE_API}/fapi/v1/depth`, {
       params: { symbol: pair.symbol, limit: 5 },
-    });
+    })
+    .then((res) => ({ pair, depth: res.data }))
+    .catch((err) => {
+      console.warn("depth fetch failed for", pair.symbol, err?.message || err);
+      return null;
+    })
+);
 
-    const bestBid = parseFloat(depthRes.data.bids[0][0]);
-    const bestAsk = parseFloat(depthRes.data.asks[0][0]);
-    const mid = (bestBid + bestAsk) / 2;
-    const spread = bestAsk - bestBid;
-    const spreadPct = (spread / mid) * 100;
+const depthResults = await Promise.all(depthPromises);
 
-    totalSpreadPct += spreadPct;
+for (const entry of depthResults) {
+  if (!entry || !entry.depth) continue;
+  const pair = entry.pair;
+  const depth = entry.depth;
 
-    // classify spread tightness
-    if (spreadPct < 0.05) tightCount++;
-    else wideCount++;
+  // ensure bids/asks exist
+  if (!depth.bids?.length || !depth.asks?.length) continue;
 
-    // classify direction
-    if (pair.priceChangePercent > 0) upwardTrades++;
-    else if (pair.priceChangePercent < 0) downwardTrades++;
-  } catch (err) {
-    console.warn("Spread fetch failed for", pair.symbol);
-  }
+  const bestBid = parseFloat(depth.bids[0][0]);
+  const bestAsk = parseFloat(depth.asks[0][0]);
+  if (!isFinite(bestBid) || !isFinite(bestAsk) || bestAsk <= bestBid) continue;
+
+  const mid = (bestBid + bestAsk) / 2;
+  const spread = bestAsk - bestBid;
+  const spreadPct = (spread / mid) * 100; // percent
+
+  totalSpreadPct += spreadPct;
+  validPairs++;
+
+  // classify spread tightness per-pair
+  if (spreadPct < SPREAD_TIGHT_PCT) tightCount++;
+  else if (spreadPct >= SPREAD_WIDE_PCT) wideCount++;
+  // "moderate" spreads will neither increment tightCount nor wideCount
+
+  // direction from priceChangePercent on the same pair (consistent source)
+  if (pair.priceChangePercent > 0) upwardTrades++;
+  else if (pair.priceChangePercent < 0) downwardTrades++;
 }
 
-const avgSpread = totalSpreadPct / topPairs.length;
+// If no valid pairs, set defaults and avoid division by zero
+const avgSpread = validPairs > 0 ? totalSpreadPct / validPairs : 0;
 setAvgSpreadPct(avgSpread);
 
-// Determine spread condition
-let condition = "Neutral";
-if (avgSpread < 0.05) condition = "Tight";
-else if (avgSpread >= 0.05 && avgSpread < 0.15) condition = "Moderate";
-else condition = "Wide";
-
-// Determine sentiment based on spread + direction
-let sentiment = "Neutral / Sleepy 😴";
-if (condition === "Tight" && upwardTrades > downwardTrades) sentiment = "Bullish (Buyers Dominant 🟢)";
-else if (condition === "Tight" && downwardTrades > upwardTrades) sentiment = "Bearish (Sellers Dominant 🔴)";
-else if (condition === "Wide" && upwardTrades !== downwardTrades) sentiment = "Panic / Uncertain ⚠️";
-else if (condition === "Wide" && upwardTrades === downwardTrades) sentiment = "Neutral or Inactive ⚫";
+// Spread condition (global)
+let condition: "Tight" | "Moderate" | "Wide" = "Moderate";
+if (avgSpread < SPREAD_TIGHT_PCT) condition = "Tight";
+else if (avgSpread >= SPREAD_WIDE_PCT) condition = "Wide";
 
 setSpreadCondition(condition);
-setSpreadSentiment(sentiment);
 
-        // 🧠 Detailed Market Explanation (Aligned with True Table)
-let explanation = "";
-let interpretation = "";
+// Determine direction dominance from the topPairs counts we computed
+let direction: "Bullish" | "Bearish" | "Neutral" = "Neutral";
+if (upwardTrades > downwardTrades) direction = "Bullish";
+else if (downwardTrades > upwardTrades) direction = "Bearish";
+else direction = "Neutral";
 
-// Determine direction dominance first
-const direction =
-  upwardTrades > downwardTrades
-    ? "Bullish"
-    : downwardTrades > upwardTrades
-    ? "Bearish"
-    : "Neutral";
+// Map to exact "What's Happening" and "Interpretation" per the table
+let explanation = "Mixed liquidity behavior";
+let interpretation = "No clear directional dominance";
 
-// Map conditions properly
-if (spreadCondition === "Tight" && direction === "Bullish") {
+if (condition === "Tight" && direction === "Bullish") {
   explanation = "Demand absorbing all offers";
   interpretation = "Early rally or breakout pressure";
-} else if (spreadCondition === "Tight" && direction === "Bearish") {
+} else if (condition === "Tight" && direction === "Bearish") {
   explanation = "Supply dominating bids";
   interpretation = "Controlled downtrend / distribution";
-} else if (spreadCondition === "Wide" && direction !== "Neutral") {
+} else if (condition === "Wide" && direction !== "Neutral") {
   explanation = "Market makers step away";
   interpretation = "Fear, liquidation spikes";
-} else if (spreadCondition === "Wide" && direction === "Neutral") {
+} else if (condition === "Wide" && direction === "Neutral") {
   explanation = "Few traders active";
   interpretation = "Neutral, low-interest phase";
-} else {
-  explanation = "Mixed liquidity behavior";
-  interpretation = "No clear directional dominance";
 }
+
+// update state
+setSpreadSentiment(
+  condition === "Tight"
+    ? direction === "Bullish"
+      ? "Bullish (Buyers Dominant 🟢)"
+      : direction === "Bearish"
+      ? "Bearish (Sellers Dominant 🔴)"
+      : "Neutral (Tight) ⚫"
+    : condition === "Wide"
+    ? direction === "Neutral"
+      ? "Neutral / Inactive ⚫"
+      : "Panic / Uncertain ⚠️"
+    : "Moderate / Mixed ⚫"
+);
 
 setSpreadExplanation(explanation);
 setSpreadInterpretation(interpretation);
+
+// Optional: debug log to inspect values in dev console
+console.debug("SpreadAnalysis", {
+  avgSpread,
+  validPairs,
+  tightCount,
+  wideCount,
+  upwardTrades,
+  downwardTrades,
+  condition,
+  direction,
+  explanation,
+  interpretation,
+});     
+
         
         
 // 🗓️ WEEKLY RHYTHM LOGGER --------------------------
