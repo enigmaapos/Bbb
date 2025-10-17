@@ -68,6 +68,8 @@ const [spreadSentiment, setSpreadSentiment] = useState("—");
   const [spreadExplanation, setSpreadExplanation] = useState("");
 const [spreadInterpretation, setSpreadInterpretation] = useState("");
 
+  const [generalBias, setGeneralBias] = useState("—");
+
   // 🗓️ Weekly Market Bias Tracker
 const [weeklyStats, setWeeklyStats] = useState<{
   greens: number;
@@ -141,6 +143,35 @@ const [weeklyStats, setWeeklyStats] = useState<{
             : totalRedTxn > totalGreenTxn
             ? "🔴 Bearish (Red)"
             : "⚫ Neutral";
+
+
+        // 🧩 Overall Market Sentiment Aggregator
+let sentimentScore = 0;
+
+// ✅ Price Bias
+if (greenCount > redCount) sentimentScore += 1;
+else if (redCount > greenCount) sentimentScore -= 1;
+
+// 💧 Liquidity Bias
+if (greenTotal > redTotal) sentimentScore += 1;
+else if (redTotal > greenTotal) sentimentScore -= 1;
+
+// 🧭 TXN Dominance
+if (txnDominantSide.includes("Bullish")) sentimentScore += 1;
+else if (txnDominantSide.includes("Bearish")) sentimentScore -= 1;
+
+// 📏 Spread Direction
+if (spreadSentiment.includes("Bullish")) sentimentScore += 1;
+else if (spreadSentiment.includes("Bearish")) sentimentScore -= 1;
+
+// 🧠 Final Market Bias
+let overallSentiment = "⚫ Neutral / Mixed Market";
+if (sentimentScore >= 2) overallSentiment = "🟢 Bullish Market Bias";
+else if (sentimentScore <= -2) overallSentiment = "🔴 Bearish Market Bias";
+
+// Save to state
+setGeneralBias(overallSentiment);
+console.debug("🧠 Overall Sentiment:", { sentimentScore, overallSentiment });
 
 
    // ------------------ REPLACE EXISTING SPREAD ANALYSIS WITH THIS BLOCK ------------------
@@ -423,6 +454,22 @@ setWeeklyStats({ greens, reds, pattern, phase });
           <div className="text-sm space-y-4">
             <div>
               <p className="text-gray-400 font-semibold mb-1">🧮 General Market Bias:</p>
+
+              {/* --- Overall Market Bias Summary --- */}
+<div className="bg-gray-800/60 border border-cyan-700/30 rounded-xl p-3 mb-3">
+  <p className="text-yellow-300 font-semibold mb-1">🧠 General Market Bias:</p>
+  <p
+    className={
+      generalBias.includes("Bullish")
+        ? "text-green-400 font-bold"
+        : generalBias.includes("Bearish")
+        ? "text-red-400 font-bold"
+        : "text-gray-300 font-bold"
+    }
+  >
+    {generalBias}
+  </p>
+</div>
 
               <div className="mt-3 bg-gray-800/60 border border-cyan-700/30 rounded-xl p-3">
   <p className="text-yellow-300 font-semibold mb-2">🗓️ Weekly Market Rhythm</p>
