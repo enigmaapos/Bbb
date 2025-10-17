@@ -457,7 +457,7 @@ setWeeklyStats({ greens, reds, pattern, phase });
 
               {/* --- Overall Market Bias Summary --- */}
 <div className="bg-gray-800/60 border border-cyan-700/30 rounded-xl p-3 mb-3">
-  <p className="text-yellow-300 font-semibold mb-1">🧠 General Market Bias:</p>
+  <p className="text-yellow-300 font-semibold mb-1">🧠 Overall Sentiment:</p>
   <p
     className={
       generalBias.includes("Bullish")
