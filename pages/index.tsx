@@ -199,20 +199,29 @@ else if (condition === "Wide" && upwardTrades === downwardTrades) sentiment = "N
 setSpreadCondition(condition);
 setSpreadSentiment(sentiment);
 
-        // 🧠 Detailed Market Explanation
+        // 🧠 Detailed Market Explanation (Aligned with True Table)
 let explanation = "";
 let interpretation = "";
 
-if (spreadCondition === "Tight" && upwardTrades > downwardTrades) {
+// Determine direction dominance first
+const direction =
+  upwardTrades > downwardTrades
+    ? "Bullish"
+    : downwardTrades > upwardTrades
+    ? "Bearish"
+    : "Neutral";
+
+// Map conditions properly
+if (spreadCondition === "Tight" && direction === "Bullish") {
   explanation = "Demand absorbing all offers";
   interpretation = "Early rally or breakout pressure";
-} else if (spreadCondition === "Tight" && downwardTrades > upwardTrades) {
+} else if (spreadCondition === "Tight" && direction === "Bearish") {
   explanation = "Supply dominating bids";
   interpretation = "Controlled downtrend / distribution";
-} else if (spreadCondition === "Wide" && upwardTrades !== downwardTrades) {
+} else if (spreadCondition === "Wide" && direction !== "Neutral") {
   explanation = "Market makers step away";
   interpretation = "Fear, liquidation spikes";
-} else if (spreadCondition === "Wide" && upwardTrades === downwardTrades) {
+} else if (spreadCondition === "Wide" && direction === "Neutral") {
   explanation = "Few traders active";
   interpretation = "Neutral, low-interest phase";
 } else {
