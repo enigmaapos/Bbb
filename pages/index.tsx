@@ -478,13 +478,63 @@ setWeeklyStats({ greens, reds, pattern, phase });
         {spreadSentiment}
       </span>
     </li>
-    <li>
+    {/* --- What's Happening + Interpretation (Enhanced with Icons & Color) --- */}
+<li>
   <span className="text-gray-400 font-semibold">What’s Happening:</span>{" "}
-  <span className="text-gray-200">{spreadExplanation}</span>
+  <span
+    className={
+      spreadExplanation.includes("Demand")
+        ? "text-green-400 font-semibold" // bullish
+        : spreadExplanation.includes("Supply")
+        ? "text-red-400 font-semibold" // bearish
+        : spreadExplanation.includes("Market makers")
+        ? "text-orange-400 font-semibold" // panic
+        : spreadExplanation.includes("Few traders")
+        ? "text-yellow-400 font-semibold" // calm
+        : "text-gray-300 font-semibold"
+    }
+  >
+    {spreadExplanation.includes("Demand")
+      ? "🟢 " + spreadExplanation
+      : spreadExplanation.includes("Supply")
+      ? "🔴 " + spreadExplanation
+      : spreadExplanation.includes("Market makers")
+      ? "⚠️ " + spreadExplanation
+      : spreadExplanation.includes("Few traders")
+      ? "😴 " + spreadExplanation
+      : "⚫ " + spreadExplanation}
+  </span>
 </li>
+
 <li>
   <span className="text-gray-400 font-semibold">Interpretation:</span>{" "}
-  <span className="text-yellow-300">{spreadInterpretation}</span>
+  <span
+    className={
+      spreadInterpretation.includes("rally") ||
+      spreadInterpretation.includes("breakout")
+        ? "text-green-400 font-semibold"
+        : spreadInterpretation.includes("downtrend") ||
+          spreadInterpretation.includes("distribution")
+        ? "text-red-400 font-semibold"
+        : spreadInterpretation.includes("Fear")
+        ? "text-orange-400 font-semibold"
+        : spreadInterpretation.includes("Neutral")
+        ? "text-yellow-400 font-semibold"
+        : "text-gray-300 font-semibold"
+    }
+  >
+    {spreadInterpretation.includes("rally") ||
+    spreadInterpretation.includes("breakout")
+      ? "🟢 " + spreadInterpretation
+      : spreadInterpretation.includes("downtrend") ||
+        spreadInterpretation.includes("distribution")
+      ? "🔴 " + spreadInterpretation
+      : spreadInterpretation.includes("Fear")
+      ? "⚠️ " + spreadInterpretation
+      : spreadInterpretation.includes("Neutral")
+      ? "😴 " + spreadInterpretation
+      : "⚫ " + spreadInterpretation}
+  </span>
 </li>
   </ul>
 </div>
