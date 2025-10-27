@@ -9,7 +9,11 @@ interface SymbolData {
   priceChangePercent: number;
   fundingRate: number;
   lastPrice: number;
-  volume: number; // quoteVolume in USDT
+  volume: number;
+  spreadPct?: number; // 🆕 per-coin spread percentage
+  signal?: string; // 🆕 Market Tightness signal (🟢 Tight + Bullish, etc.)
+  meaning?: string; // 🧠 explanation
+  implication?: string; // 📈 trading implication
 }
 
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
