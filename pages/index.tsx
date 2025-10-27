@@ -98,10 +98,23 @@ useEffect(() => {
         axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
       ]);
 
-      const usdtPairs = infoRes.data.symbols
-        .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
-        .map((s: any) => s.symbol);
+      // ✅ 1. Filter only active Binance Futures (PERPETUAL USDT) pairs
+const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
 
+// 🧹 2. Manual blacklist to exclude spot-only or delisted tokens
+const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT"];
+
+// ✅ 3. Keep only valid, tradable perpetual futures pairs
+const usdtPairs = infoRes.data.symbols
+  .filter(
+    (s: any) =>
+      s.contractType === "PERPETUAL" &&
+      s.symbol.endsWith("USDT") &&
+      futuresSymbols.has(s.symbol) &&
+      !blacklist.includes(s.symbol)
+  )
+  .map((s: any) => s.symbol);
+      
       const tickerData = tickerRes.data;
       const fundingData = fundingRes.data;
 
