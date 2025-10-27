@@ -804,9 +804,6 @@ const top10Bearish = rawData
               </div>
             </div>
 
-          </div>
-        </div>
-
         {/* Funding Sentiment Chart */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <FundingSentimentChart
