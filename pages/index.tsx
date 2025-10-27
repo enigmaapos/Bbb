@@ -82,321 +82,282 @@ const [weeklyStats, setWeeklyStats] = useState<{
   pattern: [],
   phase: "—",
 });
-  
-  useEffect(() => {
-    const fetchAllData = async () => {
-      setError(null);
-      try {
-        const [infoRes, tickerRes, fundingRes] = await Promise.all([
-          axios.get(`${BINANCE_API}/fapi/v1/exchangeInfo`),
-          axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
-          axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
-        ]);
 
-        const usdtPairs = infoRes.data.symbols
-          .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
-          .map((s: any) => s.symbol);
+useEffect(() => {
+  const fetchAllData = async () => {
+    setError(null);
+    try {
+      // 1️⃣ Fetch all required Binance data in parallel
+      const [infoRes, tickerRes, fundingRes] = await Promise.all([
+        axios.get(`${BINANCE_API}/fapi/v1/exchangeInfo`),
+        axios.get(`${BINANCE_API}/fapi/v1/ticker/24hr`),
+        axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
+      ]);
 
-        const tickerData = tickerRes.data;
-        const fundingData = fundingRes.data;
+      const usdtPairs = infoRes.data.symbols
+        .filter((s: any) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT"))
+        .map((s: any) => s.symbol);
 
-        let combinedData: SymbolData[] = usdtPairs
-          .map((symbol: string) => {
-            const ticker = tickerData.find((t: any) => t.symbol === symbol);
-            const funding = fundingData.find((f: any) => f.symbol === symbol);
-            return {
-              symbol,
-              priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
-              fundingRate: parseFloat(funding?.lastFundingRate || "0"),
-              lastPrice: parseFloat(ticker?.lastPrice || "0"),
-              volume: parseFloat(ticker?.quoteVolume || "0"), // quoteVolume is USDT notional
-            };
+      const tickerData = tickerRes.data;
+      const fundingData = fundingRes.data;
+
+      // 2️⃣ Combine ticker + funding + volume
+      let combinedData: SymbolData[] = usdtPairs
+        .map((symbol: string) => {
+          const ticker = tickerData.find((t: any) => t.symbol === symbol);
+          const funding = fundingData.find((f: any) => f.symbol === symbol);
+          return {
+            symbol,
+            priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
+            fundingRate: parseFloat(funding?.lastFundingRate || "0"),
+            lastPrice: parseFloat(ticker?.lastPrice || "0"),
+            volume: parseFloat(ticker?.quoteVolume || "0"),
+          };
+        })
+        .filter((d: SymbolData) => d.volume > 0);
+
+      // 3️⃣ Categorize sentiment buckets
+      const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+      const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+      const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+      const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+
+      // 4️⃣ Liquidity totals (quoteVolume)
+      const greenTotal = combinedData
+        .filter((d) => d.priceChangePercent >= 0)
+        .reduce((sum, d) => sum + d.volume, 0);
+      const redTotal = combinedData
+        .filter((d) => d.priceChangePercent < 0)
+        .reduce((sum, d) => sum + d.volume, 0);
+
+      // 5️⃣ TXN dominance
+      const totalGreenTxn = greenTotal;
+      const totalRedTxn = redTotal;
+      const txnDominantSide =
+        totalGreenTxn > totalRedTxn
+          ? "🟢 Bullish (Green)"
+          : totalRedTxn > totalGreenTxn
+          ? "🔴 Bearish (Red)"
+          : "⚫ Neutral";
+
+      // 6️⃣ Fetch per-coin order book depth for top 50
+      const topPairsForSignals = combinedData
+        .sort((a, b) => b.volume - a.volume)
+        .slice(0, 50);
+
+      const depthPromisesPerCoin = topPairsForSignals.map((pair) =>
+        axios
+          .get(`${BINANCE_API}/fapi/v1/depth`, { params: { symbol: pair.symbol, limit: 5 } })
+          .then((res) => {
+            const bestBid = parseFloat(res.data.bids?.[0]?.[0] || "0");
+            const bestAsk = parseFloat(res.data.asks?.[0]?.[0] || "0");
+            const mid = (bestBid + bestAsk) / 2;
+            const spreadPct = ((bestAsk - bestBid) / mid) * 100;
+            return { symbol: pair.symbol, spreadPct };
           })
-          .filter((d: SymbolData) => d.volume > 0);
+          .catch(() => ({ symbol: pair.symbol, spreadPct: null }))
+      );
 
-        // 🌿 Categorize data
-        const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
-        const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
-        const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
-        const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+      const depthDataPerCoin = await Promise.all(depthPromisesPerCoin);
 
-        // 💧 Liquidity totals (by quote volume)
-        const greenTotal = combinedData
-          .filter((d) => d.priceChangePercent >= 0)
-          .reduce((sum, d) => sum + d.volume, 0);
-        const redTotal = combinedData
-          .filter((d) => d.priceChangePercent < 0)
-          .reduce((sum, d) => sum + d.volume, 0);
+      // attach spreadPct to each coin
+      combinedData = combinedData.map((coin) => {
+        const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
+        return { ...coin, spreadPct: depth?.spreadPct || 0 };
+      });
 
-        // 🧭 Transaction Dominance (Executed Flow) — using quoteVolume as proxy for txn notional
-        const totalGreenTxn = combinedData
-          .filter((d) => d.priceChangePercent >= 0)
-          .reduce((sum, d) => sum + d.volume, 0);
+      // 7️⃣ Classify each coin with Market Tightness Signal
+      const SPREAD_TIGHT_PCT = 0.05;
+      const SPREAD_WIDE_PCT = 0.15;
 
-        const totalRedTxn = combinedData
-          .filter((d) => d.priceChangePercent < 0)
-          .reduce((sum, d) => sum + d.volume, 0);
+      combinedData = combinedData.map((coin) => {
+        let signal = "⚫ Neutral";
+        let meaning = "Balanced market";
+        let implication = "No clear signal";
 
-        const txnDominantSide =
-          totalGreenTxn > totalRedTxn
-            ? "🟢 Bullish (Green)"
-            : totalRedTxn > totalGreenTxn
-            ? "🔴 Bearish (Red)"
-            : "⚫ Neutral";
+        const isTight = coin.spreadPct < SPREAD_TIGHT_PCT;
+        const isWide = coin.spreadPct >= SPREAD_WIDE_PCT;
+        const isBullish = coin.priceChangePercent > 0;
+        const isBearish = coin.priceChangePercent < 0;
 
-
-        // 🧩 Overall Market Sentiment Aggregator
-let sentimentScore = 0;
-
-// ✅ Price Bias
-if (greenCount > redCount) sentimentScore += 1;
-else if (redCount > greenCount) sentimentScore -= 1;
-
-// 💧 Liquidity Bias
-if (greenTotal > redTotal) sentimentScore += 1;
-else if (redTotal > greenTotal) sentimentScore -= 1;
-
-// 🧭 TXN Dominance
-if (txnDominantSide.includes("Bullish")) sentimentScore += 1;
-else if (txnDominantSide.includes("Bearish")) sentimentScore -= 1;
-
-// 📏 Spread Direction
-if (spreadSentiment.includes("Bullish")) sentimentScore += 1;
-else if (spreadSentiment.includes("Bearish")) sentimentScore -= 1;
-
-// 🧠 Final Market Bias
-let overallSentiment = "⚫ Neutral / Mixed Market";
-if (sentimentScore >= 2) overallSentiment = "🟢 Bullish Market Bias";
-else if (sentimentScore <= -2) overallSentiment = "🔴 Bearish Market Bias";
-
-// Save to state
-setGeneralBias(overallSentiment);
-console.debug("🧠 Overall Sentiment:", { sentimentScore, overallSentiment });
-
-
-   // ------------------ REPLACE EXISTING SPREAD ANALYSIS WITH THIS BLOCK ------------------
-// (Place this after you compute combinedData and before you set states for UI)
-const topPairs = combinedData
-  .sort((a, b) => b.volume - a.volume)
-  .slice(0, 50); // adjust if desired
-
-let totalSpreadPct = 0;
-let tightCount = 0;
-let wideCount = 0;
-let upwardTrades = 0;
-let downwardTrades = 0;
-let validPairs = 0;
-
-const SPREAD_TIGHT_PCT = 0.05; // % threshold (0.05% = 0.05)
-const SPREAD_WIDE_PCT = 0.15;  // % threshold for wide (adjust to taste)
-
-// fetch depths in parallel to speed things up and avoid long serial loops
-const depthPromises = topPairs.map((pair) =>
-  axios
-    .get(`${BINANCE_API}/fapi/v1/depth`, {
-      params: { symbol: pair.symbol, limit: 5 },
-    })
-    .then((res) => ({ pair, depth: res.data }))
-    .catch((err) => {
-      console.warn("depth fetch failed for", pair.symbol, err?.message || err);
-      return null;
-    })
-);
-
-const depthResults = await Promise.all(depthPromises);
-
-for (const entry of depthResults) {
-  if (!entry || !entry.depth) continue;
-  const pair = entry.pair;
-  const depth = entry.depth;
-
-  // ensure bids/asks exist
-  if (!depth.bids?.length || !depth.asks?.length) continue;
-
-  const bestBid = parseFloat(depth.bids[0][0]);
-  const bestAsk = parseFloat(depth.asks[0][0]);
-  if (!isFinite(bestBid) || !isFinite(bestAsk) || bestAsk <= bestBid) continue;
-
-  const mid = (bestBid + bestAsk) / 2;
-  const spread = bestAsk - bestBid;
-  const spreadPct = (spread / mid) * 100; // percent
-
-  totalSpreadPct += spreadPct;
-  validPairs++;
-
-  // classify spread tightness per-pair
-  if (spreadPct < SPREAD_TIGHT_PCT) tightCount++;
-  else if (spreadPct >= SPREAD_WIDE_PCT) wideCount++;
-  // "moderate" spreads will neither increment tightCount nor wideCount
-
-  // direction from priceChangePercent on the same pair (consistent source)
-  if (pair.priceChangePercent > 0) upwardTrades++;
-  else if (pair.priceChangePercent < 0) downwardTrades++;
-}
-
-// If no valid pairs, set defaults and avoid division by zero
-const avgSpread = validPairs > 0 ? totalSpreadPct / validPairs : 0;
-setAvgSpreadPct(avgSpread);
-
-// Spread condition (global)
-let condition: "Tight" | "Moderate" | "Wide" = "Moderate";
-if (avgSpread < SPREAD_TIGHT_PCT) condition = "Tight";
-else if (avgSpread >= SPREAD_WIDE_PCT) condition = "Wide";
-
-setSpreadCondition(condition);
-
-// Determine direction dominance from the topPairs counts we computed
-let direction: "Bullish" | "Bearish" | "Neutral" = "Neutral";
-if (upwardTrades > downwardTrades) direction = "Bullish";
-else if (downwardTrades > upwardTrades) direction = "Bearish";
-else direction = "Neutral";
-
-// Map to exact "What's Happening" and "Interpretation" per the table
-let explanation = "Mixed liquidity behavior";
-let interpretation = "No clear directional dominance";
-
-if (condition === "Tight" && direction === "Bullish") {
-  explanation = "Demand absorbing all offers";
-  interpretation = "Early rally or breakout pressure";
-} else if (condition === "Tight" && direction === "Bearish") {
-  explanation = "Supply dominating bids";
-  interpretation = "Controlled downtrend / distribution";
-} else if (condition === "Wide" && direction !== "Neutral") {
-  explanation = "Market makers step away";
-  interpretation = "Fear, liquidation spikes";
-} else if (condition === "Wide" && direction === "Neutral") {
-  explanation = "Few traders active";
-  interpretation = "Neutral, low-interest phase";
-}
-
-// update state
-setSpreadSentiment(
-  condition === "Tight"
-    ? direction === "Bullish"
-      ? "Bullish (Buyers Dominant 🟢)"
-      : direction === "Bearish"
-      ? "Bearish (Sellers Dominant 🔴)"
-      : "Neutral (Tight) ⚫"
-    : condition === "Wide"
-    ? direction === "Neutral"
-      ? "Neutral / Inactive ⚫"
-      : "Panic / Uncertain ⚠️"
-    : "Moderate / Mixed ⚫"
-);
-
-setSpreadExplanation(explanation);
-setSpreadInterpretation(interpretation);
-
-// Optional: debug log to inspect values in dev console
-console.debug("SpreadAnalysis", {
-  avgSpread,
-  validPairs,
-  tightCount,
-  wideCount,
-  upwardTrades,
-  downwardTrades,
-  condition,
-  direction,
-  explanation,
-  interpretation,
-});     
-
-        
-        
-// 🗓️ WEEKLY RHYTHM LOGGER --------------------------
-const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
-const weekday = new Date().toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Manila" });
-const bias = txnDominantSide.includes("Bullish")
-  ? "🟩"
-  : txnDominantSide.includes("Bearish")
-  ? "🟥"
-  : "⚫";
-
-// Load old data or create new
-let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
-
-// Always make sure today's entry exists
-const existing = history.find((h: any) => h.date === today);
-if (existing) {
-  existing.bias = bias;
-  existing.day = weekday;
-} else {
-  history.push({ date: today, bias, day: weekday });
-}
-
-// Keep last 14 days
-if (history.length > 14) history = history.slice(-14);
-
-// Split into current + previous week
-const currentWeek = history.slice(-7);
-const previousWeek = history.slice(-14, -7);
-
-// Save back
-localStorage.setItem("marketHistory", JSON.stringify(history));
-
-// Count colors
-const greens = currentWeek.filter((h: any) => h.bias === "🟩").length;
-const reds = currentWeek.filter((h: any) => h.bias === "🟥").length;
-const pattern = currentWeek.map((h: any) => ({ bias: h.bias, day: h.day }));
-
-// Determine market phase
-let phase = "Rotation Phase 🔄";
-if (greens >= 5 && reds <= 2) phase = "Alt Season Building 🌱";
-else if (reds >= 5 && greens <= 2) phase = "Cooling Phase ❄️";
-else if (greens === reds) phase = "Balanced Market ⚖️";
-
-// Compare trend vs previous week
-let trendArrow = "↔ Stable";
-if (previousWeek.length > 0) {
-  const prevGreens = previousWeek.filter((h: any) => h.bias === "🟩").length;
-  if (greens > prevGreens) trendArrow = "↗ Bullish Momentum Increasing";
-  else if (greens < prevGreens) trendArrow = "↘ Bullish Momentum Fading";
-}
-
-// Combine label
-phase = `${phase} • ${trendArrow}`;
-
-// Update UI
-setWeeklyStats({ greens, reds, pattern, phase });
-
-
-
-        // 🧾 Update states
-        setRawData(combinedData);
-        setGreenCount(combinedData.filter((d) => d.priceChangePercent >= 0).length);
-        setRedCount(combinedData.filter((d) => d.priceChangePercent < 0).length);
-        setGreenPositiveFunding(gPos);
-        setGreenNegativeFunding(gNeg);
-        setRedPositiveFunding(rPos);
-        setRedNegativeFunding(rNeg);
-
-        setGreenLiquidity(greenTotal);
-        setRedLiquidity(redTotal);
-        setDominantLiquidity(
-          greenTotal > redTotal ? "Bullish Liquidity (Green)" :
-          redTotal > greenTotal ? "Bearish Liquidity (Red)" : "Balanced"
-        );
-
-        setGreenTxn(totalGreenTxn);
-        setRedTxn(totalRedTxn);
-        setTxnDominant(txnDominantSide);
-
-
-        setLastUpdated(formatDavaoTime());
-      } catch (err: any) {
-        console.error("Error fetching market data:", err);
-        if (isAxiosErrorTypeGuard(err) && err.response) {
-          setError(`Failed to fetch market data: ${err.response.status}`);
-        } else {
-          setError("Failed to fetch market data. Unknown error.");
+        if (isTight && isBullish) {
+          signal = "🟢 Tight + Bullish";
+          meaning = "Demand strong";
+          implication = "Accumulation / Early Rally";
+        } else if (isTight && isBearish) {
+          signal = "🔴 Tight + Bearish";
+          meaning = "Supply strong";
+          implication = "Distribution / Controlled Sell-off";
+        } else if (isWide && isBullish) {
+          signal = "🟡 Wide + Bullish";
+          meaning = "Reversal";
+          implication = "Short squeeze / Volatility spike";
+        } else if (isWide && isBearish) {
+          signal = "🟠 Wide + Bearish";
+          meaning = "Panic";
+          implication = "Capitulation phase / Look for bounce soon";
         }
-      }
-    };
 
-    fetchAllData();
-    const interval = setInterval(fetchAllData, 60000); // update every 60s instead of 30s
-    return () => clearInterval(interval);
-  }, []);
+        return { ...coin, signal, meaning, implication };
+      });
+
+      // 8️⃣ Spread condition (global)
+      let totalSpreadPct = 0;
+      let validPairs = 0;
+      let upwardTrades = 0;
+      let downwardTrades = 0;
+
+      for (const coin of topPairsForSignals) {
+        const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
+        if (!depth || depth.spreadPct == null) continue;
+        totalSpreadPct += depth.spreadPct;
+        validPairs++;
+        if (coin.priceChangePercent > 0) upwardTrades++;
+        else if (coin.priceChangePercent < 0) downwardTrades++;
+      }
+
+      const avgSpread = validPairs > 0 ? totalSpreadPct / validPairs : 0;
+      setAvgSpreadPct(avgSpread);
+
+      let condition: "Tight" | "Moderate" | "Wide" = "Moderate";
+      if (avgSpread < SPREAD_TIGHT_PCT) condition = "Tight";
+      else if (avgSpread >= SPREAD_WIDE_PCT) condition = "Wide";
+      setSpreadCondition(condition);
+
+      let direction: "Bullish" | "Bearish" | "Neutral" = "Neutral";
+      if (upwardTrades > downwardTrades) direction = "Bullish";
+      else if (downwardTrades > upwardTrades) direction = "Bearish";
+
+      let explanation = "Mixed liquidity behavior";
+      let interpretation = "No clear directional dominance";
+
+      if (condition === "Tight" && direction === "Bullish") {
+        explanation = "Demand absorbing all offers";
+        interpretation = "Early rally or breakout pressure";
+      } else if (condition === "Tight" && direction === "Bearish") {
+        explanation = "Supply dominating bids";
+        interpretation = "Controlled downtrend / distribution";
+      } else if (condition === "Wide" && direction !== "Neutral") {
+        explanation = "Market makers step away";
+        interpretation = "Fear, liquidation spikes";
+      } else if (condition === "Wide" && direction === "Neutral") {
+        explanation = "Few traders active";
+        interpretation = "Neutral, low-interest phase";
+      }
+
+      setSpreadSentiment(
+        condition === "Tight"
+          ? direction === "Bullish"
+            ? "Bullish (Buyers Dominant 🟢)"
+            : direction === "Bearish"
+            ? "Bearish (Sellers Dominant 🔴)"
+            : "Neutral (Tight) ⚫"
+          : condition === "Wide"
+          ? direction === "Neutral"
+            ? "Neutral / Inactive ⚫"
+            : "Panic / Uncertain ⚠️"
+          : "Moderate / Mixed ⚫"
+      );
+      setSpreadExplanation(explanation);
+      setSpreadInterpretation(interpretation);
+
+      // 9️⃣ Weekly Rhythm Logger
+      const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
+      const weekday = new Date().toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Manila" });
+      const bias = txnDominantSide.includes("Bullish")
+        ? "🟩"
+        : txnDominantSide.includes("Bearish")
+        ? "🟥"
+        : "⚫";
+
+      let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
+      const existing = history.find((h: any) => h.date === today);
+      if (existing) {
+        existing.bias = bias;
+        existing.day = weekday;
+      } else {
+        history.push({ date: today, bias, day: weekday });
+      }
+
+      if (history.length > 14) history = history.slice(-14);
+      localStorage.setItem("marketHistory", JSON.stringify(history));
+
+      const currentWeek = history.slice(-7);
+      const previousWeek = history.slice(-14, -7);
+      const greens = currentWeek.filter((h: any) => h.bias === "🟩").length;
+      const reds = currentWeek.filter((h: any) => h.bias === "🟥").length;
+      const pattern = currentWeek.map((h: any) => ({ bias: h.bias, day: h.day }));
+
+      let phase = "Rotation Phase 🔄";
+      if (greens >= 5 && reds <= 2) phase = "Alt Season Building 🌱";
+      else if (reds >= 5 && greens <= 2) phase = "Cooling Phase ❄️";
+      else if (greens === reds) phase = "Balanced Market ⚖️";
+
+      let trendArrow = "↔ Stable";
+      if (previousWeek.length > 0) {
+        const prevGreens = previousWeek.filter((h: any) => h.bias === "🟩").length;
+        if (greens > prevGreens) trendArrow = "↗ Bullish Momentum Increasing";
+        else if (greens < prevGreens) trendArrow = "↘ Bullish Momentum Fading";
+      }
+      phase = `${phase} • ${trendArrow}`;
+      setWeeklyStats({ greens, reds, pattern, phase });
+
+      // 🔟 Overall Market Sentiment Aggregator
+      const greenCount = combinedData.filter((d) => d.priceChangePercent >= 0).length;
+      const redCount = combinedData.filter((d) => d.priceChangePercent < 0).length;
+
+      let sentimentScore = 0;
+      if (greenCount > redCount) sentimentScore += 1;
+      else if (redCount > greenCount) sentimentScore -= 1;
+
+      if (greenTotal > redTotal) sentimentScore += 1;
+      else if (redTotal > greenTotal) sentimentScore -= 1;
+
+      if (txnDominantSide.includes("Bullish")) sentimentScore += 1;
+      else if (txnDominantSide.includes("Bearish")) sentimentScore -= 1;
+
+      if (spreadSentiment.includes("Bullish")) sentimentScore += 1;
+      else if (spreadSentiment.includes("Bearish")) sentimentScore -= 1;
+
+      let overallSentiment = "⚫ Neutral / Mixed Market";
+      if (sentimentScore >= 2) overallSentiment = "🟢 Bullish Market Bias";
+      else if (sentimentScore <= -2) overallSentiment = "🔴 Bearish Market Bias";
+      setGeneralBias(overallSentiment);
+
+      // ✅ Save to UI state
+      setRawData(combinedData);
+      setGreenCount(greenCount);
+      setRedCount(redCount);
+      setGreenPositiveFunding(gPos);
+      setGreenNegativeFunding(gNeg);
+      setRedPositiveFunding(rPos);
+      setRedNegativeFunding(rNeg);
+      setGreenLiquidity(greenTotal);
+      setRedLiquidity(redTotal);
+      setDominantLiquidity(
+        greenTotal > redTotal
+          ? "Bullish Liquidity (Green)"
+          : redTotal > greenTotal
+          ? "Bearish Liquidity (Red)"
+          : "Balanced"
+      );
+      setGreenTxn(totalGreenTxn);
+      setRedTxn(totalRedTxn);
+      setTxnDominant(txnDominantSide);
+      setLastUpdated(formatDavaoTime());
+
+      console.debug("✅ Market data updated", { overallSentiment, condition, avgSpread });
+    } catch (err: any) {
+      console.error("❌ Error fetching market data:", err);
+      setError("Failed to fetch market data.");
+    }
+  };
+
+  fetchAllData();
+  const interval = setInterval(fetchAllData, 60000);
+  return () => clearInterval(interval);
+}, []);
+  
 
   // Helper to format big numbers to compact (e.g., 1.23B)
   const formatCompact = (n: number) => {
@@ -776,6 +737,58 @@ setWeeklyStats({ greens, reds, pattern, phase });
             ) : (
               <p className="text-gray-400 text-center py-6">No matching coins found.</p>
             )}
+          </div>
+        </div>
+
+           {/* Top 10 lists */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-green-400 font-semibold mb-3">🟢 Top 10 Bullish (24h)</h3>
+                <ul className="space-y-2">
+                  {top10Bullish.map((coin, i) => (
+                    <li key={coin.symbol} className="p-3 border border-green-700/20 bg-green-900/6 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
+                          <div className="text-xs text-gray-400 mt-1">{coin.signal} — {coin.meaning}</div>
+                          <div className="text-xs text-gray-500 mt-1">{coin.implication}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-green-400 font-bold">{coin.priceChangePercent.toFixed(2)}%</div>
+                          <div className="text-xs text-gray-400 mt-1">Funding: {coin.fundingRate.toFixed(6)}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{formatCompact(coin.volume)} USDT</div>
+                          <div className="text-xs text-gray-400 mt-0.5">Spread: {(coin.spreadPct ?? 0).toFixed(3)}%</div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-red-400 font-semibold mb-3">🔴 Top 10 Bearish (24h)</h3>
+                <ul className="space-y-2">
+                  {top10Bearish.map((coin, i) => (
+                    <li key={coin.symbol} className="p-3 border border-red-700/20 bg-red-900/6 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
+                          <div className="text-xs text-gray-400 mt-1">{coin.signal} — {coin.meaning}</div>
+                          <div className="text-xs text-gray-500 mt-1">{coin.implication}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-red-400 font-bold">{coin.priceChangePercent.toFixed(2)}%</div>
+                          <div className="text-xs text-gray-400 mt-1">Funding: {coin.fundingRate.toFixed(6)}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{formatCompact(coin.volume)} USDT</div>
+                          <div className="text-xs text-gray-400 mt-0.5">Spread: {(coin.spreadPct ?? 0).toFixed(3)}%</div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
           </div>
         </div>
 
