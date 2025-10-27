@@ -10,10 +10,10 @@ interface SymbolData {
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  spreadPct?: number; // 🆕 per-coin spread percentage
-  signal?: string; // 🆕 Market Tightness signal (🟢 Tight + Bullish, etc.)
-  meaning?: string; // 🧠 explanation
-  implication?: string; // 📈 trading implication
+  spreadPct: number; // ✅ always defined
+  signal?: string;
+  meaning?: string;
+  implication?: string;
 }
 
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
