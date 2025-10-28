@@ -102,7 +102,7 @@ useEffect(() => {
 const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
 
 // 🧹 2. Manual blacklist to exclude spot-only or delisted tokens
-const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT", "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUSDT", "RENUSDT", "OMNIUSDT", "SLERFUSDT", "STMXUSDT"];
+const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT", "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUDST", "RENUSDT", "OMNIUSDT", "SLERFUSDT", "STMXUSDT"];
 
 // ✅ 3. Keep only valid, tradable perpetual futures pairs
 const usdtPairs = infoRes.data.symbols
@@ -768,38 +768,54 @@ const top10Bearish = rawData
           </div>
         </div>
 
-           {/* Top 10 Neutral / Balanced Market */}
-<div className="mt-6">
-  <h3 className="text-yellow-400 font-semibold mb-3">⚫ Top 10 Neutral / Balanced Market (24h)</h3>
-  <ul className="space-y-2">
-    {rawData
-      .filter(
-        (coin) =>
-          coin.signal === "⚫ Neutral" ||
-          coin.meaning === "Balanced market" ||
-          coin.implication === "No clear signal"
-      )
-      .sort((a, b) => b.volume - a.volume)
-      .slice(0, 10)
-      .map((coin, i) => (
-        <li key={coin.symbol} className="p-3 border border-yellow-700/20 bg-yellow-900/5 rounded-lg">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
-              <div className="text-xs text-gray-400 mt-1">{coin.signal} — {coin.meaning}</div>
-              <div className="text-xs text-gray-500 mt-1">{coin.implication}</div>
+           {/* Top 10 lists */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-green-400 font-semibold mb-3">🟢 Top 10 Bullish (24h)</h3>
+                <ul className="space-y-2">
+                  {top10Bullish.map((coin, i) => (
+                    <li key={coin.symbol} className="p-3 border border-green-700/20 bg-green-900/6 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
+                          <div className="text-xs text-gray-400 mt-1">{coin.signal} — {coin.meaning}</div>
+                          <div className="text-xs text-gray-500 mt-1">{coin.implication}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-green-400 font-bold">{coin.priceChangePercent.toFixed(2)}%</div>
+                          <div className="text-xs text-gray-400 mt-1">Funding: {coin.fundingRate.toFixed(6)}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{formatCompact(coin.volume)} USDT</div>
+                          <div className="text-xs text-gray-400 mt-0.5">Spread: {(coin.spreadPct ?? 0).toFixed(3)}%</div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-red-400 font-semibold mb-3">🔴 Top 10 Bearish (24h)</h3>
+                <ul className="space-y-2">
+                  {top10Bearish.map((coin, i) => (
+                    <li key={coin.symbol} className="p-3 border border-red-700/20 bg-red-900/6 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
+                          <div className="text-xs text-gray-400 mt-1">{coin.signal} — {coin.meaning}</div>
+                          <div className="text-xs text-gray-500 mt-1">{coin.implication}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-red-400 font-bold">{coin.priceChangePercent.toFixed(2)}%</div>
+                          <div className="text-xs text-gray-400 mt-1">Funding: {coin.fundingRate.toFixed(6)}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{formatCompact(coin.volume)} USDT</div>
+                          <div className="text-xs text-gray-400 mt-0.5">Spread: {(coin.spreadPct ?? 0).toFixed(3)}%</div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <div className="text-right">
-              <div className="text-yellow-400 font-bold">{coin.priceChangePercent.toFixed(2)}%</div>
-              <div className="text-xs text-gray-400 mt-1">Funding: {coin.fundingRate.toFixed(6)}</div>
-              <div className="text-xs text-gray-400 mt-0.5">{formatCompact(coin.volume)} USDT</div>
-              <div className="text-xs text-gray-400 mt-0.5">Spread: {(coin.spreadPct ?? 0).toFixed(3)}%</div>
-            </div>
-          </div>
-        </li>
-      ))}
-  </ul>
-</div>
 
         {/* Funding Sentiment Chart */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
