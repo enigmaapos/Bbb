@@ -10,17 +10,10 @@ interface SymbolData {
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  spreadPct: number;
+  spreadPct: number; // ✅ always defined
   signal?: string;
   meaning?: string;
   implication?: string;
-
-  // 🔥 Added fields for real volume spike detection
-  extremeVolume?: boolean;
-  volumeLabel?: string;
-  volumeSpike?: boolean; // real 1h spike
-  avgVol?: number;
-  lastVol?: number;
 }
 
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
@@ -94,8 +87,7 @@ const [weeklyStats, setWeeklyStats] = useState<{
   phase: "—",
 });
 
-
-      useEffect(() => {
+useEffect(() => {
   const fetchAllData = async () => {
     setError(null);
     try {
@@ -107,21 +99,22 @@ const [weeklyStats, setWeeklyStats] = useState<{
       ]);
 
       // ✅ 1. Filter only active Binance Futures (PERPETUAL USDT) pairs
-      const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
+const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
 
-      // 🧹 2. Manual blacklist to exclude delisted or unstable tokens
-      const blacklist = ["ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT","LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUDST","RENUSDT","OMNIUSDT","SLERFUSDT","STMXUSDT", "UXLINKUSDT"];
+// 🧹 2. Manual blacklist to exclude spot-only or delisted tokens
+const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT", "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUDST", "RENUSDT", "OMNIUSDT", "SLERFUSDT", "STMXUSDT", "UXLINKUSDT"];
 
-      const usdtPairs = infoRes.data.symbols
-        .filter(
-          (s: any) =>
-            s.contractType === "PERPETUAL" &&
-            s.symbol.endsWith("USDT") &&
-            futuresSymbols.has(s.symbol) &&
-            !blacklist.includes(s.symbol)
-        )
-        .map((s: any) => s.symbol);
-
+// ✅ 3. Keep only valid, tradable perpetual futures pairs
+const usdtPairs = infoRes.data.symbols
+  .filter(
+    (s: any) =>
+      s.contractType === "PERPETUAL" &&
+      s.symbol.endsWith("USDT") &&
+      futuresSymbols.has(s.symbol) &&
+      !blacklist.includes(s.symbol)
+  )
+  .map((s: any) => s.symbol);
+      
       const tickerData = tickerRes.data;
       const fundingData = fundingRes.data;
 
@@ -135,44 +128,10 @@ const [weeklyStats, setWeeklyStats] = useState<{
             priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
             fundingRate: parseFloat(funding?.lastFundingRate || "0"),
             lastPrice: parseFloat(ticker?.lastPrice || "0"),
-            volume: parseFloat(ticker?.quoteVolume || "0"), // 24h notional volume
-            spreadPct: 0,
+            volume: parseFloat(ticker?.quoteVolume || "0"),
           };
         })
         .filter((d: SymbolData) => d.volume > 0);
-
-      // 🔥 2.1 Real Futures Volume Spike Detection (1h candles)
-      const topVolumePairs = [...combinedData].sort((a, b) => b.volume - a.volume).slice(0, 50);
-      const klinePromises = topVolumePairs.map(async (pair) => {
-  try {
-    const res = await axios.get(`${BINANCE_API}/fapi/v1/klines`, {
-  params: { symbol: pair.symbol, interval: "1d", limit: 50 },
-});
-    const volumes = res.data.map((k: any) => parseFloat(k[5]));
-    const avgVol =
-      volumes.slice(0, -1).reduce((a: number, b: number) => a + b, 0) /
-      (volumes.length - 1);
-    const lastVol = volumes[volumes.length - 1];
-    const spike = lastVol >= avgVol * 3; // 3× threshold
-    return { symbol: pair.symbol, volumeSpike: spike, avgVol, lastVol };
-  } catch {
-    return { symbol: pair.symbol, volumeSpike: false, avgVol: 0, lastVol: 0 };
-  }
-});
-
-      const klineVolumeData = await Promise.all(klinePromises);
-
-      combinedData = combinedData.map((coin) => {
-        const kline = klineVolumeData.find((v) => v.symbol === coin.symbol);
-        const spikeDetected = kline?.volumeSpike || false;
-        return {
-          ...coin,
-          volumeSpike: spikeDetected,
-          avgVol: kline?.avgVol || 0,
-          lastVol: kline?.lastVol || 0,
-          volumeLabel: spikeDetected ? "🔥 Volume Spike Detected" : "Normal",
-        };
-      });
 
       // 3️⃣ Categorize sentiment buckets
       const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
@@ -180,7 +139,7 @@ const [weeklyStats, setWeeklyStats] = useState<{
       const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
       const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
 
-      // 4️⃣ Liquidity totals
+      // 4️⃣ Liquidity totals (quoteVolume)
       const greenTotal = combinedData
         .filter((d) => d.priceChangePercent >= 0)
         .reduce((sum, d) => sum + d.volume, 0);
@@ -199,8 +158,11 @@ const [weeklyStats, setWeeklyStats] = useState<{
           : "⚫ Neutral";
 
       // 6️⃣ Fetch per-coin order book depth for top 50
-      const topPairsForSignals = combinedData.sort((a, b) => b.volume - a.volume).slice(0, 50);
-      const depthPromises = topPairsForSignals.map((pair) =>
+      const topPairsForSignals = combinedData
+        .sort((a, b) => b.volume - a.volume)
+        .slice(0, 50);
+
+      const depthPromisesPerCoin = topPairsForSignals.map((pair) =>
         axios
           .get(`${BINANCE_API}/fapi/v1/depth`, { params: { symbol: pair.symbol, limit: 5 } })
           .then((res) => {
@@ -210,16 +172,18 @@ const [weeklyStats, setWeeklyStats] = useState<{
             const spreadPct = ((bestAsk - bestBid) / mid) * 100;
             return { symbol: pair.symbol, spreadPct };
           })
-          .catch(() => ({ symbol: pair.symbol, spreadPct: 0 }))
+          .catch(() => ({ symbol: pair.symbol, spreadPct: null }))
       );
-      const depthData = await Promise.all(depthPromises);
 
+      const depthDataPerCoin = await Promise.all(depthPromisesPerCoin);
+
+      // attach spreadPct to each coin
       combinedData = combinedData.map((coin) => {
-        const depth = depthData.find((d) => d.symbol === coin.symbol);
-        return { ...coin, spreadPct: depth?.spreadPct ?? 0 };
+        const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
+        return { ...coin, spreadPct: depth?.spreadPct || 0 };
       });
 
-      // 7️⃣ Classify with Market Tightness Signal
+      // 7️⃣ Classify each coin with Market Tightness Signal
       const SPREAD_TIGHT_PCT = 0.05;
       const SPREAD_WIDE_PCT = 0.15;
 
@@ -251,12 +215,6 @@ const [weeklyStats, setWeeklyStats] = useState<{
           implication = "Capitulation phase / Look for bounce soon";
         }
 
-        // Merge the label if volume spike also detected
-        if (coin.volumeSpike) {
-          signal = "🔥 " + signal;
-          implication += " + Volume Surge";
-        }
-
         return { ...coin, signal, meaning, implication };
       });
 
@@ -267,12 +225,12 @@ const [weeklyStats, setWeeklyStats] = useState<{
       let downwardTrades = 0;
 
       for (const coin of topPairsForSignals) {
-  const depth = depthData.find((d) => d.symbol === coin.symbol);
-  if (!depth || depth.spreadPct == null) continue;
-  totalSpreadPct += depth.spreadPct;
-  validPairs++;
-  if (coin.priceChangePercent > 0) upwardTrades++;
-  else if (coin.priceChangePercent < 0) downwardTrades++;
+        const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
+        if (!depth || depth.spreadPct == null) continue;
+        totalSpreadPct += depth.spreadPct;
+        validPairs++;
+        if (coin.priceChangePercent > 0) upwardTrades++;
+        else if (coin.priceChangePercent < 0) downwardTrades++;
       }
 
       const avgSpread = validPairs > 0 ? totalSpreadPct / validPairs : 0;
@@ -809,33 +767,6 @@ const top10Bearish = rawData
             )}
           </div>
         </div>
-
-        {/* 🔥 Real Volume Spike Detector */}
-<div className="mt-6">
-  <h3 className="text-orange-400 font-semibold mb-3">🔥 Real Volume Spike (1D)</h3>
-  <ul className="space-y-2">
-    {rawData
-      .filter((c) => c.volumeSpike)
-      .sort((a, b) => (b.lastVol ?? 0) - (a.lastVol ?? 0))
-      .slice(0, 10)
-      .map((coin, i) => (
-        <li key={coin.symbol} className="p-3 border border-orange-600/30 bg-orange-900/10 rounded-lg">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="font-semibold text-gray-200">
-                {i + 1}. {coin.symbol}
-              </div>
-              <div className="text-xs text-orange-400 mt-1">{coin.volumeLabel}</div>
-            </div>
-            <div className="text-right text-xs text-gray-300">
-              Vol: {(coin.lastVol ?? 0).toFixed(0)} <br />
-              Avg: {(coin.avgVol ?? 0).toFixed(0)}
-            </div>
-          </div>
-        </li>
-      ))}
-  </ul>
-</div>
 
            {/* Top 10 lists */}
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
