@@ -384,7 +384,7 @@ const top10Bullish = rawData
 const top10Bearish = rawData
   .filter((c) => c.priceChangePercent < 0)
   .sort((a, b) => a.priceChangePercent - b.priceChangePercent)
-  .slice(0, 10);
+  .slice(0, 30);
   
 
   // Helper to format big numbers to compact (e.g., 1.23B)
