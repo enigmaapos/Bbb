@@ -139,19 +139,21 @@ const [weeklyStats, setWeeklyStats] = useState<{
       // 🔥 2.1 Real Futures Volume Spike Detection (1h candles)
       const topVolumePairs = [...combinedData].sort((a, b) => b.volume - a.volume).slice(0, 50);
       const klinePromises = topVolumePairs.map(async (pair) => {
-        try {
-          const res = await axios.get(`${BINANCE_API}/fapi/v1/klines`, {
-            params: { symbol: pair.symbol, interval: "1h", limit: 50 },
-          });
-          const volumes = res.data.map((k: any) => parseFloat(k[5]));
-          const avgVol = volumes.slice(0, -1).reduce((a, b) => a + b, 0) / (volumes.length - 1);
-          const lastVol = volumes[volumes.length - 1];
-          const spike = lastVol >= avgVol * 3; // 3× threshold
-          return { symbol: pair.symbol, volumeSpike: spike, avgVol, lastVol };
-        } catch {
-          return { symbol: pair.symbol, volumeSpike: false, avgVol: 0, lastVol: 0 };
-        }
-      });
+  try {
+    const res = await axios.get(`${BINANCE_API}/fapi/v1/klines`, {
+      params: { symbol: pair.symbol, interval: "1h", limit: 50 },
+    });
+    const volumes = res.data.map((k: any) => parseFloat(k[5]));
+    const avgVol =
+      volumes.slice(0, -1).reduce((a: number, b: number) => a + b, 0) /
+      (volumes.length - 1);
+    const lastVol = volumes[volumes.length - 1];
+    const spike = lastVol >= avgVol * 3; // 3× threshold
+    return { symbol: pair.symbol, volumeSpike: spike, avgVol, lastVol };
+  } catch {
+    return { symbol: pair.symbol, volumeSpike: false, avgVol: 0, lastVol: 0 };
+  }
+});
 
       const klineVolumeData = await Promise.all(klinePromises);
 
