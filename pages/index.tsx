@@ -218,65 +218,67 @@ const usdtPairs = infoRes.data.symbols
         return { ...coin, signal, meaning, implication };
       });
 
-      // 8️⃣ Spread condition (global)
-      let totalSpreadPct = 0;
-      let validPairs = 0;
-      let upwardTrades = 0;
-      let downwardTrades = 0;
+      // 8️⃣ Spread condition (global) — FIXED
+let totalSpreadPct = 0;
+let validPairs = 0;
+let upwardTrades = 0;
+let downwardTrades = 0;
 
-      for (const coin of topPairsForSignals) {
-        const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
-        if (!depth || depth.spreadPct == null) continue;
-        totalSpreadPct += depth.spreadPct;
-        validPairs++;
-        if (coin.priceChangePercent > 0) upwardTrades++;
-        else if (coin.priceChangePercent < 0) downwardTrades++;
-      }
+// Use the same data you just attached spreadPct to
+for (const coin of combinedData) {
+  if (coin.spreadPct === 0 || isNaN(coin.spreadPct)) continue;
+  totalSpreadPct += coin.spreadPct;
+  validPairs++;
+  if (coin.priceChangePercent > 0) upwardTrades++;
+  else if (coin.priceChangePercent < 0) downwardTrades++;
+}
 
-      const avgSpread = validPairs > 0 ? totalSpreadPct / validPairs : 0;
-      setAvgSpreadPct(avgSpread);
+const avgSpread = validPairs > 0 ? totalSpreadPct / validPairs : 0;
+setAvgSpreadPct(avgSpread);
 
-      let condition: "Tight" | "Moderate" | "Wide" = "Moderate";
-      if (avgSpread < SPREAD_TIGHT_PCT) condition = "Tight";
-      else if (avgSpread >= SPREAD_WIDE_PCT) condition = "Wide";
-      setSpreadCondition(condition);
+// classify global condition
+let condition: "Tight" | "Moderate" | "Wide" = "Moderate";
+if (avgSpread < 0.05) condition = "Tight";
+else if (avgSpread >= 0.15) condition = "Wide";
+setSpreadCondition(condition);
 
-      let direction: "Bullish" | "Bearish" | "Neutral" = "Neutral";
-      if (upwardTrades > downwardTrades) direction = "Bullish";
-      else if (downwardTrades > upwardTrades) direction = "Bearish";
+let direction: "Bullish" | "Bearish" | "Neutral" = "Neutral";
+if (upwardTrades > downwardTrades) direction = "Bullish";
+else if (downwardTrades > upwardTrades) direction = "Bearish";
 
-      let explanation = "Mixed liquidity behavior";
-      let interpretation = "No clear directional dominance";
+let explanation = "Mixed liquidity behavior";
+let interpretation = "No clear directional dominance";
 
-      if (condition === "Tight" && direction === "Bullish") {
-        explanation = "Demand absorbing all offers";
-        interpretation = "Early rally or breakout pressure";
-      } else if (condition === "Tight" && direction === "Bearish") {
-        explanation = "Supply dominating bids";
-        interpretation = "Controlled downtrend / distribution";
-      } else if (condition === "Wide" && direction !== "Neutral") {
-        explanation = "Market makers step away";
-        interpretation = "Fear, liquidation spikes";
-      } else if (condition === "Wide" && direction === "Neutral") {
-        explanation = "Few traders active";
-        interpretation = "Neutral, low-interest phase";
-      }
+if (condition === "Tight" && direction === "Bullish") {
+  explanation = "Demand absorbing all offers";
+  interpretation = "Early rally or breakout pressure";
+} else if (condition === "Tight" && direction === "Bearish") {
+  explanation = "Supply dominating bids";
+  interpretation = "Controlled downtrend / distribution";
+} else if (condition === "Wide" && direction !== "Neutral") {
+  explanation = "Market makers step away";
+  interpretation = "Fear, liquidation spikes";
+} else if (condition === "Wide" && direction === "Neutral") {
+  explanation = "Few traders active";
+  interpretation = "Neutral, low-interest phase";
+}
 
-      setSpreadSentiment(
-        condition === "Tight"
-          ? direction === "Bullish"
-            ? "Bullish (Buyers Dominant 🟢)"
-            : direction === "Bearish"
-            ? "Bearish (Sellers Dominant 🔴)"
-            : "Neutral (Tight) ⚫"
-          : condition === "Wide"
-          ? direction === "Neutral"
-            ? "Neutral / Inactive ⚫"
-            : "Panic / Uncertain ⚠️"
-          : "Moderate / Mixed ⚫"
-      );
-      setSpreadExplanation(explanation);
-      setSpreadInterpretation(interpretation);
+// update UI
+setSpreadSentiment(
+  condition === "Tight"
+    ? direction === "Bullish"
+      ? "Bullish (Buyers Dominant 🟢)"
+      : direction === "Bearish"
+      ? "Bearish (Sellers Dominant 🔴)"
+      : "Neutral (Tight) ⚫"
+    : condition === "Wide"
+    ? direction === "Neutral"
+      ? "Neutral / Inactive ⚫"
+      : "Panic / Uncertain ⚠️"
+    : "Moderate / Mixed ⚫"
+);
+setSpreadExplanation(explanation);
+setSpreadInterpretation(interpretation);
 
       // 9️⃣ Weekly Rhythm Logger
       const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
