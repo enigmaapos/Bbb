@@ -102,7 +102,7 @@ useEffect(() => {
 const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
 
 // 🧹 2. Manual blacklist to exclude spot-only or delisted tokens
-const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT", "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUDST", "RENUSDT", "OMNIUSDT", "SLERFUSDT", "STMXUSDT", "UXLINKUSDT"];
+const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT", "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUSDT", "RENUSDT", "OMNIUSDT", "SLERFUSDT", "STMXUSDT", "UXLINKUSDT"];
 
 // ✅ 3. Keep only valid, tradable perpetual futures pairs
 const usdtPairs = infoRes.data.symbols
@@ -379,7 +379,7 @@ const usdtPairs = infoRes.data.symbols
 const top10Bullish = rawData
   .filter((c) => c.priceChangePercent > 0)
   .sort((a, b) => b.priceChangePercent - a.priceChangePercent)
-  .slice(0, 10);
+  .slice(0, 30);
 
 const top10Bearish = rawData
   .filter((c) => c.priceChangePercent < 0)
