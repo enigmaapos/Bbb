@@ -770,6 +770,39 @@ const top10Bearish = rawData
           </div>
         </div>
 
+{/* Top 10 Neutral / Balanced Market */}
+<div className="mt-6">
+  <h3 className="text-yellow-400 font-semibold mb-3">⚫ Top 10 Neutral / Balanced Market (24h)</h3>
+  <ul className="space-y-2">
+    {rawData
+      .filter(
+        (coin) =>
+          coin.signal === "⚫ Neutral" ||
+          coin.meaning === "Balanced market" ||
+          coin.implication === "No clear signal"
+      )
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 10)
+      .map((coin, i) => (
+        <li key={coin.symbol} className="p-3 border border-yellow-700/20 bg-yellow-900/5 rounded-lg">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
+              <div className="text-xs text-gray-400 mt-1">{coin.signal} — {coin.meaning}</div>
+              <div className="text-xs text-gray-500 mt-1">{coin.implication}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-yellow-400 font-bold">{coin.priceChangePercent.toFixed(2)}%</div>
+              <div className="text-xs text-gray-400 mt-1">Funding: {coin.fundingRate.toFixed(6)}</div>
+              <div className="text-xs text-gray-400 mt-0.5">{formatCompact(coin.volume)} USDT</div>
+              <div className="text-xs text-gray-400 mt-0.5">Spread: {(coin.spreadPct ?? 0).toFixed(3)}%</div>
+            </div>
+          </div>
+        </li>
+      ))}
+  </ul>
+</div>
+        
            {/* Top 10 lists */}
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
