@@ -87,7 +87,8 @@ const [weeklyStats, setWeeklyStats] = useState<{
   phase: "—",
 });
 
-useEffect(() => {
+
+  useEffect(() => {
   const fetchAllData = async () => {
     setError(null);
     try {
@@ -98,23 +99,27 @@ useEffect(() => {
         axios.get(`${BINANCE_API}/fapi/v1/premiumIndex`),
       ]);
 
-      // ✅ 1. Filter only active Binance Futures (PERPETUAL USDT) pairs
-const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
+      // ✅ Create futures symbol set (for perpetual futures)
+      const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
 
-// 🧹 2. Manual blacklist to exclude spot-only or delisted tokens
-const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT", "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUDST", "RENUSDT", "OMNIUSDT", "SLERFUSDT", "STMXUSDT"];
+      // 🚫 Global blacklist — remove inactive or spot-only tokens
+      const blacklist = [
+        "ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT",
+        "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUSDT", "RENUSDT",
+        "OMNIUSDT", "SLERFUSDT", "STMXUSDT"
+      ];
 
-// ✅ 3. Keep only valid, tradable perpetual futures pairs
-const usdtPairs = infoRes.data.symbols
-  .filter(
-    (s: any) =>
-      s.contractType === "PERPETUAL" &&
-      s.symbol.endsWith("USDT") &&
-      futuresSymbols.has(s.symbol) &&
-      !blacklist.includes(s.symbol)
-  )
-  .map((s: any) => s.symbol);
-      
+      // ✅ Filter only valid Binance Futures (PERPETUAL USDT) pairs
+      const usdtPairs = infoRes.data.symbols
+        .filter(
+          (s: any) =>
+            s.contractType === "PERPETUAL" &&
+            s.symbol.endsWith("USDT") &&
+            futuresSymbols.has(s.symbol) &&
+            !blacklist.includes(s.symbol)
+        )
+        .map((s: any) => s.symbol);
+
       const tickerData = tickerRes.data;
       const fundingData = fundingRes.data;
 
@@ -131,7 +136,10 @@ const usdtPairs = infoRes.data.symbols
             volume: parseFloat(ticker?.quoteVolume || "0"),
           };
         })
-        .filter((d: SymbolData) => d.volume > 0);
+        .filter((d: SymbolData) => d.volume > 0 && !blacklist.includes(d.symbol));
+
+      // ✅ Double safety — remove any blacklisted symbol that sneaked in
+      combinedData = combinedData.filter((c) => !blacklist.includes(c.symbol));
 
       // 3️⃣ Categorize sentiment buckets
       const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
@@ -157,10 +165,11 @@ const usdtPairs = infoRes.data.symbols
           ? "🔴 Bearish (Red)"
           : "⚫ Neutral";
 
-      // 6️⃣ Fetch per-coin order book depth for top 50
+      // 6️⃣ Fetch per-coin order book depth for top 30 pairs
       const topPairsForSignals = combinedData
+        .filter((c) => !blacklist.includes(c.symbol))
         .sort((a, b) => b.volume - a.volume)
-        .slice(0, 50);
+        .slice(0, 30);
 
       const depthPromisesPerCoin = topPairsForSignals.map((pair) =>
         axios
@@ -177,52 +186,48 @@ const usdtPairs = infoRes.data.symbols
 
       const depthDataPerCoin = await Promise.all(depthPromisesPerCoin);
 
-      // attach spreadPct to each coin
-      combinedData = combinedData.map((coin) => {
-        const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
-        return { ...coin, spreadPct: depth?.spreadPct || 0 };
-      });
-
-      // 7️⃣ Classify each coin with Market Tightness Signal
+      // 7️⃣ Attach spreadPct and classify signal per coin
       const SPREAD_TIGHT_PCT = 0.05;
       const SPREAD_WIDE_PCT = 0.15;
 
-      combinedData = combinedData.map((coin) => {
-        let signal = "⚫ Neutral";
-        let meaning = "Balanced market";
-        let implication = "No clear signal";
+      combinedData = combinedData
+        .map((coin) => {
+          const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
+          const spreadPct = depth?.spreadPct ?? 0;
 
-        const isTight = coin.spreadPct < SPREAD_TIGHT_PCT;
-        const isWide = coin.spreadPct >= SPREAD_WIDE_PCT;
-        const isBullish = coin.priceChangePercent > 0;
-        const isBearish = coin.priceChangePercent < 0;
+          let signal = "⚫ Neutral";
+          let meaning = "Balanced market";
+          let implication = "No clear signal";
 
-        if (isTight && isBullish) {
-          signal = "🟢 Tight + Bullish";
-          meaning = "Demand strong";
-          implication = "Accumulation / Early Rally";
-        } else if (isTight && isBearish) {
-          signal = "🔴 Tight + Bearish";
-          meaning = "Supply strong";
-          implication = "Distribution / Controlled Sell-off";
-        } else if (isWide && isBullish) {
-          signal = "🟡 Wide + Bullish";
-          meaning = "Reversal";
-          implication = "Short squeeze / Volatility spike";
-        } else if (isWide && isBearish) {
-          signal = "🟠 Wide + Bearish";
-          meaning = "Panic";
-          implication = "Capitulation phase / Look for bounce soon";
-        }
+          const isTight = spreadPct < SPREAD_TIGHT_PCT;
+          const isWide = spreadPct >= SPREAD_WIDE_PCT;
+          const isBullish = coin.priceChangePercent > 0;
+          const isBearish = coin.priceChangePercent < 0;
 
-        return { ...coin, signal, meaning, implication };
-      });
+          if (isTight && isBullish) {
+            signal = "🟢 Tight + Bullish";
+            meaning = "Demand strong";
+            implication = "Accumulation / Early Rally";
+          } else if (isTight && isBearish) {
+            signal = "🔴 Tight + Bearish";
+            meaning = "Supply strong";
+            implication = "Distribution / Controlled Sell-off";
+          } else if (isWide && isBullish) {
+            signal = "🟡 Wide + Bullish";
+            meaning = "Reversal";
+            implication = "Short squeeze / Volatility spike";
+          } else if (isWide && isBearish) {
+            signal = "🟠 Wide + Bearish";
+            meaning = "Panic";
+            implication = "Capitulation phase / Look for bounce soon";
+          }
 
-      // 8️⃣ Spread condition (global)
-      let totalSpreadPct = 0;
-      let validPairs = 0;
-      let upwardTrades = 0;
-      let downwardTrades = 0;
+          return { ...coin, spreadPct, signal, meaning, implication };
+        })
+        .filter((c) => !blacklist.includes(c.symbol));
+
+      // 8️⃣ Compute global spread condition
+      let totalSpreadPct = 0, validPairs = 0, upwardTrades = 0, downwardTrades = 0;
 
       for (const coin of topPairsForSignals) {
         const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
@@ -281,11 +286,7 @@ const usdtPairs = infoRes.data.symbols
       // 9️⃣ Weekly Rhythm Logger
       const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila" });
       const weekday = new Date().toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Manila" });
-      const bias = txnDominantSide.includes("Bullish")
-        ? "🟩"
-        : txnDominantSide.includes("Bearish")
-        ? "🟥"
-        : "⚫";
+      const bias = txnDominantSide.includes("Bullish") ? "🟩" : txnDominantSide.includes("Bearish") ? "🟥" : "⚫";
 
       let history = JSON.parse(localStorage.getItem("marketHistory") || "[]");
       const existing = history.find((h: any) => h.date === today);
@@ -341,7 +342,7 @@ const usdtPairs = infoRes.data.symbols
       else if (sentimentScore <= -2) overallSentiment = "🔴 Bearish Market Bias";
       setGeneralBias(overallSentiment);
 
-      // ✅ Save to UI state
+      // ✅ Update all UI states
       setRawData(combinedData);
       setGreenCount(greenCount);
       setRedCount(redCount);
@@ -374,7 +375,8 @@ const usdtPairs = infoRes.data.symbols
   const interval = setInterval(fetchAllData, 60000);
   return () => clearInterval(interval);
 }, []);
-
+                    
+      
   // 🟢 Define Top 10 Bullish & 🔴 Top 10 Bearish Lists
 const top10Bullish = rawData
   .filter((c) => c.priceChangePercent > 0)
