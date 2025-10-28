@@ -10,12 +10,17 @@ interface SymbolData {
   fundingRate: number;
   lastPrice: number;
   volume: number;
-  spreadPct: number; // ✅ always defined
+  spreadPct: number;
   signal?: string;
   meaning?: string;
   implication?: string;
-  extremeVolume?: boolean;   // 🔥 added
-  volumeLabel?: string;      // 🔥 added
+
+  // 🔥 Added fields for real volume spike detection
+  extremeVolume?: boolean;
+  volumeLabel?: string;
+  volumeSpike?: boolean; // real 1h spike
+  avgVol?: number;
+  lastVol?: number;
 }
 
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
