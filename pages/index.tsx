@@ -110,7 +110,7 @@ const [weeklyStats, setWeeklyStats] = useState<{
       const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
 
       // 🧹 2. Manual blacklist to exclude delisted or unstable tokens
-      const blacklist = ["ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT","LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUDST","RENUSDT","OMNIUSDT","SLERFUSDT","STMXUSDT"];
+      const blacklist = ["ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT","LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUDST","RENUSDT","OMNIUSDT","SLERFUSDT","STMXUSDT", "UXLINKUSDT"];
 
       const usdtPairs = infoRes.data.symbols
         .filter(
