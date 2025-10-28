@@ -379,7 +379,7 @@ const usdtPairs = infoRes.data.symbols
 const top10Bullish = rawData
   .filter((c) => c.priceChangePercent > 0)
   .sort((a, b) => b.priceChangePercent - a.priceChangePercent)
-  .slice(0, 10);
+  .slice(0, 30);
 
 const top10Bearish = rawData
   .filter((c) => c.priceChangePercent < 0)
