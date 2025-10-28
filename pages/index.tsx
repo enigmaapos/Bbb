@@ -816,13 +816,15 @@ const top10Bearish = rawData
   <ul className="space-y-2">
     {rawData
       .filter((c) => c.volumeSpike)
-      .sort((a, b) => b.lastVol - a.lastVol)
+      .sort((a, b) => (b.lastVol ?? 0) - (a.lastVol ?? 0))
       .slice(0, 10)
       .map((coin, i) => (
         <li key={coin.symbol} className="p-3 border border-orange-600/30 bg-orange-900/10 rounded-lg">
           <div className="flex justify-between items-center">
             <div>
-              <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
+              <div className="font-semibold text-gray-200">
+                {i + 1}. {coin.symbol}
+              </div>
               <div className="text-xs text-orange-400 mt-1">{coin.volumeLabel}</div>
             </div>
             <div className="text-right text-xs text-gray-300">
