@@ -119,26 +119,43 @@ const usdtPairs = infoRes.data.symbols
       const fundingData = fundingRes.data;
 
       // 2️⃣ Combine ticker + funding + volume
-      let combinedData: SymbolData[] = usdtPairs
-        .map((symbol: string) => {
-          const ticker = tickerData.find((t: any) => t.symbol === symbol);
-          const funding = fundingData.find((f: any) => f.symbol === symbol);
-          return {
-            symbol,
-            priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
-            fundingRate: parseFloat(funding?.lastFundingRate || "0"),
-            lastPrice: parseFloat(ticker?.lastPrice || "0"),
-            volume: parseFloat(ticker?.quoteVolume || "0"),
-          };
-        })
-        .filter((d: SymbolData) => d.volume > 0);
+let combinedData: SymbolData[] = usdtPairs
+  .map((symbol: string) => {
+    const ticker = tickerData.find((t: any) => t.symbol === symbol);
+    const funding = fundingData.find((f: any) => f.symbol === symbol);
+    return {
+      symbol,
+      priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
+      fundingRate: parseFloat(funding?.lastFundingRate || "0"),
+      lastPrice: parseFloat(ticker?.lastPrice || "0"),
+      volume: parseFloat(ticker?.quoteVolume || "0"),
+    };
+  })
+  .filter((d: SymbolData) => d.volume > 0);
 
-      // 3️⃣ Categorize sentiment buckets
-      const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
-      const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
-      const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
-      const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+// 🔥 Detect Extreme Volume Coins (top 1% or 99th percentile)
+const volumes = combinedData.map((d) => d.volume);
+const sortedVolumes = [...volumes].sort((a, b) => a - b);
+const cutoffIndex = Math.floor(sortedVolumes.length * 0.99);
+const extremeVolumeThreshold = sortedVolumes[cutoffIndex] || 0;
 
+const extremeVolumeCoins = combinedData.filter((d) => d.volume >= extremeVolumeThreshold);
+
+combinedData = combinedData.map((coin) => {
+  const isExtreme = coin.volume >= extremeVolumeThreshold;
+  return {
+    ...coin,
+    extremeVolume: isExtreme,
+    volumeLabel: isExtreme ? "🔥 Extreme Volume Spike" : "Normal",
+  };
+});
+
+// 3️⃣ Categorize sentiment buckets
+const gPos = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate >= 0).length;
+const gNeg = combinedData.filter((d) => d.priceChangePercent >= 0 && d.fundingRate < 0).length;
+const rPos = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate >= 0).length;
+const rNeg = combinedData.filter((d) => d.priceChangePercent < 0 && d.fundingRate < 0).length;
+      
       // 4️⃣ Liquidity totals (quoteVolume)
       const greenTotal = combinedData
         .filter((d) => d.priceChangePercent >= 0)
@@ -767,6 +784,31 @@ const top10Bearish = rawData
             )}
           </div>
         </div>
+
+        {/* 🔥 Extreme Volume Coins */}
+<div className="mt-6">
+  <h3 className="text-yellow-400 font-semibold mb-3">🔥 Extreme Volume Coins (24h)</h3>
+  <ul className="space-y-2">
+    {rawData
+      .filter((d) => d.extremeVolume)
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 10)
+      .map((coin, i) => (
+        <li key={coin.symbol} className="p-3 border border-yellow-600/30 bg-yellow-900/10 rounded-lg">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="font-semibold text-gray-200">{i + 1}. {coin.symbol}</div>
+              <div className="text-xs text-yellow-400 mt-1">{coin.volumeLabel}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-gray-300 text-xs">Vol: {formatCompact(coin.volume)} USDT</div>
+              <div className="text-green-400 text-xs">Change: {coin.priceChangePercent.toFixed(2)}%</div>
+            </div>
+          </div>
+        </li>
+      ))}
+  </ul>
+</div>
 
            {/* Top 10 lists */}
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
