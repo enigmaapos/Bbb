@@ -103,7 +103,7 @@ const futuresSymbols = new Set(fundingRes.data.map((f: any) => f.symbol));
 
 // 🧹 2. Manual blacklist to exclude spot-only or delisted tokens
 const blacklist = ["ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT", "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUSDT", "RENUSDT", "OMNIUSDT", "SLERFUSDT", "STMXUSDT", "UXLINKUSDT", "BSWUSDT", "NEIROETHUSDT", "VIDTUSDT", "TROYUSDT", "BAKEUSDT", "AMBUSDT", "MEMEFIUSDT", 
-                  "NULSUSDT", "HIFIUSDT"];
+                  "NULSUSDT", "HIFIUSDT", "LEVERUSDT", "XEMUSDT", "STRAXUSDT", "COMBOUSDT"];
 
 // ✅ 3. Keep only valid, tradable perpetual futures pairs
 const usdtPairs = infoRes.data.symbols
