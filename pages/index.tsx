@@ -14,6 +14,8 @@ interface SymbolData {
   signal?: string;
   meaning?: string;
   implication?: string;
+  extremeVolume?: boolean;   // 🔥 added
+  volumeLabel?: string;      // 🔥 added
 }
 
 function isAxiosErrorTypeGuard(error: any): error is import("axios").AxiosError {
