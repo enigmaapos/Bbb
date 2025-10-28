@@ -267,12 +267,12 @@ const [weeklyStats, setWeeklyStats] = useState<{
       let downwardTrades = 0;
 
       for (const coin of topPairsForSignals) {
-        const depth = depthDataPerCoin.find((d) => d.symbol === coin.symbol);
-        if (!depth || depth.spreadPct == null) continue;
-        totalSpreadPct += depth.spreadPct;
-        validPairs++;
-        if (coin.priceChangePercent > 0) upwardTrades++;
-        else if (coin.priceChangePercent < 0) downwardTrades++;
+  const depth = depthData.find((d) => d.symbol === coin.symbol);
+  if (!depth || depth.spreadPct == null) continue;
+  totalSpreadPct += depth.spreadPct;
+  validPairs++;
+  if (coin.priceChangePercent > 0) upwardTrades++;
+  else if (coin.priceChangePercent < 0) downwardTrades++;
       }
 
       const avgSpread = validPairs > 0 ? totalSpreadPct / validPairs : 0;
