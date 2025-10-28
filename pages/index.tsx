@@ -106,7 +106,7 @@ const [weeklyStats, setWeeklyStats] = useState<{
       const blacklist = [
         "ALPACAUSDT", "BNXUSDT", "ALPHAUSDT", "OCEANUSDT", "DGBUSDT", "AGIXUSDT",
         "LINAUSDT", "LOKAUSDT", "KEYUSDT", "MDTUSDT", "LOOMUSDT", "RENUSDT",
-        "OMNIUSDT", "SLERFUSDT", "STMXUSDT"
+        "OMNIUSDT", "SLERFUSDT", "STMXUSDT", "DEFIUSDT"
       ];
 
       // ✅ Filter only valid Binance Futures (PERPETUAL USDT) pairs
