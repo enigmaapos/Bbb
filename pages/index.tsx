@@ -146,8 +146,8 @@ const [weeklyStats, setWeeklyStats] = useState<{
       const klinePromises = topVolumePairs.map(async (pair) => {
   try {
     const res = await axios.get(`${BINANCE_API}/fapi/v1/klines`, {
-      params: { symbol: pair.symbol, interval: "1h", limit: 50 },
-    });
+  params: { symbol: pair.symbol, interval: "1d", limit: 50 },
+});
     const volumes = res.data.map((k: any) => parseFloat(k[5]));
     const avgVol =
       volumes.slice(0, -1).reduce((a: number, b: number) => a + b, 0) /
@@ -812,7 +812,7 @@ const top10Bearish = rawData
 
         {/* 🔥 Real Volume Spike Detector */}
 <div className="mt-6">
-  <h3 className="text-orange-400 font-semibold mb-3">🔥 Real Volume Spike (1h)</h3>
+  <h3 className="text-orange-400 font-semibold mb-3">🔥 Real Volume Spike (1D)</h3>
   <ul className="space-y-2">
     {rawData
       .filter((c) => c.volumeSpike)
