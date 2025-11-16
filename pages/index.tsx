@@ -50,6 +50,7 @@ export default function PriceFundingTracker() {
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>("—");
   const [negativeFunding1h, setNegativeFunding1h] = useState(0);
+  const [negativeFunding1hList, setNegativeFunding1hList] = useState<SymbolData[]>([]);
 
 
   // 🟩🟥 Liquidity Totals
@@ -358,6 +359,9 @@ setSpreadInterpretation(interpretation);
 
       const neg1h = combinedData.filter(d => d.fundingRate1h < 0).length;
 setNegativeFunding1h(neg1h);
+
+      const negativeList = combinedData.filter(d => d.fundingRate1h < 0);
+setNegativeFunding1hList(negativeList);
       
       setGreenLiquidity(greenTotal);
       setRedLiquidity(redTotal);
@@ -832,6 +836,23 @@ const top10Bearish = rawData
   <p className="text-sm">
     Count: <span className="text-red-400 font-bold">{negativeFunding1h}</span>
   </p>
+</div>
+
+        <div className="mt-4 bg-gray-900/60 border border-red-600/30 rounded-xl p-4">
+  <h3 className="text-red-400 font-semibold mb-2">📉 Tokens with Negative 1h Funding Fee</h3>
+
+  {negativeFunding1hList.length === 0 ? (
+    <p className="text-gray-400 text-sm">No tokens currently have negative 1h funding.</p>
+  ) : (
+    <ul className="text-sm space-y-1 max-h-64 overflow-y-auto">
+      {negativeFunding1hList.map((coin) => (
+        <li key={coin.symbol} className="flex justify-between text-gray-300">
+          <span>{coin.symbol}</span>
+          <span className="text-red-400">{coin.fundingRate1h.toFixed(6)}</span>
+        </li>
+      ))}
+    </ul>
+  )}
 </div>
 
         {/* Funding Sentiment Chart */}
