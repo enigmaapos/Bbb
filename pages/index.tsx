@@ -8,7 +8,6 @@ interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
-  realFundingOnly1h: number | null;
     fundingRate1h: number;
   lastPrice: number;
   volume: number;
@@ -91,24 +90,6 @@ const [weeklyStats, setWeeklyStats] = useState<{
   phase: "—",
 });
 
-  async function fetchReal1hFunding() {
-  const url = "https://fapi.binance.com/fapi/v1/fundingInfo?limit=500";
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return [];
-    const data = await response.json();
-
-    return data.map((item: any) => ({
-      symbol: item.symbol,
-      realFundingRate1h:
-        item.fundingIntervalHours === 1 ? parseFloat(item.fundingRate) : null,
-    }));
-  } catch (error) {
-    console.error("Error fetching real 1h funding:", error);
-    return [];
-  }
-  }
-
 useEffect(() => {
   const fetchAllData = async () => {
     setError(null);
@@ -140,28 +121,17 @@ const usdtPairs = infoRes.data.symbols
       
       const tickerData = tickerRes.data;
       const fundingData = fundingRes.data;
-      const real1hFunding = await fetchReal1hFunding();
 
       // 2️⃣ Combine ticker + funding + volume
       let combinedData: SymbolData[] = usdtPairs
         .map((symbol: string) => {
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
-const real1h = real1hFunding.find((f: any) => f.symbol === symbol);
-
-return {
+          return {
   symbol,
   priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
   fundingRate: parseFloat(funding?.lastFundingRate || "0"),
-
-  // ✔ REAL 1H (NO FALLBACK)
-  realFundingOnly1h: real1h?.realFundingRate1h ?? null,
-
-  // ✔ DISPLAY 1H (with fallback only for UI)
-  fundingRate1h:
-    real1h?.realFundingRate1h ??
-    parseFloat(funding?.lastFundingRate || "0") / 8,
-
+  fundingRate1h: parseFloat(funding?.lastFundingRate || "0") / 8, // ✅ ADDED
   lastPrice: parseFloat(ticker?.lastPrice || "0"),
   volume: parseFloat(ticker?.quoteVolume || "0"),
 };
@@ -387,18 +357,12 @@ setSpreadInterpretation(interpretation);
       setRedPositiveFunding(rPos);
       setRedNegativeFunding(rNeg);
 
-      const neg1h = combinedData.filter(
-  d => d.realFundingOnly1h !== null && d.realFundingOnly1h < 0
-).length;
-
+      const neg1h = combinedData.filter(d => d.fundingRate1h < 0).length;
 setNegativeFunding1h(neg1h);
 
       const negativeList = combinedData
-  .filter(d => d.realFundingOnly1h !== null && d.realFundingOnly1h < 0)
-  .sort(
-    (a, b) =>
-      (b.realFundingOnly1h as number) - (a.realFundingOnly1h as number)
-  );
+  .filter(d => d.fundingRate1h < 0)
+  .sort((a, b) => b.fundingRate1h - a.fundingRate1h); // HIGH → LOW
 
 setNegativeFunding1hList(negativeList);
       
