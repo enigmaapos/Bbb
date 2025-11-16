@@ -48,6 +48,7 @@ export default function PriceFundingTracker() {
   const [redPositiveFunding, setRedPositiveFunding] = useState(0);
   const [redNegativeFunding, setRedNegativeFunding] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string>("—");
+  const [negativeFunding1h, setNegativeFunding1h] = useState(0);
 
 
   // 🟩🟥 Liquidity Totals
@@ -125,12 +126,13 @@ const usdtPairs = infoRes.data.symbols
           const ticker = tickerData.find((t: any) => t.symbol === symbol);
           const funding = fundingData.find((f: any) => f.symbol === symbol);
           return {
-            symbol,
-            priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
-            fundingRate: parseFloat(funding?.lastFundingRate || "0"),
-            lastPrice: parseFloat(ticker?.lastPrice || "0"),
-            volume: parseFloat(ticker?.quoteVolume || "0"),
-          };
+  symbol,
+  priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
+  fundingRate: parseFloat(funding?.lastFundingRate || "0"),
+  fundingRate1h: parseFloat(funding?.lastFundingRate || "0") / 8, // ✅ ADDED
+  lastPrice: parseFloat(ticker?.lastPrice || "0"),
+  volume: parseFloat(ticker?.quoteVolume || "0"),
+};
         })
         .filter((d: SymbolData) => d.volume > 0);
 
@@ -352,6 +354,10 @@ setSpreadInterpretation(interpretation);
       setGreenNegativeFunding(gNeg);
       setRedPositiveFunding(rPos);
       setRedNegativeFunding(rNeg);
+
+      const neg1h = combinedData.filter(d => d.fundingRate1h < 0).length;
+setNegativeFunding1h(neg1h);
+      
       setGreenLiquidity(greenTotal);
       setRedLiquidity(redTotal);
       setDominantLiquidity(
@@ -382,12 +388,12 @@ setSpreadInterpretation(interpretation);
 const top10Bullish = rawData
   .filter((c) => c.priceChangePercent > 0)
   .sort((a, b) => b.priceChangePercent - a.priceChangePercent)
-  .slice(0, 30);
+  .slice(0, 10);
 
 const top10Bearish = rawData
   .filter((c) => c.priceChangePercent < 0)
   .sort((a, b) => a.priceChangePercent - b.priceChangePercent)
-  .slice(0, 30);
+  .slice(0, 10);
   
 
   // Helper to format big numbers to compact (e.g., 1.23B)
@@ -819,6 +825,13 @@ const top10Bearish = rawData
                 </ul>
               </div>
             </div>
+
+        <div className="mt-2 bg-gray-800/60 border border-purple-700/30 rounded-xl p-3">
+  <p className="text-purple-300 font-semibold mb-1">🕒 Negative 1h Funding Fees</p>
+  <p className="text-sm">
+    Count: <span className="text-red-400 font-bold">{negativeFunding1h}</span>
+  </p>
+</div>
 
         {/* Funding Sentiment Chart */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
