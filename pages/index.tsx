@@ -361,8 +361,10 @@ setSpreadInterpretation(interpretation);
 setNegativeFunding1h(neg1h);
 
       const negativeList = combinedData
-  .filter(d => d.fundingRate1h < 0) // ONLY 1h
-  .sort((a, b) => b.fundingRate1h - a.fundingRate1h);
+  .filter(d => d.fundingRate1h < 0)
+  .sort((a, b) => b.fundingRate1h - a.fundingRate1h); // HIGH → LOW
+
+setNegativeFunding1hList(negativeList);
       
       setGreenLiquidity(greenTotal);
       setRedLiquidity(redTotal);
