@@ -8,6 +8,7 @@ interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
+  realFundingOnly1h: number | null;
     fundingRate1h: number;
   lastPrice: number;
   volume: number;
