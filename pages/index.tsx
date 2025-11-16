@@ -8,6 +8,7 @@ interface SymbolData {
   symbol: string;
   priceChangePercent: number;
   fundingRate: number;
+    fundingRate1h: number;
   lastPrice: number;
   volume: number;
   spreadPct: number; // ✅ always defined
