@@ -395,7 +395,10 @@ setNegativeFunding1h(neg1h);
 
       const negativeList = combinedData
   .filter(d => d.realFundingOnly1h !== null && d.realFundingOnly1h < 0)
-  .sort((a, b) => b.realFundingOnly1h - a.realFundingOnly1h);
+  .sort(
+    (a, b) =>
+      (b.realFundingOnly1h as number) - (a.realFundingOnly1h as number)
+  );
 
 setNegativeFunding1hList(negativeList);
       
