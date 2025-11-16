@@ -153,10 +153,9 @@ return {
   priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
   fundingRate: parseFloat(funding?.lastFundingRate || "0"),
 
-  // ⚡ USE REAL 1H FUNDING IF AVAILABLE
+  // ⚡ USE REAL 1H FUNDING IF EXISTS, OTHERWISE FALLBACK
   fundingRate1h:
-    real1h?.realFundingRate1h !== null &&
-    real1h?.realFundingRate1h !== undefined
+    real1h && real1h.realFundingRate1h !== null
       ? real1h.realFundingRate1h
       : parseFloat(funding?.lastFundingRate || "0") / 8,
 
