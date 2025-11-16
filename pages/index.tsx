@@ -153,11 +153,13 @@ return {
   priceChangePercent: parseFloat(ticker?.priceChangePercent || "0"),
   fundingRate: parseFloat(funding?.lastFundingRate || "0"),
 
-  // ⚡ USE REAL 1H FUNDING IF EXISTS, OTHERWISE FALLBACK
+  // ✔ REAL 1H (NO FALLBACK)
+  realFundingOnly1h: real1h?.realFundingRate1h ?? null,
+
+  // ✔ DISPLAY 1H (with fallback only for UI)
   fundingRate1h:
-    real1h && real1h.realFundingRate1h !== null
-      ? real1h.realFundingRate1h
-      : parseFloat(funding?.lastFundingRate || "0") / 8,
+    real1h?.realFundingRate1h ??
+    parseFloat(funding?.lastFundingRate || "0") / 8,
 
   lastPrice: parseFloat(ticker?.lastPrice || "0"),
   volume: parseFloat(ticker?.quoteVolume || "0"),
@@ -384,12 +386,15 @@ setSpreadInterpretation(interpretation);
       setRedPositiveFunding(rPos);
       setRedNegativeFunding(rNeg);
 
-      const neg1h = combinedData.filter(d => d.fundingRate1h < 0).length;
+      const neg1h = combinedData.filter(
+  d => d.realFundingOnly1h !== null && d.realFundingOnly1h < 0
+).length;
+
 setNegativeFunding1h(neg1h);
 
       const negativeList = combinedData
-  .filter(d => d.fundingRate1h < 0)
-  .sort((a, b) => b.fundingRate1h - a.fundingRate1h);
+  .filter(d => d.realFundingOnly1h !== null && d.realFundingOnly1h < 0)
+  .sort((a, b) => b.realFundingOnly1h - a.realFundingOnly1h);
 
 setNegativeFunding1hList(negativeList);
       
