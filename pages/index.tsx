@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import FundingSentimentChart from "../components/FundingSentimentChart";
-import LeverageProfitCalculator from "../components/LeverageProfitCalculator";
 import axios from "axios";
 
 interface SymbolData {
@@ -930,10 +929,6 @@ function AthGapCalculator({ data }: { data: SymbolData[] }) {
 
   return (
     <div>
-
-      <div className="mb-8">
-          <LeverageProfitCalculator />
-        </div>
       
       <div className="flex flex-col md:flex-row gap-4 mb-4">
         <select
